@@ -1,0 +1,92 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model DeliveryReport {
+  id         String          @id @default(cuid())
+  filename   String
+  uploadedAt DateTime        @default(now())
+  isActive   Boolean         @default(true)
+  orders     DeliveryOrder[]
+}
+
+model ScheduledReport {
+  id           String        @id @default(cuid())
+  reportId     String
+  emails       String
+  frequency    String
+  time         String
+  dayOfWeek    Int?
+  dayOfMonth   Int?
+  isActive     Boolean       @default(true)
+  createdAt    DateTime      @default(now())
+  updatedAt    DateTime      @updatedAt
+  sendLogs     EmailSendLog[]
+}
+
+model EmailSendLog {
+  id          String          @id @default(cuid())
+  scheduleId  String
+  schedule    ScheduledReport @relation(fields: [scheduleId], references: [id])
+  sentAt      DateTime        @default(now())
+  success     Boolean
+  recipients  String
+  error       String?
+}
+
+model DeliveryOrder {
+  id                          String         @id @default(cuid())
+  reportId                    String
+  report                      DeliveryReport @relation(fields: [reportId], references: [id], onDelete: Cascade)
+
+  externalReference           String?
+  shipperReference            String?
+  carrierReference            String?
+
+  pickupTimeStart             DateTime?
+  deliveryTimeStart           DateTime?
+  deliveryTimeEnd             DateTime?
+
+  dateTimeWhenOrderSent       DateTime?
+  dateTimeWhenAssigned        DateTime?
+  dateTimeWhenInTransport     DateTime?
+  dateTimeWhenStartDelivery   DateTime?
+  dateTimeWhenDelivered       DateTime?
+  dateTimeWhenNoShow          DateTime?
+  dateTimeLastUpdate          DateTime?
+
+  shippingWorkflowStatus      String?
+  paymentOnDeliveryAmount     Float?
+
+  destinationFirstname        String?
+  destinationLastname         String?
+  destinationCityCode         String?
+  destinationLongitude        Float?
+  destinationLatitude         Float?
+
+  originHubName               String?
+  originHubCode               String?
+  originHubCity               String?
+  originHubLongitude          Float?
+  originHubLatitude           Float?
+
+  sprintName                  String?
+  livreurFirstName            String?
+  livreurLastName             String?
+  sprintGeoLongitude          Float?
+  sprintGeoLatitude           Float?
+
+  createdAt                   DateTime @default(now())
+
+  @@index([reportId])
+  @@index([shippingWorkflowStatus])
+  @@index([dateTimeWhenOrderSent])
+  @@index([deliveryTimeStart])
+  @@index([sprintName])
+  @@index([originHubName])
+}

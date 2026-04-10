@@ -16,9 +16,10 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
   return (
     <html lang="fr">
       <body className={inter.className}>
-        <div className="flex h-screen bg-gray-50">
+        <div className="min-h-screen bg-gray-50">
           <Sidebar />
-          <main className="flex-1 overflow-auto">
+          {/* ml-[60px] = collapsed sidebar width so content never shifts */}
+          <main className="ml-[60px] min-h-screen overflow-auto">
             {children}
           </main>
         </div>

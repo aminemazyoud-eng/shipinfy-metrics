@@ -328,3 +328,20 @@ BEGIN
       FOREIGN KEY ("courseId") REFERENCES "Course"("id") ON DELETE CASCADE;
   END IF;
 END $$;
+
+-- ─── SPRINT 5 — SCORE IA ────────────────────────────────────────────────────
+
+CREATE TABLE IF NOT EXISTS "ReliabilityScore" (
+    "id"           TEXT NOT NULL,
+    "driverName"   TEXT NOT NULL,
+    "deliveryRate" DOUBLE PRECISION NOT NULL DEFAULT 0,
+    "academyScore" DOUBLE PRECISION NOT NULL DEFAULT 0,
+    "noShowRate"   DOUBLE PRECISION NOT NULL DEFAULT 0,
+    "score"        DOUBLE PRECISION NOT NULL DEFAULT 0,
+    "recommendation" TEXT,
+    "calculatedAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    CONSTRAINT "ReliabilityScore_pkey" PRIMARY KEY ("id")
+);
+
+CREATE INDEX IF NOT EXISTS "ReliabilityScore_driverName_idx" ON "ReliabilityScore"("driverName");
+CREATE INDEX IF NOT EXISTS "ReliabilityScore_calculatedAt_idx" ON "ReliabilityScore"("calculatedAt");

@@ -236,3 +236,20 @@ model CourseProgress {
 
   @@unique([driverId, courseId])
 }
+
+// ─── SPRINT 5 — SCORE IA ─────────────────────────────────────────────────────
+
+model ReliabilityScore {
+  id              String   @id @default(cuid())
+  driverName      String
+  deliveryRate    Float    @default(0)
+  academyScore    Float    @default(0)
+  noShowRate      Float    @default(0)
+  score           Float    @default(0)
+  // score = deliveryRate*0.4 + academyScore*0.3 + (100-noShowRate)*0.3
+  recommendation  String?
+  calculatedAt    DateTime @default(now())
+
+  @@index([driverName])
+  @@index([calculatedAt])
+}

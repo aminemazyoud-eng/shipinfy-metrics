@@ -215,7 +215,21 @@ export function startCronScheduler() {
     runAlertCheck().catch(console.error)
   }, { timezone: 'Africa/Casablanca' })
 
-  console.log('[cron] Scheduler actif (rapports + alertes).')
+  // Score IA recalculation — every day at 02:00
+  cron.schedule('0 2 * * *', async () => {
+    console.log('[cron] Score IA recalculation starting...')
+    try {
+      const res = await fetch(`${process.env.NEXTAUTH_URL ?? 'http://localhost:' + (process.env.PORT ?? 3001)}/api/score-ia/calculate`, {
+        method: 'POST',
+      })
+      const data = await res.json()
+      console.log(`[cron] Score IA done — ${data.calculated ?? 0} drivers calculated`)
+    } catch (e) {
+      console.error('[cron] Score IA recalculation failed:', e)
+    }
+  }, { timezone: 'Africa/Casablanca' })
+
+  console.log('[cron] Scheduler actif (rapports + alertes + score IA).')
 }
 
 /**

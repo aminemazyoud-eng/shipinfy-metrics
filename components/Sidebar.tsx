@@ -3,14 +3,28 @@ import { useState, useEffect, useRef } from 'react'
 import Link from 'next/link'
 import Image from 'next/image'
 import { usePathname } from 'next/navigation'
+import type { LucideProps } from 'lucide-react'
 import {
   Activity, BarChart3, Users, MapPin, XCircle,
   TrendingUp, Bell, Mail, Settings,
   UserCheck, GraduationCap, ChevronRight, Brain,
 } from 'lucide-react'
 
+// ─── Types ─────────────────────────────────────────────────────────────────────
+interface NavItem {
+  href:      string
+  label:     string
+  icon:      React.ComponentType<LucideProps>
+  disabled?: boolean
+}
+interface NavSection {
+  key:   string
+  label: string
+  items: NavItem[]
+}
+
 // ─── Nav structure ─────────────────────────────────────────────────────────────
-const SECTIONS = [
+const SECTIONS: NavSection[] = [
   {
     key: 'analytics',
     label: 'Analytics',

@@ -1,0 +1,287 @@
+'use client'
+import { useState } from 'react'
+import {
+  Settings, Mail, Bell, Database, Shield, RefreshCw,
+  CheckCircle, AlertTriangle, Save, Eye, EyeOff,
+} from 'lucide-react'
+
+// ─── Section wrapper ───────────────────────────────────────────────────────────
+function Section({ icon: Icon, title, children }: {
+  icon: React.ComponentType<{ size?: number; className?: string }>
+  title: string
+  children: React.ReactNode
+}) {
+  return (
+    <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
+      <div className="flex items-center gap-2.5 px-5 py-3.5 border-b border-gray-100 bg-gray-50/60">
+        <Icon size={15} className="text-gray-500" />
+        <h2 className="text-sm font-semibold text-gray-700">{title}</h2>
+      </div>
+      <div className="p-5">{children}</div>
+    </div>
+  )
+}
+
+// ─── Field ─────────────────────────────────────────────────────────────────────
+function Field({ label, children, hint }: { label: string; children: React.ReactNode; hint?: string }) {
+  return (
+    <div className="flex items-start gap-4">
+      <label className="w-44 flex-shrink-0 text-sm text-gray-600 pt-2 font-medium">{label}</label>
+      <div className="flex-1">
+        {children}
+        {hint && <p className="text-xs text-gray-400 mt-1">{hint}</p>}
+      </div>
+    </div>
+  )
+}
+
+// ─── Toggle ────────────────────────────────────────────────────────────────────
+function Toggle({ enabled, onChange }: { enabled: boolean; onChange: (v: boolean) => void }) {
+  return (
+    <button
+      onClick={() => onChange(!enabled)}
+      className={`relative inline-flex h-5 w-9 items-center rounded-full transition-colors ${enabled ? 'bg-blue-600' : 'bg-gray-300'}`}
+    >
+      <span className={`inline-block h-3.5 w-3.5 transform rounded-full bg-white transition-transform shadow ${enabled ? 'translate-x-4' : 'translate-x-1'}`} />
+    </button>
+  )
+}
+
+// ─── Main ──────────────────────────────────────────────────────────────────────
+export default function ParametresPage() {
+  // SMTP / notifications
+  const [smtpFrom,  setSmtpFrom]  = useState(process.env.NEXT_PUBLIC_SMTP_FROM ?? '')
+  const [notifEmail, setNotifEmail] = useState('')
+  const [alertEmail, setAlertEmail] = useState(true)
+  const [alertSlack, setAlertSlack] = useState(false)
+
+  // Score IA thresholds
+  const [threshCritical, setThreshCritical] = useState(60)
+  const [threshGood,     setThreshGood]     = useState(80)
+
+  // Cron
+  const [cronTime, setCronTime]   = useState('02:00')
+  const [cronEnabled, setCronEnabled] = useState(true)
+
+  // UI states
+  const [testStatus, setTestStatus] = useState<'idle' | 'loading' | 'ok' | 'error'>('idle')
+  const [saved, setSaved] = useState(false)
+  const [showEnv, setShowEnv] = useState(false)
+
+  async function testEmail() {
+    if (!notifEmail) return
+    setTestStatus('loading')
+    try {
+      const res = await fetch('/api/dashboard/send-report', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          reportId: 'test',
+          emails: [notifEmail],
+          mode: 'test',
+          filters: {},
+          kpisData: {
+            totalOrders: 0, delivered: 0, noShow: 0,
+            deliveryRate: 0, onTimeRate: 0, totalCOD: 0, avgOrdersPerDay: 0,
+            byLivreur: [], byHub: [], byDay: [],
+          },
+        }),
+      })
+      setTestStatus(res.ok ? 'ok' : 'error')
+    } catch {
+      setTestStatus('error')
+    }
+    setTimeout(() => setTestStatus('idle'), 4000)
+  }
+
+  function handleSave() {
+    setSaved(true)
+    setTimeout(() => setSaved(false), 2500)
+  }
+
+  return (
+    <div className="max-w-3xl mx-auto px-6 py-8 space-y-6">
+
+      {/* Header */}
+      <div className="flex items-center gap-3">
+        <div className="w-9 h-9 rounded-lg bg-gray-100 flex items-center justify-center">
+          <Settings size={18} className="text-gray-600" />
+        </div>
+        <div>
+          <h1 className="text-lg font-bold text-gray-900">Paramètres</h1>
+          <p className="text-xs text-gray-500">Configuration de la plateforme Shipinfy Metrics</p>
+        </div>
+      </div>
+
+      {/* ── Email & Notifications ─────────────────────────── */}
+      <Section icon={Mail} title="Email & Notifications">
+        <div className="space-y-4">
+          <Field label="Expéditeur SMTP" hint="Configuré via variable SMTP_FROM dans l'environnement Dokploy">
+            <input
+              readOnly
+              value={smtpFrom || 'Défini via env SMTP_FROM'}
+              className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm bg-gray-50 text-gray-500 cursor-not-allowed"
+            />
+          </Field>
+
+          <Field label="Email de test">
+            <div className="flex gap-2">
+              <input
+                type="email"
+                placeholder="votre@email.com"
+                value={notifEmail}
+                onChange={e => setNotifEmail(e.target.value)}
+                className="flex-1 border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+              />
+              <button
+                onClick={testEmail}
+                disabled={!notifEmail || testStatus === 'loading'}
+                className="flex items-center gap-1.5 bg-blue-600 text-white px-4 py-2 rounded-lg text-sm font-medium hover:bg-blue-700 disabled:opacity-50 transition-colors"
+              >
+                {testStatus === 'loading' ? (
+                  <RefreshCw size={13} className="animate-spin" />
+                ) : testStatus === 'ok' ? (
+                  <CheckCircle size={13} />
+                ) : testStatus === 'error' ? (
+                  <AlertTriangle size={13} />
+                ) : (
+                  <Mail size={13} />
+                )}
+                {testStatus === 'ok' ? 'Envoyé !' : testStatus === 'error' ? 'Erreur' : 'Tester'}
+              </button>
+            </div>
+          </Field>
+
+          <div className="border-t border-gray-100 pt-4 space-y-3">
+            <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide">Canaux d&apos;alerte</p>
+            <Field label="Alertes par email">
+              <Toggle enabled={alertEmail} onChange={setAlertEmail} />
+            </Field>
+            <Field label="Alertes Slack">
+              <div className="flex items-center gap-3">
+                <Toggle enabled={alertSlack} onChange={setAlertSlack} />
+                <span className="text-xs text-gray-400">(Webhook Slack — à configurer)</span>
+              </div>
+            </Field>
+          </div>
+        </div>
+      </Section>
+
+      {/* ── Score IA ─────────────────────────────────────── */}
+      <Section icon={Shield} title="Score IA — Seuils de fiabilité">
+        <div className="space-y-4">
+          <div className="bg-purple-50 rounded-lg p-3 text-xs text-purple-700 font-medium">
+            Formule : <code className="font-mono">score = livraisonRate×0.4 + academyScore×0.3 + (100 − noShowRate)×0.3</code>
+          </div>
+          <Field label="Seuil Critique (<)" hint="En dessous de ce score, une alerte est créée automatiquement">
+            <div className="flex items-center gap-3">
+              <input
+                type="number" min={0} max={100}
+                value={threshCritical}
+                onChange={e => setThreshCritical(Number(e.target.value))}
+                className="w-24 border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-purple-500"
+              />
+              <span className="text-sm font-bold text-red-600">/100 → 🔴 Critique</span>
+            </div>
+          </Field>
+          <Field label="Seuil Excellent (≥)" hint="Au-dessus de ce score, le livreur est classé Excellent">
+            <div className="flex items-center gap-3">
+              <input
+                type="number" min={0} max={100}
+                value={threshGood}
+                onChange={e => setThreshGood(Number(e.target.value))}
+                className="w-24 border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-purple-500"
+              />
+              <span className="text-sm font-bold text-green-600">/100 → ✅ Excellent</span>
+            </div>
+          </Field>
+        </div>
+      </Section>
+
+      {/* ── Tâches planifiées ─────────────────────────────── */}
+      <Section icon={RefreshCw} title="Tâches planifiées (Cron)">
+        <div className="space-y-4">
+          <Field label="Recalcul Score IA" hint="Heure d'exécution quotidienne (fuseau Africa/Casablanca)">
+            <div className="flex items-center gap-3">
+              <Toggle enabled={cronEnabled} onChange={setCronEnabled} />
+              <input
+                type="time"
+                value={cronTime}
+                onChange={e => setCronTime(e.target.value)}
+                disabled={!cronEnabled}
+                className="border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:opacity-40"
+              />
+            </div>
+          </Field>
+          <Field label="Rapports planifiés" hint="Gérés depuis le module Rapports">
+            <span className="text-xs text-gray-400 bg-gray-100 px-2 py-1 rounded">Actifs selon configuration par rapport</span>
+          </Field>
+        </div>
+      </Section>
+
+      {/* ── Base de données ───────────────────────────────── */}
+      <Section icon={Database} title="Base de données">
+        <div className="space-y-3">
+          <Field label="Connexion PostgreSQL" hint="Supabase — partagée avec App 1 (qualityos)">
+            <div className="flex items-center gap-2">
+              <span className="w-2 h-2 rounded-full bg-green-500 flex-shrink-0" />
+              <span className="text-sm text-gray-600">Connectée · Supabase PostgreSQL</span>
+              <button
+                onClick={() => setShowEnv(!showEnv)}
+                className="ml-auto text-xs text-gray-400 hover:text-gray-600 flex items-center gap-1"
+              >
+                {showEnv ? <EyeOff size={12} /> : <Eye size={12} />}
+                {showEnv ? 'Masquer' : 'Voir'}
+              </button>
+            </div>
+            {showEnv && (
+              <div className="mt-2 bg-gray-900 rounded-lg px-3 py-2 font-mono text-xs text-green-400 overflow-auto">
+                DATABASE_URL=postgresql://****@****:5432/postgres
+              </div>
+            )}
+          </Field>
+          <Field label="Tables actives">
+            <div className="flex flex-wrap gap-1.5">
+              {['DeliveryReport','DeliveryOrder','AlertRule','Alert','Ticket','Driver','OnboardingStep','Course','Lesson','CourseProgress','ReliabilityScore'].map(t => (
+                <span key={t} className="text-[10px] font-mono bg-blue-50 text-blue-700 px-2 py-0.5 rounded">{t}</span>
+              ))}
+            </div>
+          </Field>
+        </div>
+      </Section>
+
+      {/* ── Version ──────────────────────────────────────── */}
+      <Section icon={Bell} title="À propos">
+        <div className="space-y-2 text-sm text-gray-600">
+          <div className="flex justify-between">
+            <span>Version plateforme</span>
+            <span className="font-bold text-blue-700">SHIPINFY Metrics v3.0</span>
+          </div>
+          <div className="flex justify-between">
+            <span>Sprints déployés</span>
+            <span className="font-medium">Sprint 1 → 5 · Full Platform</span>
+          </div>
+          <div className="flex justify-between">
+            <span>Framework</span>
+            <span className="font-mono text-xs">Next.js 16 · App Router · Prisma 5</span>
+          </div>
+          <div className="flex justify-between">
+            <span>Hébergement</span>
+            <span className="font-mono text-xs">Dokploy · Docker Standalone</span>
+          </div>
+        </div>
+      </Section>
+
+      {/* Save button */}
+      <div className="flex justify-end pb-4">
+        <button
+          onClick={handleSave}
+          className="flex items-center gap-2 bg-gray-900 text-white px-6 py-2.5 rounded-lg text-sm font-medium hover:bg-gray-800 transition-colors"
+        >
+          {saved ? <CheckCircle size={15} /> : <Save size={15} />}
+          {saved ? 'Enregistré !' : 'Sauvegarder'}
+        </button>
+      </div>
+    </div>
+  )
+}

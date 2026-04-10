@@ -51,6 +51,14 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: 'No recipients provided' }, { status: 400 })
     }
 
+    // Guard: refuse to send an empty report (no data imported yet)
+    if (!body.kpisData || (body.kpisData.totalOrders ?? 0) === 0) {
+      return NextResponse.json(
+        { error: 'Aucune donnée disponible. Importez un fichier CSV avant d\'envoyer le rapport.' },
+        { status: 422 }
+      )
+    }
+
     const generatedAt = new Date().toISOString()
 
     const emailData: EmailKpisData = {

@@ -7,7 +7,7 @@ interface Props {
   onClose: () => void
   reportId: string
   filters: Record<string, unknown>
-  kpisData: unknown
+  kpisData: { totalOrders?: number; [k: string]: unknown } | null
 }
 
 type Mode = 'instant' | 'scheduled'
@@ -20,6 +20,7 @@ const DAYS_OF_MONTH = Array.from({ length: 28 }, (_, i) => i + 1)
 function isValidEmail(e: string) { return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(e) }
 
 export function SendReportModal({ open, onClose, reportId, filters, kpisData }: Props) {
+  const hasData = (kpisData?.totalOrders ?? 0) > 0
   const [mode, setMode] = useState<Mode>('instant')
 
   const [emails, setEmails] = useState<string[]>([''])
@@ -182,6 +183,15 @@ export function SendReportModal({ open, onClose, reportId, filters, kpisData }: 
                   </p>
                 )}
 
+                {!hasData && (
+                  <div className="mt-3 flex items-start gap-2 rounded-lg bg-amber-50 border border-amber-200 px-3 py-2.5">
+                    <span className="text-amber-500 text-base leading-none mt-0.5">⚠️</span>
+                    <p className="text-xs font-medium text-amber-700">
+                      Aucune commande dans ce rapport. Importez d&apos;abord un fichier CSV — le PDF serait vide.
+                    </p>
+                  </div>
+                )}
+
                 <p className="mt-4 text-xs text-gray-400">
                   Le rapport PDF complet sera envoyé immédiatement avec tous les KPIs.
                 </p>
@@ -191,8 +201,8 @@ export function SendReportModal({ open, onClose, reportId, filters, kpisData }: 
                     className="flex-1 rounded-lg border border-gray-300 py-2.5 text-sm font-medium text-gray-700 hover:bg-gray-50">
                     Annuler
                   </button>
-                  <button onClick={handleSendInstant} disabled={status === 'loading'}
-                    className="flex flex-1 items-center justify-center gap-2 rounded-lg bg-blue-600 py-2.5 text-sm font-bold text-white hover:bg-blue-700 disabled:opacity-50 transition-colors">
+                  <button onClick={handleSendInstant} disabled={status === 'loading' || !hasData}
+                    className="flex flex-1 items-center justify-center gap-2 rounded-lg bg-blue-600 py-2.5 text-sm font-bold text-white hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors">
                     {status === 'loading'
                       ? <><Loader2 className="h-4 w-4 animate-spin" /> Envoi...</>
                       : <><Zap className="h-4 w-4" /> Envoyer maintenant</>}

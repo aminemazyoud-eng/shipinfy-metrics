@@ -273,7 +273,7 @@ export async function generateReportPDF(data: EmailKpisData): Promise<Buffer> {
     doc.fillColor(C.text).font('Helvetica-Bold').fontSize(19)
        .text('Rapport de Performance Livraison', M, y, { lineBreak: false })
     doc.fillColor(C.muted).font('Helvetica').fontSize(9.5)
-       .text('Analyse complète des KPIs des tournées · généré automatiquement', M, y + 24, { lineBreak: false })
+       .text('Analyse complète des KPIs des tournées', M, y + 24, { lineBreak: false })
     y += 48
 
     // ── KPI cards — row 1 ──────────────────────────────────────────────────

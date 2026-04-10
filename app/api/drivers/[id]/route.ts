@@ -3,10 +3,13 @@ import { prisma } from '@/lib/prisma'
 
 export const runtime = 'nodejs'
 
-export async function GET(_: Request, { params }: { params: { id: string } }) {
+type RouteCtx = { params: Promise<{ id: string }> }
+
+export async function GET(_: Request, { params }: RouteCtx) {
   try {
+    const { id } = await params
     const driver = await prisma.driver.findUnique({
-      where: { id: params.id },
+      where: { id },
       include: {
         onboardingSteps: { orderBy: { step: 'asc' } },
         courseProgress:  { include: { course: true } },
@@ -19,8 +22,9 @@ export async function GET(_: Request, { params }: { params: { id: string } }) {
   }
 }
 
-export async function PATCH(req: Request, { params }: { params: { id: string } }) {
+export async function PATCH(req: Request, { params }: RouteCtx) {
   try {
+    const { id } = await params
     const body = await req.json()
     // If updating a step status
     if (body.stepId) {
@@ -33,7 +37,7 @@ export async function PATCH(req: Request, { params }: { params: { id: string } }
         },
       })
       // Recalculate driver status based on steps
-      const allSteps = await prisma.onboardingStep.findMany({ where: { driverId: params.id } })
+      const allSteps = await prisma.onboardingStep.findMany({ where: { driverId: id } })
       const validated = allSteps.filter(s => s.status === 'validated').length
       let driverStatus = 'en_cours'
       if (validated === 0) driverStatus = 'prospect'
@@ -41,20 +45,20 @@ export async function PATCH(req: Request, { params }: { params: { id: string } }
       else if (validated < 5) driverStatus = 'formation'
       else driverStatus = 'valide'
 
-      await prisma.driver.update({ where: { id: params.id }, data: { status: driverStatus } })
+      await prisma.driver.update({ where: { id }, data: { status: driverStatus } })
       return NextResponse.json(step)
     }
     // Otherwise update driver fields
     const driver = await prisma.driver.update({
-      where: { id: params.id },
+      where: { id },
       data: {
-        firstName:       body.firstName ?? undefined,
-        lastName:        body.lastName  ?? undefined,
-        phone:           body.phone     ?? undefined,
-        email:           body.email     ?? undefined,
-        city:            body.city      ?? undefined,
-        status:          body.status    ?? undefined,
-        notes:           body.notes     ?? undefined,
+        firstName:        body.firstName        ?? undefined,
+        lastName:         body.lastName         ?? undefined,
+        phone:            body.phone            ?? undefined,
+        email:            body.email            ?? undefined,
+        city:             body.city             ?? undefined,
+        status:           body.status           ?? undefined,
+        notes:            body.notes            ?? undefined,
         reliabilityScore: body.reliabilityScore ?? undefined,
       },
     })
@@ -64,9 +68,10 @@ export async function PATCH(req: Request, { params }: { params: { id: string } }
   }
 }
 
-export async function DELETE(_: Request, { params }: { params: { id: string } }) {
+export async function DELETE(_: Request, { params }: RouteCtx) {
   try {
-    await prisma.driver.delete({ where: { id: params.id } })
+    const { id } = await params
+    await prisma.driver.delete({ where: { id } })
     return NextResponse.json({ deleted: true })
   } catch (e) {
     return NextResponse.json({ error: String(e) }, { status: 500 })

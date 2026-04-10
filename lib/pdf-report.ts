@@ -62,8 +62,6 @@ function drawHeader(doc: PDFDocument, generatedAt: string) {
      .text('SHIPINFY', M, 22, { lineBreak: false })
   doc.fillColor('#94a3b8').font('Helvetica').fontSize(9)
      .text('METRICS & ANALYTICS', M, 50, { lineBreak: false })
-  doc.fillColor('#475569').font('Helvetica').fontSize(7.5)
-     .text('metrics.mediflows.shop', M, 63, { lineBreak: false })
 
   // Center divider
   doc.rect(PAGE_W / 2 - 1, 18, 1, 52).fill('#1e293b')
@@ -75,25 +73,37 @@ function drawHeader(doc: PDFDocument, generatedAt: string) {
      .text('RAPPORT DE PERFORMANCE — LIVRAISONS', bx + 10, by + 10, { lineBreak: false })
   doc.fillColor(C.white).font('Helvetica-Bold').fontSize(11)
      .text(fmtDate(generatedAt), bx + 10, by + 24, { lineBreak: false })
-  doc.fillColor('#3b82f6').font('Helvetica').fontSize(8)
-     .text('Généré automatiquement par Shipinfy Metrics', bx + 10, by + 42, { lineBreak: false })
 }
 
 function drawFooter(doc: PDFDocument, page: number, total: number) {
   const fy = PAGE_H - 28
   doc.rect(0, fy - 1, PAGE_W, 1).fill(C.border)
-  doc.fillColor(C.muted).font('Helvetica').fontSize(7.5)
-     .text('© Shipinfy Metrics · Confidentiel', M, fy + 8, { lineBreak: false })
   doc.fillColor(C.blue).font('Helvetica-Bold').fontSize(7.5)
      .text(`Page ${page} / ${total}`, 0, fy + 8, { align: 'right', width: PAGE_W - M, lineBreak: false })
+}
+
+const EMOJI_COLORS: Record<string, string> = {
+  '📊': C.blue,
+  '⏱️': C.cyan,
+  '📦': C.orange,
+  '🕐': C.green,
+  '🏆': '#f59e0b',
+  '📅': C.purple,
+  '📍': C.red,
+  '📈': C.green,
+  '🔵': C.blue,
+  '⏰': C.orange,
 }
 
 function sectionTitle(doc: PDFDocument, title: string, emoji: string, y: number): number {
   // Colored pill background
   doc.rect(M, y, CW, 26).roundedRect(M, y, CW, 26, 4).fill(C.grayLight)
   doc.rect(M, y, 4, 26).fill(C.blue)
+  // Small colored square as visual marker (instead of emoji)
+  const markerColor = EMOJI_COLORS[emoji] ?? C.blue
+  doc.rect(M + 10, y + 8, 10, 10).fill(markerColor)
   doc.fillColor(C.text).font('Helvetica-Bold').fontSize(11)
-     .text(`${emoji}  ${title}`, M + 14, y + 7, { lineBreak: false })
+     .text(title, M + 28, y + 7, { lineBreak: false })
   return y + 36
 }
 
@@ -112,11 +122,11 @@ function kpiCard(
   // Top accent strip
   doc.rect(x, y, w, 3).roundedRect(x, y, w, 3, 6).fill(accent)
   // Value
-  doc.fillColor(C.text).font('Helvetica-Bold').fontSize(18)
-     .text(value, x + 6, y + 14, { width: w - 12, align: 'center', lineBreak: false })
+  doc.fillColor(C.text).font('Helvetica-Bold').fontSize(16)
+     .text(value, x + 6, y + 10, { width: w - 12, align: 'center', lineBreak: false })
   // Label
-  doc.fillColor(C.muted).font('Helvetica').fontSize(7.5)
-     .text(label.toUpperCase(), x + 4, y + h - 16, { width: w - 8, align: 'center', lineBreak: false })
+  doc.fillColor(C.muted).font('Helvetica').fontSize(7)
+     .text(label.toUpperCase(), x + 4, y + h - 18, { width: w - 8, align: 'center', lineBreak: false })
   // Optional badge
   if (badge) {
     doc.rect(x + w - 24, y + 9, 18, 12).roundedRect(x + w - 24, y + 9, 18, 12, 3).fill(accent)

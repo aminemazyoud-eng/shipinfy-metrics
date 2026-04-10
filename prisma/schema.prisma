@@ -146,3 +146,93 @@ model DeliveryOrder {
   @@index([sprintName])
   @@index([originHubName])
 }
+
+// ─── ONBOARDING ────────────────────────────────────────────────────────────
+
+model Driver {
+  id               String           @id @default(cuid())
+  firstName        String
+  lastName         String
+  phone            String           @unique
+  email            String?
+  city             String?
+  status           String           @default("prospect")
+  // "prospect" | "en_cours" | "formation" | "valide" | "actif" | "inactif" | "rejete"
+  reliabilityScore Float?
+  notes            String?
+  onboardingSteps  OnboardingStep[]
+  courseProgress   CourseProgress[]
+  createdAt        DateTime         @default(now())
+  updatedAt        DateTime         @updatedAt
+}
+
+model OnboardingStep {
+  id          String    @id @default(cuid())
+  driverId    String
+  driver      Driver    @relation(fields: [driverId], references: [id], onDelete: Cascade)
+  step        String
+  // "kyc_identity" | "kyc_vehicle" | "contract" | "training" | "equipment"
+  status      String    @default("pending")
+  // "pending" | "submitted" | "validated" | "rejected"
+  documentUrl String?
+  notes       String?
+  completedAt DateTime?
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  @@unique([driverId, step])
+}
+
+// ─── ACADEMY ────────────────────────────────────────────────────────────────
+
+model Course {
+  id          String           @id @default(cuid())
+  title       String
+  category    String
+  description String
+  color       String           @default("#2563eb")
+  emoji       String           @default("📚")
+  order       Int              @default(0)
+  lessons     Lesson[]
+  progress    CourseProgress[]
+  createdAt   DateTime         @default(now())
+}
+
+model Lesson {
+  id         String         @id @default(cuid())
+  courseId   String
+  course     Course         @relation(fields: [courseId], references: [id], onDelete: Cascade)
+  title      String
+  type       String         // "video" | "quiz" | "document"
+  contentUrl String?
+  content    String?
+  duration   Int?
+  order      Int            @default(0)
+  questions  QuizQuestion[]
+  createdAt  DateTime       @default(now())
+}
+
+model QuizQuestion {
+  id       String @id @default(cuid())
+  lessonId String
+  lesson   Lesson @relation(fields: [lessonId], references: [id], onDelete: Cascade)
+  question String
+  options  String // JSON array stored as string
+  correct  Int
+  order    Int    @default(0)
+}
+
+model CourseProgress {
+  id          String    @id @default(cuid())
+  driverId    String
+  driver      Driver    @relation(fields: [driverId], references: [id], onDelete: Cascade)
+  courseId    String
+  course      Course    @relation(fields: [courseId], references: [id], onDelete: Cascade)
+  score       Float?
+  certified   Boolean   @default(false)
+  completedAt DateTime?
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  @@unique([driverId, courseId])
+}

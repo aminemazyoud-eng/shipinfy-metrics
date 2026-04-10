@@ -3,7 +3,7 @@ import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 import {
   Activity, BarChart3, Users, MapPin, XCircle,
-  TrendingUp, Bell, Mail, Settings,
+  TrendingUp, Bell, Mail, Settings, UserCheck, GraduationCap,
 } from 'lucide-react'
 
 const sections = [
@@ -17,10 +17,10 @@ const sections = [
   {
     label: 'Performance',
     items: [
-      { href: '/livreurs', label: 'Livreurs',        icon: Users    },
-      { href: '/hubs',     label: 'Hubs',             icon: MapPin   },
-      { href: '/retours',  label: 'Retours & NO_SHOW',icon: XCircle  },
-      { href: '/previsions',label: 'Prévisions',      icon: TrendingUp },
+      { href: '/livreurs',  label: 'Livreurs',         icon: Users     },
+      { href: '/hubs',      label: 'Hubs',              icon: MapPin    },
+      { href: '/retours',   label: 'Retours & NO_SHOW', icon: XCircle   },
+      { href: '/previsions',label: 'Prévisions',        icon: TrendingUp },
     ],
   },
   {
@@ -30,6 +30,13 @@ const sections = [
       { href: '/rapports', label: 'Rapports',           icon: Mail },
     ],
   },
+  {
+    label: 'RH & Formation',
+    items: [
+      { href: '/onboarding', label: 'Onboarding',  icon: UserCheck     },
+      { href: '/academy',    label: 'Academy',     icon: GraduationCap },
+    ],
+  },
 ]
 
 export default function Sidebar() {
@@ -37,9 +44,16 @@ export default function Sidebar() {
   return (
     <aside className="w-64 bg-white border-r border-gray-200 flex flex-col">
       {/* Brand */}
-      <div className="p-6 border-b border-gray-200">
-        <h1 className="text-2xl font-bold text-blue-600">SHIPINFY</h1>
-        <p className="text-xs text-gray-500 mt-1">Metrics & Analytics</p>
+      <div className="p-5 border-b border-gray-200">
+        <div className="flex items-center gap-2.5">
+          <div className="w-8 h-8 rounded-lg bg-blue-600 flex items-center justify-center text-white font-black text-sm flex-shrink-0">
+            S
+          </div>
+          <div>
+            <h1 className="text-[15px] font-black text-blue-700 leading-none">SHIPINFY</h1>
+            <p className="text-[10px] text-gray-400 mt-0.5">Metrics & Analytics</p>
+          </div>
+        </div>
       </div>
 
       {/* Nav */}
@@ -92,8 +106,8 @@ export default function Sidebar() {
           Paramètres
         </Link>
         <div className="mt-2 px-3 py-2 bg-blue-50 rounded-lg">
-          <p className="text-[10px] font-semibold text-blue-600">SHIPINFY v2.0</p>
-          <p className="text-[10px] text-blue-400">Sprint 1+2 — Analytics + Ops</p>
+          <p className="text-[10px] font-semibold text-blue-600">SHIPINFY v3.0</p>
+          <p className="text-[10px] text-blue-400">Sprint 1→5 — Full Platform</p>
         </div>
       </div>
     </aside>

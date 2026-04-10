@@ -9,6 +9,7 @@ const inter = Inter({ subsets: ['latin'] })
 export const metadata: Metadata = {
   title: 'SHIPINFY Metrics',
   description: 'Analytics & KPIs — Livraisons',
+  icons: { icon: '/logo.png' },
 }
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {

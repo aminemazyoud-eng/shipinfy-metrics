@@ -193,3 +193,138 @@ WHERE NOT EXISTS (SELECT 1 FROM "AlertRule" WHERE "id" = 'rule_no_show_rate');
 INSERT INTO "AlertRule" ("id","name","metric","operator","threshold","severity","enabled")
 SELECT 'rule_on_time_rate','Taux on-time faible','on_time_rate','lt',70,'warning',true
 WHERE NOT EXISTS (SELECT 1 FROM "AlertRule" WHERE "id" = 'rule_on_time_rate');
+
+-- ─── SPRINT 3 — ONBOARDING ──────────────────────────────────────────────────
+
+CREATE TABLE IF NOT EXISTS "Driver" (
+    "id"               TEXT NOT NULL,
+    "firstName"        TEXT NOT NULL,
+    "lastName"         TEXT NOT NULL,
+    "phone"            TEXT NOT NULL,
+    "email"            TEXT,
+    "city"             TEXT,
+    "status"           TEXT NOT NULL DEFAULT 'prospect',
+    "reliabilityScore" DOUBLE PRECISION,
+    "notes"            TEXT,
+    "createdAt"        TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "updatedAt"        TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    CONSTRAINT "Driver_pkey" PRIMARY KEY ("id")
+);
+
+CREATE UNIQUE INDEX IF NOT EXISTS "Driver_phone_key" ON "Driver"("phone");
+
+CREATE TABLE IF NOT EXISTS "OnboardingStep" (
+    "id"          TEXT NOT NULL,
+    "driverId"    TEXT NOT NULL,
+    "step"        TEXT NOT NULL,
+    "status"      TEXT NOT NULL DEFAULT 'pending',
+    "documentUrl" TEXT,
+    "notes"       TEXT,
+    "completedAt" TIMESTAMP(3),
+    "createdAt"   TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "updatedAt"   TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    CONSTRAINT "OnboardingStep_pkey" PRIMARY KEY ("id")
+);
+
+CREATE UNIQUE INDEX IF NOT EXISTS "OnboardingStep_driverId_step_key" ON "OnboardingStep"("driverId","step");
+
+DO $$
+BEGIN
+  IF NOT EXISTS (
+    SELECT 1 FROM pg_constraint WHERE conname = 'OnboardingStep_driverId_fkey'
+  ) THEN
+    ALTER TABLE "OnboardingStep" ADD CONSTRAINT "OnboardingStep_driverId_fkey"
+      FOREIGN KEY ("driverId") REFERENCES "Driver"("id") ON DELETE CASCADE;
+  END IF;
+END $$;
+
+-- ─── SPRINT 4 — ACADEMY ─────────────────────────────────────────────────────
+
+CREATE TABLE IF NOT EXISTS "Course" (
+    "id"          TEXT NOT NULL,
+    "title"       TEXT NOT NULL,
+    "category"    TEXT NOT NULL,
+    "description" TEXT NOT NULL,
+    "color"       TEXT NOT NULL DEFAULT '#2563eb',
+    "emoji"       TEXT NOT NULL DEFAULT '📚',
+    "order"       INTEGER NOT NULL DEFAULT 0,
+    "createdAt"   TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    CONSTRAINT "Course_pkey" PRIMARY KEY ("id")
+);
+
+CREATE TABLE IF NOT EXISTS "Lesson" (
+    "id"         TEXT NOT NULL,
+    "courseId"   TEXT NOT NULL,
+    "title"      TEXT NOT NULL,
+    "type"       TEXT NOT NULL,
+    "contentUrl" TEXT,
+    "content"    TEXT,
+    "duration"   INTEGER,
+    "order"      INTEGER NOT NULL DEFAULT 0,
+    "createdAt"  TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    CONSTRAINT "Lesson_pkey" PRIMARY KEY ("id")
+);
+
+DO $$
+BEGIN
+  IF NOT EXISTS (
+    SELECT 1 FROM pg_constraint WHERE conname = 'Lesson_courseId_fkey'
+  ) THEN
+    ALTER TABLE "Lesson" ADD CONSTRAINT "Lesson_courseId_fkey"
+      FOREIGN KEY ("courseId") REFERENCES "Course"("id") ON DELETE CASCADE;
+  END IF;
+END $$;
+
+CREATE TABLE IF NOT EXISTS "QuizQuestion" (
+    "id"       TEXT NOT NULL,
+    "lessonId" TEXT NOT NULL,
+    "question" TEXT NOT NULL,
+    "options"  TEXT NOT NULL,
+    "correct"  INTEGER NOT NULL,
+    "order"    INTEGER NOT NULL DEFAULT 0,
+    CONSTRAINT "QuizQuestion_pkey" PRIMARY KEY ("id")
+);
+
+DO $$
+BEGIN
+  IF NOT EXISTS (
+    SELECT 1 FROM pg_constraint WHERE conname = 'QuizQuestion_lessonId_fkey'
+  ) THEN
+    ALTER TABLE "QuizQuestion" ADD CONSTRAINT "QuizQuestion_lessonId_fkey"
+      FOREIGN KEY ("lessonId") REFERENCES "Lesson"("id") ON DELETE CASCADE;
+  END IF;
+END $$;
+
+CREATE TABLE IF NOT EXISTS "CourseProgress" (
+    "id"          TEXT NOT NULL,
+    "driverId"    TEXT NOT NULL,
+    "courseId"    TEXT NOT NULL,
+    "score"       DOUBLE PRECISION,
+    "certified"   BOOLEAN NOT NULL DEFAULT false,
+    "completedAt" TIMESTAMP(3),
+    "createdAt"   TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "updatedAt"   TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    CONSTRAINT "CourseProgress_pkey" PRIMARY KEY ("id")
+);
+
+CREATE UNIQUE INDEX IF NOT EXISTS "CourseProgress_driverId_courseId_key" ON "CourseProgress"("driverId","courseId");
+
+DO $$
+BEGIN
+  IF NOT EXISTS (
+    SELECT 1 FROM pg_constraint WHERE conname = 'CourseProgress_driverId_fkey'
+  ) THEN
+    ALTER TABLE "CourseProgress" ADD CONSTRAINT "CourseProgress_driverId_fkey"
+      FOREIGN KEY ("driverId") REFERENCES "Driver"("id") ON DELETE CASCADE;
+  END IF;
+END $$;
+
+DO $$
+BEGIN
+  IF NOT EXISTS (
+    SELECT 1 FROM pg_constraint WHERE conname = 'CourseProgress_courseId_fkey'
+  ) THEN
+    ALTER TABLE "CourseProgress" ADD CONSTRAINT "CourseProgress_courseId_fkey"
+      FOREIGN KEY ("courseId") REFERENCES "Course"("id") ON DELETE CASCADE;
+  END IF;
+END $$;

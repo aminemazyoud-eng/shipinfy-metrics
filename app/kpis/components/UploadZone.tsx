@@ -1,6 +1,6 @@
 'use client'
 import { useCallback, useState } from 'react'
-import { Upload, Trash2, FileSpreadsheet, AlertCircle } from 'lucide-react'
+import { Upload, Trash2, FileSpreadsheet, AlertCircle, CheckCircle2 } from 'lucide-react'
 
 interface Report {
   id: string
@@ -15,16 +15,21 @@ interface Props {
   onDeleteSuccess: () => void
 }
 
-const MAX_FILE_SIZE_MB = 100
-const UPLOAD_TIMEOUT_MS = 5 * 60 * 1000 // 5 minutes
+type Phase = 'idle' | 'reading' | 'inserting' | 'done'
 
+const MAX_FILE_SIZE_MB = 100
+const BATCH_SIZE        = 250  // rows per HTTP request → always < 10s, never times out
+
+// ─── Main component ────────────────────────────────────────────────────────────
 export function UploadZone({ activeReport, onUploadSuccess, onDeleteSuccess }: Props) {
   const [uploading, setUploading] = useState(false)
-  const [deleting, setDeleting] = useState(false)
-  const [dragOver, setDragOver] = useState(false)
-  const [error, setError] = useState<string | null>(null)
-  const [progress, setProgress] = useState<'upload' | 'parse' | null>(null)
+  const [deleting,  setDeleting]  = useState(false)
+  const [dragOver,  setDragOver]  = useState(false)
+  const [error,     setError]     = useState<string | null>(null)
+  const [phase,     setPhase]     = useState<Phase>('idle')
+  const [progress,  setProgress]  = useState({ current: 0, total: 0 })
 
+  // ── Core upload handler ──────────────────────────────────────────────────────
   const handleFile = useCallback(async (file: File) => {
     if (!file.name.match(/\.(xlsx|xls)$/i)) {
       setError('Format non supporté. Utilisez un fichier .xlsx ou .xls')
@@ -32,57 +37,77 @@ export function UploadZone({ activeReport, onUploadSuccess, onDeleteSuccess }: P
     }
     const sizeMB = file.size / (1024 * 1024)
     if (sizeMB > MAX_FILE_SIZE_MB) {
-      setError(`Fichier trop volumineux (${sizeMB.toFixed(1)} Mo). Maximum autorisé : ${MAX_FILE_SIZE_MB} Mo.`)
+      setError(`Fichier trop volumineux (${sizeMB.toFixed(1)} Mo). Maximum: ${MAX_FILE_SIZE_MB} Mo.`)
       return
     }
 
     setError(null)
     setUploading(true)
-    setProgress('upload')
-
-    const controller = new AbortController()
-    const timeout = setTimeout(() => controller.abort(), UPLOAD_TIMEOUT_MS)
+    setPhase('reading')
+    setProgress({ current: 0, total: 0 })
 
     try {
-      const fd = new FormData()
-      fd.append('file', file)
+      // ── STEP 1 : Parse XLSX in the browser (no server timeout risk) ──────────
+      const XLSX = await import('xlsx')
+      const ab   = await file.arrayBuffer()
+      const wb   = XLSX.read(new Uint8Array(ab), { type: 'array', cellDates: false })
+      const sheet = wb.Sheets[wb.SheetNames[0]]
+      const rows  = XLSX.utils.sheet_to_json<Record<string, unknown>>(sheet, { defval: null })
 
-      setProgress('parse')
-      const res = await fetch('/api/dashboard/upload', {
-        method: 'POST',
-        body: fd,
-        signal: controller.signal,
+      if (rows.length === 0) {
+        throw new Error('Le fichier ne contient aucune ligne de données.')
+      }
+
+      // ── STEP 2 : Create DeliveryReport (instant — no data, just metadata) ───
+      const initRes = await fetch('/api/dashboard/upload/init', {
+        method:  'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body:    JSON.stringify({ filename: file.name }),
       })
-
-      clearTimeout(timeout)
-
-      if (!res.ok) {
-        const body = await res.json().catch(() => ({})) as { error?: string }
-        throw new Error(body.error ?? 'Upload échoué')
+      if (!initRes.ok) {
+        const e = await initRes.json().catch(() => ({})) as { error?: string }
+        throw new Error(e.error ?? 'Création du rapport échouée')
+      }
+      const { reportId, insertedAt } = await initRes.json() as {
+        reportId: string; insertedAt: string
       }
 
-      const data = await res.json() as {
-        reportId: string; filename: string; totalRows: number; insertedAt: string
+      // ── STEP 3 : Send rows in micro-batches of 250 ── real progress bar ─────
+      setPhase('inserting')
+      setProgress({ current: 0, total: rows.length })
+
+      for (let i = 0; i < rows.length; i += BATCH_SIZE) {
+        const batch    = rows.slice(i, i + BATCH_SIZE)
+        const batchRes = await fetch('/api/dashboard/upload/batch', {
+          method:  'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body:    JSON.stringify({ reportId, rows: batch }),
+        })
+        if (!batchRes.ok) {
+          const e = await batchRes.json().catch(() => ({})) as { error?: string }
+          throw new Error(e.error ?? 'Erreur lors de l\'insertion des données')
+        }
+        setProgress({ current: Math.min(i + BATCH_SIZE, rows.length), total: rows.length })
       }
+
+      // ── STEP 4 : Done ────────────────────────────────────────────────────────
+      setPhase('done')
       onUploadSuccess({
-        id: data.reportId,
-        filename: data.filename,
-        uploadedAt: data.insertedAt,
-        _count: { orders: data.totalRows },
+        id:       reportId,
+        filename: file.name,
+        uploadedAt: insertedAt,
+        _count:   { orders: rows.length },
       })
+
     } catch (err: unknown) {
-      clearTimeout(timeout)
-      if (err instanceof Error && err.name === 'AbortError') {
-        setError('Délai dépassé. Le fichier est trop volumineux ou la connexion est lente.')
-      } else {
-        setError(err instanceof Error ? err.message : 'Erreur lors de l\'import. Réessayez.')
-      }
+      setError(err instanceof Error ? err.message : 'Erreur lors de l\'import. Réessayez.')
+      setPhase('idle')
     } finally {
       setUploading(false)
-      setProgress(null)
     }
   }, [onUploadSuccess])
 
+  // ── Delete handler ───────────────────────────────────────────────────────────
   const handleDelete = useCallback(async () => {
     if (!activeReport) return
     setDeleting(true)
@@ -94,6 +119,7 @@ export function UploadZone({ activeReport, onUploadSuccess, onDeleteSuccess }: P
     }
   }, [activeReport, onDeleteSuccess])
 
+  // ── Active report banner ─────────────────────────────────────────────────────
   if (activeReport) {
     return (
       <div className="flex items-center justify-between rounded-xl border border-green-200 bg-green-50 p-4">
@@ -119,6 +145,14 @@ export function UploadZone({ activeReport, onUploadSuccess, onDeleteSuccess }: P
     )
   }
 
+  // ── Upload dropzone ──────────────────────────────────────────────────────────
+  const pct = progress.total > 0
+    ? Math.round((progress.current / progress.total) * 100)
+    : 0
+
+  const batchNum    = progress.total > 0 ? Math.ceil(progress.current / BATCH_SIZE) : 0
+  const totalBatches = progress.total > 0 ? Math.ceil(progress.total / BATCH_SIZE) : 0
+
   return (
     <div
       onDragOver={e => { e.preventDefault(); setDragOver(true) }}
@@ -133,29 +167,10 @@ export function UploadZone({ activeReport, onUploadSuccess, onDeleteSuccess }: P
         dragOver ? 'border-blue-500 bg-blue-50' : 'border-gray-300 bg-gray-50'
       }`}
     >
-      <Upload className="mx-auto mb-4 h-10 w-10 text-gray-400" />
-
-      {uploading ? (
+      {/* ── Idle ── */}
+      {!uploading && phase === 'idle' && (
         <>
-          <p className="mb-2 text-lg font-semibold text-gray-700">
-            {progress === 'upload' ? 'Envoi du fichier...' : 'Analyse et import en base...'}
-          </p>
-          <p className="mb-4 text-sm text-gray-500">
-            {progress === 'parse'
-              ? 'Les lignes sont insérées par lots — patientez quelques secondes.'
-              : 'Transfert en cours...'}
-          </p>
-          {/* Animated progress bar */}
-          <div className="mx-auto h-2 w-64 overflow-hidden rounded-full bg-gray-200">
-            <div
-              className={`h-full rounded-full bg-blue-500 transition-all duration-1000 ${
-                progress === 'parse' ? 'w-3/4 animate-none' : 'w-1/4 animate-pulse'
-              }`}
-            />
-          </div>
-        </>
-      ) : (
-        <>
+          <Upload className="mx-auto mb-4 h-10 w-10 text-gray-400" />
           <p className="mb-2 text-lg font-semibold text-gray-700">Importer un fichier de tournées</p>
           <p className="mb-1 text-sm text-gray-500">
             Glissez votre fichier Excel ici ou cliquez pour sélectionner (.xlsx, .xls)
@@ -164,6 +179,57 @@ export function UploadZone({ activeReport, onUploadSuccess, onDeleteSuccess }: P
         </>
       )}
 
+      {/* ── Phase: Reading file ── */}
+      {uploading && phase === 'reading' && (
+        <>
+          <div className="mb-4 flex items-center justify-center">
+            <div className="h-10 w-10 animate-spin rounded-full border-4 border-blue-200 border-t-blue-600" />
+          </div>
+          <p className="mb-1 text-lg font-semibold text-gray-700">Lecture du fichier...</p>
+          <p className="text-sm text-gray-500">Analyse du fichier Excel dans le navigateur</p>
+        </>
+      )}
+
+      {/* ── Phase: Inserting batches ── */}
+      {uploading && phase === 'inserting' && (
+        <>
+          <div className="mb-4 flex items-center justify-center">
+            <div className="h-10 w-10 animate-spin rounded-full border-4 border-green-200 border-t-green-600" />
+          </div>
+          <p className="mb-1 text-lg font-semibold text-gray-700">
+            Import en cours — lot {batchNum} / {totalBatches}
+          </p>
+          <p className="mb-3 text-sm text-gray-500">
+            {progress.current.toLocaleString('fr-FR')} / {progress.total.toLocaleString('fr-FR')} lignes insérées
+          </p>
+          {/* Real progress bar */}
+          <div className="mx-auto w-72">
+            <div className="mb-1.5 flex justify-between text-xs text-gray-400">
+              <span>{pct}%</span>
+              <span>{totalBatches} lots de {BATCH_SIZE} lignes</span>
+            </div>
+            <div className="h-3 w-full overflow-hidden rounded-full bg-gray-200">
+              <div
+                className="h-full rounded-full bg-green-500 transition-all duration-300"
+                style={{ width: `${pct}%` }}
+              />
+            </div>
+          </div>
+        </>
+      )}
+
+      {/* ── Phase: Done ── */}
+      {phase === 'done' && !uploading && (
+        <>
+          <CheckCircle2 className="mx-auto mb-3 h-10 w-10 text-green-500" />
+          <p className="text-lg font-semibold text-green-700">Import terminé !</p>
+          <p className="text-sm text-gray-500">
+            {progress.total.toLocaleString('fr-FR')} lignes importées avec succès
+          </p>
+        </>
+      )}
+
+      {/* ── Error ── */}
       {error && (
         <div className="mt-4 flex items-start gap-2 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-left">
           <AlertCircle className="h-4 w-4 shrink-0 text-red-500 mt-0.5" />
@@ -171,7 +237,8 @@ export function UploadZone({ activeReport, onUploadSuccess, onDeleteSuccess }: P
         </div>
       )}
 
-      {!uploading && (
+      {/* ── File picker button ── */}
+      {!uploading && phase !== 'done' && (
         <label className="mt-4 inline-block cursor-pointer rounded-lg bg-blue-600 px-6 py-2.5 text-sm font-medium text-white hover:bg-blue-700 transition-colors">
           Sélectionner un fichier
           <input

@@ -54,8 +54,13 @@
 **Flow correct** :
 1. Browser parse XLSX via `import('xlsx')` côté client
 2. POST `/upload/init` → reportId
-3. Boucle: POST `/upload/batch` avec 250 lignes chacun
-4. Barre de progression réelle `current / total`
+3. Split en batches de **1000 lignes**, envoi **3 en parallèle** (Promise.all)
+4. Barre de progression réelle `current / total` — 9000 lignes ≈ 15s
+
+**Performances** :
+- 9000 lignes / 1000 par batch = 9 batches
+- 3 parallèles = 3 rounds × ~5s = **~15s total**
+- 50 000 lignes = 50 batches / 3 = ~17 rounds × 5s ≈ **~85s** (acceptable)
 
 ### Dashboard
 | Route | Rôle |

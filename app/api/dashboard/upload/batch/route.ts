@@ -3,9 +3,9 @@ import { prisma } from '@/lib/prisma'
 import { COLUMN_MAP } from '@/lib/excel-mapping'
 import { toMoroccoTime } from '@/lib/timezone'
 
-// Each individual batch is small (≤250 rows) → always completes in <10s.
-// No Traefik / Dokploy reverse-proxy timeout issues.
-export const maxDuration = 30
+// 1000 rows per batch ≈ 1.2MB JSON → completes in 3-5s on Supabase.
+// 3 batches run in parallel client-side → 9000 rows ≈ 15s total.
+export const maxDuration = 60
 
 const DATE_FIELDS = new Set([
   'pickupTimeStart', 'deliveryTimeStart', 'deliveryTimeEnd',

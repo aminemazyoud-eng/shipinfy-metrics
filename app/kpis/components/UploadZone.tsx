@@ -18,7 +18,8 @@ interface Props {
 type Phase = 'idle' | 'reading' | 'inserting' | 'done'
 
 const MAX_FILE_SIZE_MB = 100
-const BATCH_SIZE        = 250  // rows per HTTP request → always < 10s, never times out
+const BATCH_SIZE       = 1000  // rows per HTTP request — 1000 rows ≈ 1.2MB JSON, ~3-5s/batch
+const CONCURRENCY      = 3     // batches sent in parallel — 9000 rows = 9 batches = 3 rounds ≈ 15s
 
 // ─── Main component ────────────────────────────────────────────────────────────
 export function UploadZone({ activeReport, onUploadSuccess, onDeleteSuccess }: Props) {
@@ -72,22 +73,39 @@ export function UploadZone({ activeReport, onUploadSuccess, onDeleteSuccess }: P
         reportId: string; insertedAt: string
       }
 
-      // ── STEP 3 : Send rows in micro-batches of 250 ── real progress bar ─────
+      // ── STEP 3 : Send batches in parallel groups (CONCURRENCY at a time) ───
       setPhase('inserting')
       setProgress({ current: 0, total: rows.length })
 
+      // Split all rows into BATCH_SIZE chunks
+      const allBatches: Record<string, unknown>[][] = []
       for (let i = 0; i < rows.length; i += BATCH_SIZE) {
-        const batch    = rows.slice(i, i + BATCH_SIZE)
-        const batchRes = await fetch('/api/dashboard/upload/batch', {
-          method:  'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body:    JSON.stringify({ reportId, rows: batch }),
-        })
-        if (!batchRes.ok) {
-          const e = await batchRes.json().catch(() => ({})) as { error?: string }
-          throw new Error(e.error ?? 'Erreur lors de l\'insertion des données')
-        }
-        setProgress({ current: Math.min(i + BATCH_SIZE, rows.length), total: rows.length })
+        allBatches.push(rows.slice(i, i + BATCH_SIZE))
+      }
+
+      let inserted = 0
+
+      // Send CONCURRENCY batches at the same time → much faster for large files
+      for (let g = 0; g < allBatches.length; g += CONCURRENCY) {
+        const group = allBatches.slice(g, g + CONCURRENCY)
+
+        const results = await Promise.all(
+          group.map(async (batch) => {
+            const res = await fetch('/api/dashboard/upload/batch', {
+              method:  'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body:    JSON.stringify({ reportId, rows: batch }),
+            })
+            if (!res.ok) {
+              const e = await res.json().catch(() => ({})) as { error?: string }
+              throw new Error(e.error ?? 'Erreur lors de l\'insertion des données')
+            }
+            return batch.length
+          })
+        )
+
+        inserted += results.reduce((s, n) => s + n, 0)
+        setProgress({ current: Math.min(inserted, rows.length), total: rows.length })
       }
 
       // ── STEP 4 : Done ────────────────────────────────────────────────────────
@@ -150,8 +168,8 @@ export function UploadZone({ activeReport, onUploadSuccess, onDeleteSuccess }: P
     ? Math.round((progress.current / progress.total) * 100)
     : 0
 
-  const batchNum    = progress.total > 0 ? Math.ceil(progress.current / BATCH_SIZE) : 0
-  const totalBatches = progress.total > 0 ? Math.ceil(progress.total / BATCH_SIZE) : 0
+  const totalBatches  = progress.total > 0 ? Math.ceil(progress.total / BATCH_SIZE) : 0
+  const doneBatches   = progress.total > 0 ? Math.ceil(progress.current / BATCH_SIZE) : 0
 
   return (
     <div
@@ -197,7 +215,8 @@ export function UploadZone({ activeReport, onUploadSuccess, onDeleteSuccess }: P
             <div className="h-10 w-10 animate-spin rounded-full border-4 border-green-200 border-t-green-600" />
           </div>
           <p className="mb-1 text-lg font-semibold text-gray-700">
-            Import en cours — lot {batchNum} / {totalBatches}
+            Import en cours — {doneBatches} / {totalBatches} lots
+            <span className="ml-2 text-sm font-normal text-gray-400">({CONCURRENCY} en parallèle)</span>
           </p>
           <p className="mb-3 text-sm text-gray-500">
             {progress.current.toLocaleString('fr-FR')} / {progress.total.toLocaleString('fr-FR')} lignes insérées
@@ -206,7 +225,7 @@ export function UploadZone({ activeReport, onUploadSuccess, onDeleteSuccess }: P
           <div className="mx-auto w-72">
             <div className="mb-1.5 flex justify-between text-xs text-gray-400">
               <span>{pct}%</span>
-              <span>{totalBatches} lots de {BATCH_SIZE} lignes</span>
+              <span>{totalBatches} lots × {BATCH_SIZE} lignes</span>
             </div>
             <div className="h-3 w-full overflow-hidden rounded-full bg-gray-200">
               <div

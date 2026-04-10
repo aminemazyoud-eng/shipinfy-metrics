@@ -181,6 +181,24 @@ async function loadAndScheduleAll() {
  * Charge tous les schedules actifs et les planifie via node-cron.
  * Vérifie toutes les minutes si de nouveaux schedules ont été ajoutés.
  */
+// ─── Alert check ────────────────────────────────────────────────────────────
+async function runAlertCheck() {
+  try {
+    const baseUrl = process.env.NEXTAUTH_URL ?? process.env.VERCEL_URL
+      ? `https://${process.env.VERCEL_URL}`
+      : `http://localhost:${process.env.PORT ?? 3001}`
+    const res = await fetch(`${baseUrl}/api/alerts/check`, { method: 'POST' })
+    if (res.ok) {
+      const d = await res.json() as { triggered?: number }
+      if ((d.triggered ?? 0) > 0) {
+        console.log(`[cron] Alertes déclenchées: ${d.triggered}`)
+      }
+    }
+  } catch (e) {
+    console.error('[cron] Erreur vérification alertes:', e)
+  }
+}
+
 export function startCronScheduler() {
   console.log('[cron] Démarrage du scheduler d\'envoi automatique...')
 
@@ -192,7 +210,12 @@ export function startCronScheduler() {
     loadAndScheduleAll().catch(console.error)
   })
 
-  console.log('[cron] Scheduler actif.')
+  // Hourly alert check — vérifier les seuils toutes les heures
+  cron.schedule('0 * * * *', () => {
+    runAlertCheck().catch(console.error)
+  }, { timezone: 'Africa/Casablanca' })
+
+  console.log('[cron] Scheduler actif (rapports + alertes).')
 }
 
 /**

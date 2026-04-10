@@ -39,6 +39,62 @@ model EmailSendLog {
   error       String?
 }
 
+// ─── ALERTES & TICKETS ─────────────────────────────────────────────────────
+
+model AlertRule {
+  id        String   @id @default(cuid())
+  name      String
+  metric    String   // "delivery_rate" | "no_show_rate" | "on_time_rate" | "no_show_count"
+  operator  String   // "lt" | "gt" | "lte" | "gte"
+  threshold Float
+  severity  String   @default("warning") // "critical" | "warning" | "info"
+  enabled   Boolean  @default(true)
+  createdAt DateTime @default(now())
+  alerts    Alert[]
+}
+
+model Alert {
+  id          String    @id @default(cuid())
+  ruleId      String?
+  rule        AlertRule? @relation(fields: [ruleId], references: [id])
+  type        String    // "auto" | "manual"
+  severity    String    // "critical" | "warning" | "info"
+  title       String
+  description String
+  metricValue Float?
+  threshold   Float?
+  status      String    @default("open") // "open" | "in_progress" | "resolved"
+  assignedTo  String?
+  resolvedAt  DateTime?
+  createdAt   DateTime  @default(now())
+  tickets     Ticket[]
+}
+
+model Ticket {
+  id          String          @id @default(cuid())
+  alertId     String?
+  alert       Alert?          @relation(fields: [alertId], references: [id])
+  title       String
+  description String
+  priority    String          @default("moyenne") // "haute" | "moyenne" | "basse"
+  status      String          @default("ouvert") // "ouvert" | "en_cours" | "resolu" | "ferme"
+  assignedTo  String?
+  comments    TicketComment[]
+  createdAt   DateTime        @default(now())
+  updatedAt   DateTime        @updatedAt
+}
+
+model TicketComment {
+  id        String   @id @default(cuid())
+  ticketId  String
+  ticket    Ticket   @relation(fields: [ticketId], references: [id], onDelete: Cascade)
+  author    String
+  content   String
+  createdAt DateTime @default(now())
+}
+
+// ─── DELIVERY ORDERS ───────────────────────────────────────────────────────
+
 model DeliveryOrder {
   id                          String         @id @default(cuid())
   reportId                    String

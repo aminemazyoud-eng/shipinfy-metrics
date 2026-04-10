@@ -98,3 +98,98 @@ BEGIN
       FOREIGN KEY ("scheduleId") REFERENCES "ScheduledReport"("id") ON DELETE CASCADE ON UPDATE CASCADE;
   END IF;
 END $$;
+
+-- ─── ALERTES & TICKETS ──────────────────────────────────────────────────────
+
+CREATE TABLE IF NOT EXISTS "AlertRule" (
+    "id"        TEXT NOT NULL,
+    "name"      TEXT NOT NULL,
+    "metric"    TEXT NOT NULL,
+    "operator"  TEXT NOT NULL,
+    "threshold" DOUBLE PRECISION NOT NULL,
+    "severity"  TEXT NOT NULL DEFAULT 'warning',
+    "enabled"   BOOLEAN NOT NULL DEFAULT true,
+    "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    CONSTRAINT "AlertRule_pkey" PRIMARY KEY ("id")
+);
+
+CREATE TABLE IF NOT EXISTS "Alert" (
+    "id"          TEXT NOT NULL,
+    "ruleId"      TEXT,
+    "type"        TEXT NOT NULL DEFAULT 'auto',
+    "severity"    TEXT NOT NULL DEFAULT 'warning',
+    "title"       TEXT NOT NULL,
+    "description" TEXT NOT NULL,
+    "metricValue" DOUBLE PRECISION,
+    "threshold"   DOUBLE PRECISION,
+    "status"      TEXT NOT NULL DEFAULT 'open',
+    "assignedTo"  TEXT,
+    "resolvedAt"  TIMESTAMP(3),
+    "createdAt"   TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    CONSTRAINT "Alert_pkey" PRIMARY KEY ("id")
+);
+
+DO $$
+BEGIN
+  IF NOT EXISTS (
+    SELECT 1 FROM pg_constraint WHERE conname = 'Alert_ruleId_fkey'
+  ) THEN
+    ALTER TABLE "Alert" ADD CONSTRAINT "Alert_ruleId_fkey"
+      FOREIGN KEY ("ruleId") REFERENCES "AlertRule"("id") ON DELETE SET NULL;
+  END IF;
+END $$;
+
+CREATE TABLE IF NOT EXISTS "Ticket" (
+    "id"          TEXT NOT NULL,
+    "alertId"     TEXT,
+    "title"       TEXT NOT NULL,
+    "description" TEXT NOT NULL,
+    "priority"    TEXT NOT NULL DEFAULT 'moyenne',
+    "status"      TEXT NOT NULL DEFAULT 'ouvert',
+    "assignedTo"  TEXT,
+    "createdAt"   TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "updatedAt"   TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    CONSTRAINT "Ticket_pkey" PRIMARY KEY ("id")
+);
+
+DO $$
+BEGIN
+  IF NOT EXISTS (
+    SELECT 1 FROM pg_constraint WHERE conname = 'Ticket_alertId_fkey'
+  ) THEN
+    ALTER TABLE "Ticket" ADD CONSTRAINT "Ticket_alertId_fkey"
+      FOREIGN KEY ("alertId") REFERENCES "Alert"("id") ON DELETE SET NULL;
+  END IF;
+END $$;
+
+CREATE TABLE IF NOT EXISTS "TicketComment" (
+    "id"        TEXT NOT NULL,
+    "ticketId"  TEXT NOT NULL,
+    "author"    TEXT NOT NULL,
+    "content"   TEXT NOT NULL,
+    "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    CONSTRAINT "TicketComment_pkey" PRIMARY KEY ("id")
+);
+
+DO $$
+BEGIN
+  IF NOT EXISTS (
+    SELECT 1 FROM pg_constraint WHERE conname = 'TicketComment_ticketId_fkey'
+  ) THEN
+    ALTER TABLE "TicketComment" ADD CONSTRAINT "TicketComment_ticketId_fkey"
+      FOREIGN KEY ("ticketId") REFERENCES "Ticket"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+  END IF;
+END $$;
+
+-- Seed default alert rules if none exist
+INSERT INTO "AlertRule" ("id","name","metric","operator","threshold","severity","enabled")
+SELECT 'rule_delivery_rate','Taux livraison critique','delivery_rate','lt',60,'critical',true
+WHERE NOT EXISTS (SELECT 1 FROM "AlertRule" WHERE "id" = 'rule_delivery_rate');
+
+INSERT INTO "AlertRule" ("id","name","metric","operator","threshold","severity","enabled")
+SELECT 'rule_no_show_rate','Taux NO_SHOW élevé','no_show_rate','gt',20,'warning',true
+WHERE NOT EXISTS (SELECT 1 FROM "AlertRule" WHERE "id" = 'rule_no_show_rate');
+
+INSERT INTO "AlertRule" ("id","name","metric","operator","threshold","severity","enabled")
+SELECT 'rule_on_time_rate','Taux on-time faible','on_time_rate','lt',70,'warning',true
+WHERE NOT EXISTS (SELECT 1 FROM "AlertRule" WHERE "id" = 'rule_on_time_rate');

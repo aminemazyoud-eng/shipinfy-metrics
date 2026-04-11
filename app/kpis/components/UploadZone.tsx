@@ -217,56 +217,88 @@ export function UploadZone({ activeReport, onUploadSuccess, onDeleteSuccess }: P
         </>
       )}
 
-      {/* ── Uploading — progression réelle de l'envoi ── */}
-      {phase === 'uploading' && (
-        <>
-          <div className="mb-4 flex items-center justify-center">
-            <div className="h-10 w-10 animate-spin rounded-full border-4 border-blue-200 border-t-blue-600" />
-          </div>
-          <p className="mb-1 text-lg font-semibold text-gray-700">
-            Envoi du fichier — {uploadPct}%
-          </p>
-          <p className="mb-3 text-sm text-gray-500">
-            {uploadSize} en cours de transfert vers le serveur...
-          </p>
-          <div className="mx-auto w-72">
-            <div className="h-3 w-full overflow-hidden rounded-full bg-gray-200">
-              <div
-                className="h-full rounded-full bg-blue-500 transition-all duration-300"
-                style={{ width: `${Math.max(2, uploadPct)}%` }}
-              />
-            </div>
-          </div>
-          <p className="mt-2 text-xs text-gray-400">
-            {uploadPct < 100
-              ? 'Le serveur analysera le fichier dès réception complète'
-              : 'Fichier reçu — analyse en cours...'}
-          </p>
-        </>
-      )}
+      {/* ── Étapes (uploading + processing) ── */}
+      {(phase === 'uploading' || phase === 'processing') && (
+        <div className="w-full">
 
-      {/* ── Processing — insertion en base ── */}
-      {phase === 'processing' && (
-        <>
-          <div className="mb-4 flex items-center justify-center">
-            <div className="h-10 w-10 animate-spin rounded-full border-4 border-green-200 border-t-green-600" />
-          </div>
-          <p className="mb-1 text-lg font-semibold text-gray-700">
-            Import en cours — {pct}%
-          </p>
-          <p className="mb-3 text-sm text-gray-500">
-            {progress.inserted.toLocaleString('fr-FR')} / {progress.total.toLocaleString('fr-FR')} lignes insérées
-          </p>
-          <div className="mx-auto w-72">
-            <div className="h-3 w-full overflow-hidden rounded-full bg-gray-200">
+          {/* Stepper */}
+          <div className="mb-6 flex items-center justify-center gap-0">
+            {/* Étape 1 */}
+            <div className="flex flex-col items-center">
+              <div className={`flex h-9 w-9 items-center justify-center rounded-full text-sm font-bold transition-all ${
+                phase === 'uploading'
+                  ? 'bg-blue-600 text-white shadow-md shadow-blue-200'
+                  : 'bg-green-100 text-green-600'
+              }`}>
+                {phase === 'uploading' ? '1' : '✓'}
+              </div>
+              <p className={`mt-1 text-xs font-semibold ${phase === 'uploading' ? 'text-blue-600' : 'text-green-600'}`}>
+                Envoi
+              </p>
+            </div>
+
+            {/* Connecteur */}
+            <div className="mx-2 mb-4 h-0.5 w-16 overflow-hidden rounded-full bg-gray-200">
               <div
-                className="h-full rounded-full bg-green-500 transition-all duration-500"
-                style={{ width: `${Math.max(4, pct)}%` }}
+                className={`h-full rounded-full transition-all duration-700 ${phase === 'processing' ? 'bg-green-500 w-full' : 'bg-blue-400 w-1/2'}`}
               />
             </div>
+
+            {/* Étape 2 */}
+            <div className="flex flex-col items-center">
+              <div className={`flex h-9 w-9 items-center justify-center rounded-full text-sm font-bold transition-all ${
+                phase === 'processing'
+                  ? 'bg-green-600 text-white shadow-md shadow-green-200'
+                  : 'bg-gray-100 text-gray-400'
+              }`}>
+                2
+              </div>
+              <p className={`mt-1 text-xs font-semibold ${phase === 'processing' ? 'text-green-600' : 'text-gray-400'}`}>
+                Import
+              </p>
+            </div>
           </div>
-          <p className="mt-2 text-xs text-gray-400">Les KPIs s&apos;afficheront automatiquement à la fin</p>
-        </>
+
+          {/* Étape 1 — Envoi */}
+          {phase === 'uploading' && (
+            <div className="rounded-xl border border-blue-100 bg-blue-50 px-5 py-4">
+              <div className="mb-1 flex items-center justify-between">
+                <p className="text-sm font-bold text-blue-700">Étape 1 — Envoi du fichier</p>
+                <span className="text-sm font-bold text-blue-600">{uploadPct}%</span>
+              </div>
+              <p className="mb-3 text-xs text-blue-500">{uploadSize} en transfert vers le serveur...</p>
+              <div className="h-2.5 w-full overflow-hidden rounded-full bg-blue-200">
+                <div
+                  className="h-full rounded-full bg-blue-600 transition-all duration-300"
+                  style={{ width: `${Math.max(2, uploadPct)}%` }}
+                />
+              </div>
+              <p className="mt-2 text-xs text-blue-400">
+                {uploadPct < 100 ? 'Le serveur analysera le fichier dès réception' : '✓ Fichier reçu — analyse en cours...'}
+              </p>
+            </div>
+          )}
+
+          {/* Étape 2 — Import */}
+          {phase === 'processing' && (
+            <div className="rounded-xl border border-green-100 bg-green-50 px-5 py-4">
+              <div className="mb-1 flex items-center justify-between">
+                <p className="text-sm font-bold text-green-700">Étape 2 — Import en base de données</p>
+                <span className="text-sm font-bold text-green-600">{pct}%</span>
+              </div>
+              <p className="mb-3 text-xs text-green-600">
+                {progress.inserted.toLocaleString('fr-FR')} / {progress.total.toLocaleString('fr-FR')} lignes insérées
+              </p>
+              <div className="h-2.5 w-full overflow-hidden rounded-full bg-green-200">
+                <div
+                  className="h-full rounded-full bg-green-600 transition-all duration-500"
+                  style={{ width: `${Math.max(4, pct)}%` }}
+                />
+              </div>
+              <p className="mt-2 text-xs text-green-500">Les KPIs s&apos;afficheront automatiquement à la fin</p>
+            </div>
+          )}
+        </div>
       )}
 
       {/* ── Done ── */}

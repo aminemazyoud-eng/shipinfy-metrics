@@ -7,7 +7,7 @@ interface Props {
   onClose: () => void
   reportId: string
   filters: Record<string, unknown>
-  kpisData: { totalOrders?: number; [k: string]: unknown } | null
+  kpisData: unknown
 }
 
 type Mode = 'instant' | 'scheduled'
@@ -20,7 +20,7 @@ const DAYS_OF_MONTH = Array.from({ length: 28 }, (_, i) => i + 1)
 function isValidEmail(e: string) { return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(e) }
 
 export function SendReportModal({ open, onClose, reportId, filters, kpisData }: Props) {
-  const hasData = (kpisData?.totalOrders ?? 0) > 0
+  const hasData = ((kpisData as { totalOrders?: number } | null)?.totalOrders ?? 0) > 0
   const [mode, setMode] = useState<Mode>('instant')
 
   const [emails, setEmails] = useState<string[]>([''])

@@ -24,10 +24,15 @@ try {
     cellNF: false,
     cellStyles: false,
     sheetStubs: false,
+    sheetRows: 200000,
   })
   const sheet = wb.Sheets[wb.SheetNames[0]]
   const rows = XLSX.utils.sheet_to_json(sheet, { defval: null })
-  parentPort.postMessage({ rows })
+  // Filter out rows where ALL values are null/empty (empty rows at end of file)
+  const filtered = rows.filter(row =>
+    Object.values(row).some(v => v !== null && v !== '' && v !== undefined)
+  )
+  parentPort.postMessage({ rows: filtered })
 } catch (e) {
   parentPort.postMessage({ error: String(e) })
 }

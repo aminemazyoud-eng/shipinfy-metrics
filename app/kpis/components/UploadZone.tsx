@@ -49,9 +49,10 @@ export function UploadZone({ activeReport, onUploadSuccess, onDeleteSuccess }: P
 
     try {
       // ── STEP 1 : Parse XLSX in the browser (no server timeout risk) ──────────
-      const XLSX = await import('xlsx')
-      const ab   = await file.arrayBuffer()
-      const wb   = XLSX.read(new Uint8Array(ab), { type: 'array', cellDates: false })
+      // Pass ArrayBuffer directly — SheetJS auto-detects it, no Node.js path needed
+      const XLSX  = await import('xlsx')
+      const ab    = await file.arrayBuffer()
+      const wb    = XLSX.read(ab, { cellDates: false })
       const sheet = wb.Sheets[wb.SheetNames[0]]
       const rows  = XLSX.utils.sheet_to_json<Record<string, unknown>>(sheet, { defval: null })
 

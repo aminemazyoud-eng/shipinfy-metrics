@@ -29,19 +29,19 @@ const SECTIONS: NavSection[] = [
     key: 'analytics',
     label: 'Analytics',
     items: [
-      { href: '/',     label: 'Dashboard',        icon: Activity  },
-      { href: '/kpis', label: 'KPIs & Métriques', icon: BarChart3 },
+      { href: '/',           label: 'Dashboard',        icon: Activity   },
+      { href: '/kpis',       label: 'KPIs & Métriques', icon: BarChart3  },
+      { href: '/previsions', label: 'Prévisions',        icon: TrendingUp },
     ],
   },
   {
     key: 'performance',
     label: 'Performance',
     items: [
-      { href: '/livreurs',   label: 'Livreurs',          icon: Users,      disabled: false },
-      { href: '/hubs',       label: 'Hubs',               icon: MapPin,     disabled: false },
-      { href: '/retours',    label: 'Retours & NO_SHOW',  icon: XCircle,    disabled: false },
-      { href: '/previsions', label: 'Prévisions',         icon: TrendingUp, disabled: false },
-      { href: '/score-ia',  label: 'Score IA',           icon: Brain,      disabled: false },
+      { href: '/livreurs',  label: 'Livreurs',         icon: Users,  disabled: false },
+      { href: '/hubs',      label: 'Hubs',              icon: MapPin, disabled: false },
+      { href: '/retours',   label: 'Retours & NO_SHOW', icon: XCircle,disabled: false },
+      { href: '/score-ia',  label: 'Score IA',          icon: Brain,  disabled: false },
     ],
   },
   {

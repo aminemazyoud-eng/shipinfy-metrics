@@ -1,6 +1,8 @@
 # SHIPINFY METRICS — MÉMOIRE ARCHITECTURE
-> Fichier critique — lire en PREMIER avant toute modification de code.
-> Mis à jour à chaque session. Ne JAMAIS supprimer ce fichier.
+> **RÈGLE ABSOLUE pour Claude** : Lire ce fichier EN ENTIER avant toute modification de code.
+> Ce fichier documente TOUT ce qui a été buildé. Son but : permettre de scaler le SaaS sans jamais
+> écraser ou supprimer une feature existante. Chaque fix, chaque module, chaque règle est consigné ici.
+> Ne JAMAIS supprimer ce fichier. Mettre à jour à chaque session.
 
 ---
 
@@ -109,6 +111,20 @@ Auto-cleanup après 10 minutes. Valide uniquement en mode Docker standalone (pro
 - **Fichiers** : `UploadZone.tsx`, `upload/route.ts`, `upload/status/[reportId]/route.ts`, `lib/upload-progress.ts`
 - **Principe** : Retour HTTP immédiat (<3s), insertion continue en background, client poll /status
 
+### F10 — Bouton "Télécharger le template" sur UploadZone vide
+- **Quoi** : Quand aucun rapport n'est importé (DB vide), un bouton "Télécharger le template" apparaît à côté de "Sélectionner un fichier"
+- **Comportement** : Génère et télécharge `template-import-shipinfy.md` côté client (Blob URL, pas de serveur)
+- **Contenu du template** : Liste des 30 colonnes Excel attendues (issues de `COLUMN_MAP`), statuts reconnus, règles d'import
+- **Fichier** : `app/kpis/components/UploadZone.tsx` → fonction `downloadTemplateMd()` (useCallback)
+- **Commit** : `c9c1952`
+- **⚠️ NE PAS SUPPRIMER** ce bouton — aide l'utilisateur à préparer son fichier Excel si format inconnu
+
+### F11 — Suppression rapport = suppression CASCADE des commandes
+- **Comportement** : `DELETE /api/dashboard/report/[reportId]` → `prisma.deliveryReport.delete()` → PostgreSQL CASCADE → supprime automatiquement toutes les `DeliveryOrder` liées
+- **Clé** : `ON DELETE CASCADE` défini dans `prisma/init-tables.sql` ligne FK `DeliveryOrder_reportId_fkey`
+- **Fichier** : `app/api/dashboard/report/[reportId]/route.ts`
+- **⚠️ NE PAS changer la FK** — sans CASCADE, les commandes resteraient orphelines en base
+
 ### F9 — XLSX parsing timeout sur fichier 1M+ lignes (CRITIQUE)
 - **Problème** : `data2.xlsx` = **1,042,123 lignes × 332 colonnes** (5.45 MB)
   - `XLSX.read()` + `sheet_to_json` bloquait le Worker Thread >120s → timeout
@@ -207,4 +223,4 @@ Quand on ajoute une nouvelle page/feature :
 
 ---
 
-*Dernière mise à jour : 2026-04-11 — Build 9a53fe5 ✅ LIVE — Fix XLSX 1M+ lignes (sheetRows:200000 + filtre vides) — Parse time >120s → ~2-3s*
+*Dernière mise à jour : 2026-04-11 — Build c9c1952 ✅ LIVE — F10 bouton template MD + F11 doc CASCADE delete — 11 fixes documentés*

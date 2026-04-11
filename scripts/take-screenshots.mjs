@@ -14,41 +14,55 @@ const OUTPUT_DIR = join(__dirname, '..', 'public', 'guides')
 mkdirSync(OUTPUT_DIR, { recursive: true })
 
 const SHOTS = [
-  // Dashboard
-  { file: 'dash-overview.jpg',       url: '/',          fullPage: false, delay: 3000 },
-  { file: 'dash-kpi-cards.jpg',      url: '/',          clip: { x: 60, y: 150, width: 1400, height: 185 }, delay: 3000 },
-  { file: 'dash-orders-table.jpg',   url: '/',          scroll: 350, clip: { x: 60, y: 160, width: 1400, height: 480 }, delay: 3000 },
+  // ── DASHBOARD ─────────────────────────────────────────────────────────────
+  { file: 'dash-overview.jpg',        url: '/', delay: 3000 },
+  { file: 'dash-kpi-cards.jpg',       url: '/', delay: 3000, clip: { x: 60, y: 150, width: 1400, height: 185 } },
+  { file: 'dash-orders-table.jpg',    url: '/', delay: 3000, scroll: 350, clip: { x: 60, y: 160, width: 1400, height: 480 } },
+  { file: 'dash-livreurs-actifs.jpg', url: '/', delay: 3000, clip: { x: 60, y: 350, width: 700, height: 320 } },
+  { file: 'dash-perf-hub.jpg',        url: '/', delay: 3000, clip: { x: 780, y: 350, width: 720, height: 320 } },
 
-  // KPIs
-  { file: 'kpis-upload-zone.jpg',    url: '/kpis',      fullPage: false, delay: 2000 },
-  { file: 'kpis-filterbar.jpg',      url: '/kpis',      inject: 'window.__DEMO_SKIP_UPLOAD=true', fullPage: false, delay: 2000 },
+  // ── KPIs — avec data réelle ────────────────────────────────────────────────
+  { file: 'kpis-upload-zone.jpg',     url: '/kpis', delay: 2000, clip: { x: 60, y: 80, width: 1400, height: 200 } },
+  { file: 'kpis-kpi-cards.jpg',       url: '/kpis', delay: 3000, scroll: 200, clip: { x: 60, y: 100, width: 1400, height: 260 } },
+  { file: 'kpis-pipeline.jpg',        url: '/kpis', delay: 3000, scroll: 400, clip: { x: 60, y: 100, width: 1400, height: 280 } },
+  { file: 'kpis-chart-day.jpg',       url: '/kpis', delay: 3000, scroll: 700, clip: { x: 60, y: 100, width: 700, height: 340 } },
+  { file: 'kpis-chart-creneau.jpg',   url: '/kpis', delay: 3000, scroll: 700, clip: { x: 760, y: 100, width: 700, height: 340 } },
+  { file: 'kpis-chart-status.jpg',    url: '/kpis', delay: 3000, scroll: 1100, clip: { x: 60, y: 100, width: 700, height: 340 } },
+  { file: 'kpis-chart-ontime.jpg',    url: '/kpis', delay: 3000, scroll: 1100, clip: { x: 760, y: 100, width: 700, height: 340 } },
+  { file: 'kpis-heatmap.jpg',         url: '/kpis', delay: 4000, scroll: 1500, clip: { x: 60, y: 100, width: 1400, height: 400 } },
+  { file: 'kpis-filterbar.jpg',       url: '/kpis', delay: 3000, clip: { x: 60, y: 200, width: 1400, height: 130 } },
+  { file: 'kpis-livreur-table.jpg',   url: '/kpis', delay: 3000, scroll: 2000, clip: { x: 60, y: 100, width: 1400, height: 380 } },
 
-  // Alertes
-  { file: 'alertes-overview.jpg',    url: '/alertes',   fullPage: false, delay: 2000 },
-  { file: 'alertes-tabs.jpg',        url: '/alertes',   clip: { x: 60, y: 60, width: 1400, height: 120 }, delay: 2000 },
+  // ── ALERTES ────────────────────────────────────────────────────────────────
+  { file: 'alertes-tabs.jpg',         url: '/alertes', delay: 2000, clip: { x: 60, y: 60, width: 1400, height: 120 } },
+  { file: 'alertes-overview.jpg',     url: '/alertes', delay: 2000 },
+  { file: 'alertes-tickets.jpg',      url: '/alertes', delay: 2000, clickText: 'Tickets' },
+  { file: 'alertes-rules.jpg',        url: '/alertes', delay: 2000, clickText: 'Règles' },
 
-  // Rapports
-  { file: 'rapports-overview.jpg',   url: '/rapports',  fullPage: false, delay: 2000 },
+  // ── RAPPORTS ───────────────────────────────────────────────────────────────
+  { file: 'rapports-overview.jpg',    url: '/rapports', delay: 2000 },
+  { file: 'rapports-planif.jpg',      url: '/rapports', delay: 2000, scroll: 200, clip: { x: 60, y: 100, width: 1400, height: 300 } },
+  { file: 'rapports-historique.jpg',  url: '/rapports', delay: 2000, scroll: 400, clip: { x: 60, y: 100, width: 1400, height: 300 } },
 
-  // Livreurs
-  { file: 'livreurs-overview.jpg',   url: '/livreurs',  fullPage: false, delay: 2000 },
+  // ── LIVREURS ───────────────────────────────────────────────────────────────
+  { file: 'livreurs-overview.jpg',    url: '/livreurs', delay: 2000 },
 
-  // Onboarding
-  { file: 'onboarding-kanban.jpg',   url: '/onboarding', fullPage: false, delay: 2000 },
+  // ── ONBOARDING ─────────────────────────────────────────────────────────────
+  { file: 'onboarding-kanban.jpg',    url: '/onboarding', delay: 2000 },
 
-  // Score IA
-  { file: 'score-ia-overview.jpg',   url: '/score-ia',  fullPage: false, delay: 2000 },
-  { file: 'score-ia-table.jpg',      url: '/score-ia',  scroll: 200, fullPage: false, delay: 2000 },
+  // ── SCORE IA ───────────────────────────────────────────────────────────────
+  { file: 'score-ia-overview.jpg',    url: '/score-ia', delay: 2000 },
+  { file: 'score-ia-table.jpg',       url: '/score-ia', delay: 2000, scroll: 200, clip: { x: 60, y: 100, width: 1400, height: 380 } },
 
-  // Academy
-  { file: 'academy-formation.jpg',   url: '/academy',   fullPage: false, delay: 2000 },
-  { file: 'academy-guides-tab.jpg',  url: '/academy',   fullPage: false, delay: 2000, clickSelector: 'button:has-text("Guides Shipinfy")' },
+  // ── ACADEMY ────────────────────────────────────────────────────────────────
+  { file: 'academy-formation.jpg',    url: '/academy', delay: 2000 },
+  { file: 'academy-guides-tab.jpg',   url: '/academy', delay: 2000, clickText: 'Guides Shipinfy' },
 ]
 
 async function main() {
   const browser = await chromium.launch({ headless: true })
   const context = await browser.newContext({
-    viewport: { width: 1400, height: 700 },
+    viewport: { width: 1440, height: 800 },
     deviceScaleFactor: 1.5,
   })
 
@@ -59,31 +73,31 @@ async function main() {
       await page.goto(`${BASE_URL}${shot.url}`, { waitUntil: 'networkidle', timeout: 30000 })
       await page.waitForTimeout(shot.delay ?? 2000)
 
-      if (shot.scroll) await page.evaluate(y => window.scrollTo(0, y), shot.scroll)
-      if (shot.clickSelector) {
-        await page.click(shot.clickSelector).catch(() => {})
+      if (shot.clickText) {
+        await page.getByText(shot.clickText, { exact: false }).first().click().catch(() => {})
         await page.waitForTimeout(1000)
       }
+      if (shot.scroll) await page.evaluate(y => window.scrollTo(0, y), shot.scroll)
+      if (shot.scroll) await page.waitForTimeout(500)
 
       const opts = {
         type: 'jpeg',
-        quality: 85,
+        quality: 88,
         ...(shot.clip ? { clip: shot.clip } : {}),
-        ...(shot.fullPage ? { fullPage: true } : {}),
       }
 
       const buf = await page.screenshot(opts)
       writeFileSync(join(OUTPUT_DIR, shot.file), buf)
-      console.log(`  ✓ ${shot.file} saved`)
+      console.log(`  ✓ ${shot.file}`)
     } catch (e) {
-      console.error(`  ✗ ${shot.file} failed: ${e.message}`)
+      console.error(`  ✗ ${shot.file}: ${e.message}`)
     } finally {
       await page.close()
     }
   }
 
   await browser.close()
-  console.log('\nDone! Screenshots saved to public/guides/')
+  console.log('\nDone!')
 }
 
 main().catch(console.error)

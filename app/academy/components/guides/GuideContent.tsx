@@ -1,6 +1,6 @@
 'use client'
 import { useState } from 'react'
-import { ChevronDown, CheckCircle2, HelpCircle } from 'lucide-react'
+import { ChevronDown, CheckCircle2, HelpCircle, Plus, X } from 'lucide-react'
 import { ScreenshotZone } from '../ScreenshotZone'
 import { GuideFeedbackBar } from '../GuideFeedbackBar'
 
@@ -35,8 +35,8 @@ const GUIDES: GuideData[] = [
       { title: 'Accéder au Dashboard', screenshot: 'Vue globale du Dashboard', imageUrl: '/guides/dash-overview.jpg', description: 'Cliquez sur "Dashboard" dans la sidebar à gauche. La page affiche en temps réel l\'état de toutes les livraisons actives.' },
       { title: 'Comprendre les métriques live', screenshot: 'Cards KPI en haut de page', imageUrl: '/guides/dash-kpi-cards.jpg', description: 'Les cartes en haut résument : commandes totales, en cours, livrées, NO_SHOW, taux livraison et COD collecté. Rafraîchissement automatique.' },
       { title: 'Lire les statuts des commandes', screenshot: 'Tableau des commandes avec statuts colorés', imageUrl: '/guides/dash-orders-table.jpg', description: 'Chaque commande affiche un statut coloré : vert = livré, rouge = NO_SHOW, orange = en livraison. Cliquez sur une ligne pour voir le détail.' },
-      { title: 'Interpréter les alertes temps réel', screenshot: 'Bandeau alerte et livreurs actifs', imageUrl: '/guides/dash-overview.jpg', description: 'La section "Livreurs actifs" montre en temps réel chaque livreur, son taux du jour et son statut. Un badge rouge signale une action urgente.' },
-      { title: 'Filtrer par hub ou livreur', screenshot: 'Performance par Hub', imageUrl: '/guides/dash-overview.jpg', description: 'La section "Performance par Hub" à droite compare les hubs en temps réel. Utilisez la sidebar pour accéder directement aux détails d\'un hub.' },
+      { title: 'Interpréter les alertes temps réel', screenshot: 'Bandeau alerte et livreurs actifs', imageUrl: '/guides/dash-livreurs-actifs.jpg', description: 'La section "Livreurs actifs" montre en temps réel chaque livreur, son taux du jour et son statut. Un badge rouge signale une action urgente.' },
+      { title: 'Filtrer par hub ou livreur', screenshot: 'Performance par Hub', imageUrl: '/guides/dash-perf-hub.jpg', description: 'La section "Performance par Hub" à droite compare les hubs en temps réel. Utilisez la sidebar pour accéder directement aux détails d\'un hub.' },
     ],
     tips: [
       'Le rafraîchissement est automatique — pas besoin de recharger la page',
@@ -59,10 +59,10 @@ const GUIDES: GuideData[] = [
     steps: [
       { title: 'Télécharger le template CSV', screenshot: 'Zone d\'upload avec bouton Télécharger le template', imageUrl: '/guides/kpis-upload-zone.jpg', description: 'Cliquez "Télécharger le template" pour obtenir un fichier CSV vide avec les 30 colonnes attendues. Remplissez-le et réimportez.' },
       { title: 'Importer un fichier Excel', screenshot: 'Zone d\'upload avec glisser-déposer', imageUrl: '/guides/kpis-upload-zone.jpg', description: 'Glissez votre fichier .xlsx sur la zone d\'upload ou cliquez "Sélectionner un fichier". Le transfert et l\'import se font en 2 étapes avec barre de progression.' },
-      { title: 'Comprendre les KPIs globaux', screenshot: 'KPIs affichés après import', imageUrl: '/guides/kpis-filterbar.jpg', description: 'Une fois importé, les KPIs s\'affichent automatiquement : taux de livraison, no-show, COD total, et temps moyen par étape.' },
+      { title: 'Comprendre les KPIs globaux', screenshot: 'KPIs affichés après import', imageUrl: '/guides/kpis-kpi-cards.jpg', description: 'Une fois importé, les KPIs s\'affichent automatiquement : taux de livraison, no-show, COD total, et temps moyen par étape.' },
       { title: 'Utiliser les filtres date/hub/livreur', screenshot: 'FilterBar avec sélecteurs', imageUrl: '/guides/kpis-filterbar.jpg', description: 'Affinez l\'analyse avec les filtres : période personnalisée, hub spécifique, ou livreur individuel. Les graphiques se mettent à jour instantanément.' },
-      { title: 'Lire le classement livreurs', screenshot: 'Tableau classement livreurs', imageUrl: '/guides/kpis-filterbar.jpg', description: 'Le tableau "Classement Livreurs" trie par taux de livraison. Identifiez les meilleurs et les livreurs à accompagner.' },
-      { title: 'Générer et envoyer le rapport PDF', screenshot: 'Bouton Envoyer le rapport', imageUrl: '/guides/kpis-filterbar.jpg', description: 'Cliquez "Envoyer le rapport" en haut à droite. Entrez l\'email destinataire et envoyez un PDF complet avec tous les KPIs.' },
+      { title: 'Lire le classement livreurs', screenshot: 'Tableau classement livreurs', imageUrl: '/guides/kpis-livreur-table.jpg', description: 'Le tableau "Classement Livreurs" trie par taux de livraison. Identifiez les meilleurs et les livreurs à accompagner.' },
+      { title: 'Générer et envoyer le rapport PDF', screenshot: 'Bouton Envoyer le rapport', imageUrl: '/guides/rapports-overview.jpg', description: 'Cliquez "Envoyer le rapport" en haut à droite. Entrez l\'email destinataire et envoyez un PDF complet avec tous les KPIs.' },
     ],
     tips: [
       'Format accepté : .xlsx et .xls uniquement',
@@ -85,10 +85,10 @@ const GUIDES: GuideData[] = [
     link: '/alertes',
     steps: [
       { title: 'Comprendre les 3 onglets', screenshot: 'Page Alertes — onglets Alertes / Tickets / Règles', imageUrl: '/guides/alertes-tabs.jpg', description: 'La page est divisée en 3 onglets : Alertes (incidents détectés), Tickets (suivi des actions), et Règles (configuration des seuils).' },
-      { title: 'Créer une règle d\'alerte', screenshot: 'Vue globale Alertes & Tickets', imageUrl: '/guides/alertes-overview.jpg', description: 'Dans l\'onglet Règles, définissez la métrique à surveiller (taux no-show, délai, etc.), le seuil de déclenchement et la sévérité.' },
+      { title: 'Créer une règle d\'alerte', screenshot: 'Vue globale Alertes & Tickets', imageUrl: '/guides/alertes-rules.jpg', description: 'Dans l\'onglet Règles, définissez la métrique à surveiller (taux no-show, délai, etc.), le seuil de déclenchement et la sévérité.' },
       { title: 'Gérer une alerte active', screenshot: 'Liste des alertes actives', imageUrl: '/guides/alertes-overview.jpg', description: 'Dans l\'onglet Alertes, chaque alerte affiche sa sévérité, sa date et son statut. Cliquez "Résoudre" une fois l\'action prise.' },
-      { title: 'Créer un ticket depuis une alerte', screenshot: 'Gestion des tickets', imageUrl: '/guides/alertes-overview.jpg', description: 'Pour les alertes nécessitant un suivi, cliquez "Créer ticket". Le ticket est automatiquement lié à l\'alerte et assignable à un responsable.' },
-      { title: 'Escalader un ticket critique', screenshot: 'Statuts des tickets', imageUrl: '/guides/alertes-overview.jpg', description: 'Si un ticket n\'est pas résolu dans les délais, passez-le en "Escaladé". Il apparaîtra en priorité dans la liste et peut déclencher une notification.' },
+      { title: 'Créer un ticket depuis une alerte', screenshot: 'Gestion des tickets', imageUrl: '/guides/alertes-tickets.jpg', description: 'Pour les alertes nécessitant un suivi, cliquez "Créer ticket". Le ticket est automatiquement lié à l\'alerte et assignable à un responsable.' },
+      { title: 'Escalader un ticket critique', screenshot: 'Statuts des tickets', imageUrl: '/guides/alertes-tickets.jpg', description: 'Si un ticket n\'est pas résolu dans les délais, passez-le en "Escaladé". Il apparaîtra en priorité dans la liste et peut déclencher une notification.' },
     ],
     tips: [
       'Configurez les seuils selon votre contexte (taux no-show acceptable, délais max)',
@@ -110,10 +110,10 @@ const GUIDES: GuideData[] = [
     link: '/rapports',
     steps: [
       { title: 'Accéder à la section Rapports', screenshot: 'Page Rapports & Planification', imageUrl: '/guides/rapports-overview.jpg', description: 'Cliquez sur "Rapports" dans la sidebar. La page liste les rapports planifiés existants et l\'historique des envois.' },
-      { title: 'Configurer l\'envoi automatique', screenshot: 'Formulaire nouveau rapport planifié', imageUrl: '/guides/rapports-overview.jpg', description: 'Cliquez "Nouveau rapport" et choisissez la fréquence (quotidien, hebdo, mensuel), l\'heure d\'envoi et les destinataires.' },
-      { title: 'Choisir fréquence et heure', screenshot: 'Sélecteur fréquence et heure', imageUrl: '/guides/rapports-overview.jpg', description: 'Recommandé : envoi quotidien à 08:00. Le rapport PDF est généré automatiquement depuis les dernières données importées.' },
-      { title: 'Ajouter les destinataires', screenshot: 'Champ email destinataires', imageUrl: '/guides/rapports-overview.jpg', description: 'Entrez les adresses email des destinataires. Séparez plusieurs adresses par des virgules. Le rapport leur sera envoyé automatiquement.' },
-      { title: 'Consulter l\'historique des envois', screenshot: 'Historique des envois', imageUrl: '/guides/rapports-overview.jpg', description: 'L\'historique montre chaque envoi avec sa date, le destinataire et le statut (succès / échec). En cas d\'échec, vérifiez les paramètres SMTP.' },
+      { title: 'Configurer l\'envoi automatique', screenshot: 'Formulaire nouveau rapport planifié', imageUrl: '/guides/rapports-planif.jpg', description: 'Cliquez "Nouveau rapport" et choisissez la fréquence (quotidien, hebdo, mensuel), l\'heure d\'envoi et les destinataires.' },
+      { title: 'Choisir fréquence et heure', screenshot: 'Sélecteur fréquence et heure', imageUrl: '/guides/rapports-planif.jpg', description: 'Recommandé : envoi quotidien à 08:00. Le rapport PDF est généré automatiquement depuis les dernières données importées.' },
+      { title: 'Ajouter les destinataires', screenshot: 'Champ email destinataires', imageUrl: '/guides/rapports-planif.jpg', description: 'Entrez les adresses email des destinataires. Séparez plusieurs adresses par des virgules. Le rapport leur sera envoyé automatiquement.' },
+      { title: 'Consulter l\'historique des envois', screenshot: 'Historique des envois', imageUrl: '/guides/rapports-historique.jpg', description: 'L\'historique montre chaque envoi avec sa date, le destinataire et le statut (succès / échec). En cas d\'échec, vérifiez les paramètres SMTP.' },
     ],
     tips: [
       'Envoi quotidien à 08:00 recommandé pour le rapport du lendemain',
@@ -251,9 +251,79 @@ function FaqItem({ q, a }: { q: string; a: string }) {
   )
 }
 
+// ── Formulaire ajout étape ────────────────────────────────────────────────
+function AddStepForm({ moduleKey, onAdd }: { moduleKey: string; onAdd: (step: Step) => void }) {
+  const [open, setOpen]   = useState(false)
+  const [title, setTitle] = useState('')
+  const [desc,  setDesc]  = useState('')
+  const [saving, setSaving] = useState(false)
+
+  const submit = async () => {
+    if (!title.trim() || !desc.trim()) return
+    setSaving(true)
+    try {
+      await fetch('/api/guide-feedback', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ moduleKey, helpful: true }),
+      })
+      onAdd({ title, screenshot: title, description: desc })
+      setTitle(''); setDesc(''); setOpen(false)
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  if (!open) {
+    return (
+      <button
+        onClick={() => setOpen(true)}
+        className="w-full mt-4 flex items-center justify-center gap-2 border-2 border-dashed border-blue-200 rounded-xl py-3 text-sm font-semibold text-blue-500 hover:border-blue-400 hover:text-blue-600 hover:bg-blue-50 transition-all"
+      >
+        <Plus size={16} /> Ajouter une étape personnalisée
+      </button>
+    )
+  }
+
+  return (
+    <div className="mt-4 rounded-xl border-2 border-blue-200 bg-blue-50 p-4 space-y-3">
+      <div className="flex items-center justify-between">
+        <p className="text-sm font-bold text-blue-700">Nouvelle étape</p>
+        <button onClick={() => setOpen(false)} className="text-gray-400 hover:text-gray-600"><X size={14} /></button>
+      </div>
+      <input
+        value={title}
+        onChange={e => setTitle(e.target.value)}
+        placeholder="Titre de l'étape..."
+        className="w-full px-3 py-2 text-sm border border-blue-200 rounded-lg bg-white focus:outline-none focus:ring-2 focus:ring-blue-300"
+      />
+      <textarea
+        value={desc}
+        onChange={e => setDesc(e.target.value)}
+        placeholder="Description détaillée..."
+        rows={3}
+        className="w-full px-3 py-2 text-sm border border-blue-200 rounded-lg bg-white focus:outline-none focus:ring-2 focus:ring-blue-300 resize-none"
+      />
+      <div className="flex gap-2">
+        <button
+          onClick={submit}
+          disabled={saving || !title.trim() || !desc.trim()}
+          className="flex-1 py-2 bg-blue-600 text-white text-sm font-semibold rounded-lg hover:bg-blue-700 disabled:opacity-50 transition-colors"
+        >
+          {saving ? 'Sauvegarde...' : 'Ajouter'}
+        </button>
+        <button onClick={() => setOpen(false)} className="px-4 py-2 bg-white border border-gray-200 text-sm text-gray-600 rounded-lg hover:bg-gray-50">
+          Annuler
+        </button>
+      </div>
+    </div>
+  )
+}
+
 // ── Rendu d'un guide complet ──────────────────────────────────────────────
 function GuideView({ guide, onClose }: { guide: GuideData; onClose: () => void }) {
   const [readProgress, setReadProgress] = useState(0)
+  const [extraSteps, setExtraSteps] = useState<Step[]>([])
 
   const handleScroll = (e: React.UIEvent<HTMLDivElement>) => {
     const el = e.currentTarget
@@ -303,22 +373,32 @@ function GuideView({ guide, onClose }: { guide: GuideData; onClose: () => void }
         {/* Section 2 — Étapes */}
         <div className="mb-6">
           <h3 className="text-base font-bold text-gray-800 mb-4">Comment l&apos;utiliser ?</h3>
-          <div className="space-y-5">
-            {guide.steps.map((step, i) => (
+          <div className="space-y-4">
+            {[...guide.steps, ...extraSteps].map((step, i) => (
               <div key={i} className="rounded-xl border border-gray-200 overflow-hidden">
+                {/* Header étape */}
                 <div className="px-4 py-2.5 bg-gray-50 border-b border-gray-100 flex items-center gap-2">
                   <div className="w-6 h-6 rounded-full bg-blue-600 text-white flex items-center justify-center text-xs font-bold flex-shrink-0">
                     {i + 1}
                   </div>
                   <span className="text-sm font-semibold text-gray-800">{step.title}</span>
                 </div>
-                <div className="p-4">
-                  <ScreenshotZone label={step.screenshot} imageUrl={step.imageUrl} />
-                  <p className="text-sm text-gray-600 leading-relaxed">{step.description}</p>
+                {/* Body — split : texte gauche | capture droite */}
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-0 divide-y md:divide-y-0 md:divide-x divide-gray-100">
+                  {/* Gauche : explication */}
+                  <div className="p-4 flex flex-col justify-center">
+                    <p className="text-sm text-gray-700 leading-relaxed">{step.description}</p>
+                  </div>
+                  {/* Droite : capture avec bordure jaune */}
+                  <div className="p-4 bg-gray-50">
+                    <ScreenshotZone label={step.screenshot} imageUrl={step.imageUrl} />
+                  </div>
                 </div>
               </div>
             ))}
           </div>
+          {/* Bouton ajouter étape */}
+          <AddStepForm moduleKey={guide.key} onAdd={step => setExtraSteps(prev => [...prev, step])} />
         </div>
 
         {/* Section 3 — Tips */}

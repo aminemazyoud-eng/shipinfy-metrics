@@ -40,7 +40,7 @@ const SECTIONS: NavSection[] = [
       { href: '/livreurs',   label: 'Livreurs',          icon: Users,      disabled: false },
       { href: '/hubs',       label: 'Hubs',               icon: MapPin,     disabled: false },
       { href: '/retours',    label: 'Retours & NO_SHOW',  icon: XCircle,    disabled: false },
-      { href: '/previsions', label: 'Prévisions',         icon: TrendingUp, disabled: true  },
+      { href: '/previsions', label: 'Prévisions',         icon: TrendingUp, disabled: false },
       { href: '/score-ia',  label: 'Score IA',           icon: Brain,      disabled: false },
     ],
   },

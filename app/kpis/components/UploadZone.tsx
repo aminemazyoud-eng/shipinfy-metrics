@@ -89,12 +89,22 @@ export function UploadZone({ activeReport, onUploadSuccess, onDeleteSuccess }: P
     setPhase('uploading')
     setProgress({ inserted: 0, total: 0 })
 
+    // Abort if server doesn't respond within 55s (before Traefik's ~60s timeout)
+    const controller = new AbortController()
+    const abortTimer = setTimeout(() => controller.abort(), 55_000)
+
     try {
       const fd = new FormData()
       fd.append('file', file)
 
       // Server parses XLSX and returns in <3s — then processes in background
-      const res = await fetch('/api/dashboard/upload', { method: 'POST', body: fd })
+      const res = await fetch('/api/dashboard/upload', {
+        method: 'POST',
+        body: fd,
+        signal: controller.signal,
+      })
+      clearTimeout(abortTimer)
+
       if (!res.ok) {
         const body = await res.json().catch(() => ({})) as { error?: string }
         throw new Error(body.error ?? 'Upload échoué')
@@ -119,7 +129,12 @@ export function UploadZone({ activeReport, onUploadSuccess, onDeleteSuccess }: P
       startPolling(data.reportId, data.totalRows)
 
     } catch (err: unknown) {
-      setError(err instanceof Error ? err.message : 'Erreur lors de l\'import. Réessayez.')
+      clearTimeout(abortTimer)
+      if (err instanceof Error && err.name === 'AbortError') {
+        setError('Délai dépassé. Le serveur met trop de temps à répondre — réessayez dans quelques secondes.')
+      } else {
+        setError(err instanceof Error ? err.message : 'Erreur lors de l\'import. Réessayez.')
+      }
       setPhase('idle')
     }
   }, [startPolling])

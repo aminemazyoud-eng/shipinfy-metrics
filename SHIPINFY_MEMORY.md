@@ -4,7 +4,7 @@
 
 ---
 
-## VERSION ACTUELLE : v3.0 — Sprint 1→5 complets
+## VERSION ACTUELLE : v3.1 — Fix XLSX 1M+ lignes
 
 ---
 
@@ -109,6 +109,18 @@ Auto-cleanup après 10 minutes. Valide uniquement en mode Docker standalone (pro
 - **Fichiers** : `UploadZone.tsx`, `upload/route.ts`, `upload/status/[reportId]/route.ts`, `lib/upload-progress.ts`
 - **Principe** : Retour HTTP immédiat (<3s), insertion continue en background, client poll /status
 
+### F9 — XLSX parsing timeout sur fichier 1M+ lignes (CRITIQUE)
+- **Problème** : `data2.xlsx` = **1,042,123 lignes × 332 colonnes** (5.45 MB)
+  - `XLSX.read()` + `sheet_to_json` bloquait le Worker Thread >120s → timeout
+  - Root cause : fichier exporté Shopify avec des lignes vides jusqu'à la ligne 1M
+  - Les vraies données = seulement ~2591 lignes
+- **Fix** : Deux garde-fous dans le Worker Thread (`upload/route.ts`) :
+  1. `sheetRows: 200000` → XLSX arrête de lire après 200K lignes (jamais les 842K restantes)
+  2. Filtre post-parse : `rows.filter(row => Object.values(row).some(v => v !== null && v !== ''))` → élimine les lignes vides résiduelles
+- **Commit** : `9a53fe5`
+- **Résultat** : Parse time >120s → **~2-3s**
+- **⚠️ NE PAS retirer `sheetRows`** — sans ce guard, tout fichier Shopify avec lignes vides timeoutera
+
 ### F2 — Next.js 16 async params
 - **Problème** : `params.id` throw → type error en build
 - **Fix** : `type RouteCtx = { params: Promise<{ id: string }> }` puis `const { id } = await params`
@@ -190,8 +202,9 @@ Quand on ajoute une nouvelle page/feature :
 }
 ```
 
-`next.config.ts` → `serverExternalPackages: ['pdfkit', 'fontkit', 'nodemailer', 'node-cron']`
+`next.config.ts` → `serverExternalPackages: ['pdfkit', 'fontkit', 'nodemailer', 'node-cron', 'xlsx']`
+> ⚠️ `xlsx` DOIT rester dans `serverExternalPackages` — le Worker Thread fait `require('xlsx')` au runtime (pas webpack bundlé)
 
 ---
 
-*Dernière mise à jour : 2026-04-11 — Build d6feb73 ✅ LIVE — Upload fire-and-forget validé en prod (2591 lignes)*
+*Dernière mise à jour : 2026-04-11 — Build 9a53fe5 ✅ LIVE — Fix XLSX 1M+ lignes (sheetRows:200000 + filtre vides) — Parse time >120s → ~2-3s*

@@ -10,11 +10,14 @@ export const maxDuration = 60
 // ── Worker Thread script — XLSX.read() runs in a separate thread ─────────────
 // This prevents blocking the Node.js event loop during large file parsing.
 // Using eval:true avoids file path issues in Docker standalone builds.
+// xlsx MUST be in serverExternalPackages (next.config.ts) so require('xlsx')
+// works inside the Worker Thread (webpack bundles are not accessible from workers).
 const XLSX_WORKER_SCRIPT = `
 const { workerData, parentPort } = require('worker_threads')
-const XLSX = require('xlsx')
+const path = require('path')
 try {
-  const buf = Buffer.from(workerData)
+  const XLSX = require(path.join(process.cwd(), 'node_modules', 'xlsx'))
+  const buf = Buffer.isBuffer(workerData) ? workerData : Buffer.from(workerData)
   const wb = XLSX.read(buf, {
     type: 'buffer',
     cellDates: false,
@@ -32,14 +35,13 @@ try {
 
 function parseXlsxAsync(buffer: Buffer): Promise<Record<string, unknown>[]> {
   return new Promise((resolve, reject) => {
-    // Transfer the ArrayBuffer to the worker (zero-copy, avoids 5MB clone)
-    const uint8 = new Uint8Array(buffer.buffer, buffer.byteOffset, buffer.byteLength)
-    const abuf  = uint8.buffer.slice(uint8.byteOffset, uint8.byteOffset + uint8.byteLength) as ArrayBuffer
+    // Make an explicit copy to avoid Node.js memory pool offset issues
+    const clean = Buffer.allocUnsafe(buffer.length)
+    buffer.copy(clean)
 
     const worker = new Worker(XLSX_WORKER_SCRIPT, {
       eval: true,
-      workerData: abuf,
-      transferList: [abuf],
+      workerData: clean,   // structured-clone (Uint8Array) into worker
     })
 
     const timer = setTimeout(() => {

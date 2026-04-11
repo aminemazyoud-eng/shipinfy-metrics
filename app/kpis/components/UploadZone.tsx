@@ -167,68 +167,47 @@ export function UploadZone({ activeReport, onUploadSuccess, onDeleteSuccess }: P
     }
   }, [activeReport, onDeleteSuccess])
 
-  // ── Téléchargement du template Markdown ──────────────────────────────────
+  // ── Téléchargement du template CSV vide ──────────────────────────────────
   const downloadTemplateMd = useCallback(() => {
-    const md = `# Template d'import — Shipinfy Metrics
-> Exportez ce fichier depuis Shopify/Mediflows puis importez-le sur /kpis.
-> Le fichier doit être au format **.xlsx** ou **.xls**.
-
-## Colonnes attendues
-
-| Colonne Excel | Description |
-|---|---|
-| \`externalReference\` | Référence externe commande |
-| \`shipperReference\` | Référence expéditeur |
-| \`carrierReference\` | Référence transporteur |
-| \`pickupTimeStart\` | Heure début pickup |
-| \`deliveryTimeStart\` | Heure début créneau livraison |
-| \`deliveryTimeEnd\` | Heure fin créneau livraison |
-| \`dateTimeWhenOrderSent\` | Date/heure envoi commande |
-| \`dateTimeWhenAssigned\` | Date/heure assignation livreur |
-| \`dateTimeWhenInTransport\` | Date/heure prise en transport |
-| \`dateTimeWhenStartDelivery\` | Date/heure début livraison |
-| \`dateTimeWhenDelivrered\` | Date/heure livraison effective |
-| \`dateTimeWhenNoShow\` | Date/heure no-show |
-| \`dateTimeLastUpdate\` | Date/heure dernière mise à jour |
-| \`shippingWorkflowStatus\` | Statut livraison (ex: Delivered, NoShow, ReadyForPickup) |
-| \`paymentOnDeliveryAmount\` | Montant COD (paiement à la livraison) |
-| \`destinationContactDetails.firstname\` | Prénom destinataire |
-| \`destinationContactDetails.lastname\` | Nom destinataire |
-| \`destinationCity.code\` | Code ville destination |
-| \`destinationShippingAddress.longitude\` | Longitude adresse livraison |
-| \`destinationShippingAddress.lattitude\` | Latitude adresse livraison |
-| \`originHub.name\` | Nom du hub de départ |
-| \`originHub.code\` | Code du hub de départ |
-| \`originHub.city.name\` | Ville du hub de départ |
-| \`originHub.address.longitude\` | Longitude hub |
-| \`originHub.address.lattitude\` | Latitude hub |
-| \`sprint.name\` | Nom de la tournée |
-| \`sprint.businessUser.firstName\` | Prénom du livreur |
-| \`sprint.businessUser.lastName\` | Nom du livreur |
-| \`sprintGeoLocationLongitude\` | Longitude position livreur |
-| \`sprintGeoLocationLattitude\` | Latitude position livreur |
-
-## Remarques
-
-- Les colonnes non reconnues sont **ignorées** — pas d'erreur.
-- Les lignes entièrement vides sont **filtrées** automatiquement.
-- Taille maximale : **100 Mo**. Nombre de lignes max recommandé : **200 000**.
-- Les fichiers avec des millions de lignes vides (export Shopify brut) sont supportés.
-
-## Statuts reconnus
-
-| Valeur | Signification |
-|---|---|
-| \`Delivered\` | Livré |
-| \`NoShow\` | Absent |
-| \`ReadyForPickup\` | Prêt pour pickup |
-| Autres | Statut personnalisé |
-`
-    const blob = new Blob([md], { type: 'text/markdown;charset=utf-8' })
+    // CSV avec juste les en-têtes — le client remplit les données
+    const headers = [
+      'externalReference',
+      'shipperReference',
+      'carrierReference',
+      'pickupTimeStart',
+      'deliveryTimeStart',
+      'deliveryTimeEnd',
+      'dateTimeWhenOrderSent',
+      'dateTimeWhenAssigned',
+      'dateTimeWhenInTransport',
+      'dateTimeWhenStartDelivery',
+      'dateTimeWhenDelivrered',
+      'dateTimeWhenNoShow',
+      'dateTimeLastUpdate',
+      'shippingWorkflowStatus',
+      'paymentOnDeliveryAmount',
+      'destinationContactDetails.firstname',
+      'destinationContactDetails.lastname',
+      'destinationCity.code',
+      'destinationShippingAddress.longitude',
+      'destinationShippingAddress.lattitude',
+      'originHub.name',
+      'originHub.code',
+      'originHub.city.name',
+      'originHub.address.longitude',
+      'originHub.address.lattitude',
+      'sprint.name',
+      'sprint.businessUser.firstName',
+      'sprint.businessUser.lastName',
+      'sprintGeoLocationLongitude',
+      'sprintGeoLocationLattitude',
+    ]
+    const csv  = headers.join(',') + '\n'
+    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8' })
     const url  = URL.createObjectURL(blob)
     const a    = document.createElement('a')
     a.href     = url
-    a.download = 'template-import-shipinfy.md'
+    a.download = 'template-import-shipinfy.csv'
     a.click()
     URL.revokeObjectURL(url)
   }, [])

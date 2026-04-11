@@ -42,25 +42,31 @@
 
 ## 3. API ROUTES (NE PAS SUPPRIMER NI MODIFIER SANS RAISON)
 
-### Upload Excel — ARCHITECTURE CLIENT-SIDE (fix timeout Traefik)
-> ⚠️ NE PAS revenir à l'upload server-side — le reverse proxy Dokploy timeout à ~60s
+### Upload Excel — ARCHITECTURE FIRE-AND-FORGET SERVER-SIDE (fix timeout Traefik)
+> ⚠️ Architecture validée — NE PAS revenir à upload bloquant (Traefik timeout 60s)
+> ✅ Testé en production 11/04/2026 — 2591 lignes importées avec succès
 
 | Route | Rôle |
 |-------|------|
-| `POST /api/dashboard/upload/init` | Crée DeliveryReport, retourne reportId (instant) |
-| `POST /api/dashboard/upload/batch` | Insère un lot de 250 lignes (< 10s, jamais timeout) |
-| `POST /api/dashboard/upload` | Ancienne route (gardée en fallback, NE PAS SUPPRIMER) |
+| `POST /api/dashboard/upload` | Parse XLSX server-side (<3s), retourne immédiatement, insère en background |
+| `GET /api/dashboard/upload/status/[reportId]` | Polling : retourne `{total, inserted, done}` depuis Map mémoire |
+| `POST /api/dashboard/upload/init` | Route legacy (gardée, NE PAS SUPPRIMER) |
+| `POST /api/dashboard/upload/batch` | Route legacy (gardée, NE PAS SUPPRIMER) |
 
-**Flow correct** :
-1. Browser parse XLSX via `import('xlsx')` côté client
-2. POST `/upload/init` → reportId
-3. Split en batches de **1000 lignes**, envoi **3 en parallèle** (Promise.all)
-4. Barre de progression réelle `current / total` — 9000 lignes ≈ 15s
+**Flow correct (fire-and-forget)** :
+1. `UploadZone.tsx` envoie le fichier binaire en FormData → `POST /api/dashboard/upload`
+2. Serveur parse XLSX en mémoire (~1-2s), crée DeliveryReport, lance `insertBackground()` **sans await**
+3. Répond immédiatement `{ reportId, filename, totalRows, insertedAt }` → Traefik ne timeout jamais
+4. Background : `insertBackground()` insère par batches de 500 lignes, met à jour `uploadProgress` Map
+5. Client poll `GET /upload/status/[reportId]` toutes les 1.5s → barre de progression temps réel
+6. Quand `done: true` → UI passe en phase "done", KPIs s'affichent automatiquement
 
-**Performances** :
-- 9000 lignes / 1000 par batch = 9 batches
-- 3 parallèles = 3 rounds × ~5s = **~15s total**
-- 50 000 lignes = 50 batches / 3 = ~17 rounds × 5s ≈ **~85s** (acceptable)
+**État en mémoire** : `lib/upload-progress.ts` — Map<reportId, {total, inserted, done, error?}>  
+Auto-cleanup après 10 minutes. Valide uniquement en mode Docker standalone (process persistant).
+
+**Performances mesurées** :
+- 2591 lignes → ~8s total (parse 1s + insertion background ~7s)
+- Batches de 500 → ~5-6 batches → Supabase PostgreSQL gère sans problème
 
 ### Dashboard
 | Route | Rôle |
@@ -99,8 +105,9 @@
 
 ### F1 — Upload Excel (CRITIQUE)
 - **Problème** : `maxDuration=300` inefficace → Traefik timeout à 60s
-- **Fix** : Parsing XLSX côté browser + micro-batches 250 lignes → `upload/init` + `upload/batch`
-- **Fichiers** : `UploadZone.tsx`, `upload/init/route.ts`, `upload/batch/route.ts`
+- **Fix** : Server-side XLSX parse + fire-and-forget + polling progress
+- **Fichiers** : `UploadZone.tsx`, `upload/route.ts`, `upload/status/[reportId]/route.ts`, `lib/upload-progress.ts`
+- **Principe** : Retour HTTP immédiat (<3s), insertion continue en background, client poll /status
 
 ### F2 — Next.js 16 async params
 - **Problème** : `params.id` throw → type error en build
@@ -115,6 +122,7 @@
 ### F4 — PDF données à 0 (guard)
 - **Fix** : `send-report/route.ts` retourne 422 si `totalOrders = 0`
 - **Fix** : `SendReportModal.tsx` — bandeau warning + bouton désactivé si pas de données
+- **⚠️ TS fix** : `kpisData` typé `unknown` (pas d'index signature) → cast interne `(kpisData as {totalOrders?:number}|null)`
 
 ### F5 — Dashboard spinner infini
 - **Fix** : `AbortController` 10s timeout sur fetch `/api/realtime`
@@ -186,4 +194,4 @@ Quand on ajoute une nouvelle page/feature :
 
 ---
 
-*Dernière mise à jour : 2026-04-11 — Sprint 5 complet + Upload fix*
+*Dernière mise à jour : 2026-04-11 — Build d6feb73 ✅ LIVE — Upload fire-and-forget validé en prod (2591 lignes)*

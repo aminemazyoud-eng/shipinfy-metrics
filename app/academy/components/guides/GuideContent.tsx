@@ -8,6 +8,7 @@ import { GuideFeedbackBar } from '../GuideFeedbackBar'
 interface Step {
   title: string
   screenshot: string
+  imageUrl?: string
   description: string
 }
 
@@ -31,11 +32,11 @@ const GUIDES: GuideData[] = [
     readTime: '4 min',
     link: '/',
     steps: [
-      { title: 'Accéder au Dashboard', screenshot: 'Capture : page Dashboard — vue globale', description: 'Cliquez sur "Dashboard" dans la sidebar à gauche. La page affiche en temps réel l\'état de toutes les livraisons actives.' },
-      { title: 'Comprendre les métriques live', screenshot: 'Capture : cards KPI en haut de page', description: 'Les 4 cartes en haut résument : commandes totales, taux de livraison, no-shows et COD collecté. Ces données se rafraîchissent automatiquement.' },
-      { title: 'Lire les statuts des commandes', screenshot: 'Capture : tableau des commandes avec statuts colorés', description: 'Chaque commande affiche un statut coloré : vert = livré, rouge = no-show, orange = en cours. Cliquez sur une ligne pour voir le détail.' },
-      { title: 'Interpréter les alertes temps réel', screenshot: 'Capture : bandeau d\'alerte rouge en haut', description: 'Un bandeau rouge indique une alerte active. Cliquez pour accéder directement à la gestion des alertes et prendre une action.' },
-      { title: 'Filtrer par hub ou livreur', screenshot: 'Capture : barre de filtres hub et livreur', description: 'Utilisez les filtres en haut du tableau pour isoler les données d\'un hub ou d\'un livreur spécifique et analyser sa performance.' },
+      { title: 'Accéder au Dashboard', screenshot: 'Vue globale du Dashboard', imageUrl: '/guides/dash-overview.jpg', description: 'Cliquez sur "Dashboard" dans la sidebar à gauche. La page affiche en temps réel l\'état de toutes les livraisons actives.' },
+      { title: 'Comprendre les métriques live', screenshot: 'Cards KPI en haut de page', imageUrl: '/guides/dash-kpi-cards.jpg', description: 'Les cartes en haut résument : commandes totales, en cours, livrées, NO_SHOW, taux livraison et COD collecté. Rafraîchissement automatique.' },
+      { title: 'Lire les statuts des commandes', screenshot: 'Tableau des commandes avec statuts colorés', imageUrl: '/guides/dash-orders-table.jpg', description: 'Chaque commande affiche un statut coloré : vert = livré, rouge = NO_SHOW, orange = en livraison. Cliquez sur une ligne pour voir le détail.' },
+      { title: 'Interpréter les alertes temps réel', screenshot: 'Bandeau alerte et livreurs actifs', imageUrl: '/guides/dash-overview.jpg', description: 'La section "Livreurs actifs" montre en temps réel chaque livreur, son taux du jour et son statut. Un badge rouge signale une action urgente.' },
+      { title: 'Filtrer par hub ou livreur', screenshot: 'Performance par Hub', imageUrl: '/guides/dash-overview.jpg', description: 'La section "Performance par Hub" à droite compare les hubs en temps réel. Utilisez la sidebar pour accéder directement aux détails d\'un hub.' },
     ],
     tips: [
       'Le rafraîchissement est automatique — pas besoin de recharger la page',
@@ -56,12 +57,12 @@ const GUIDES: GuideData[] = [
     readTime: '6 min',
     link: '/kpis',
     steps: [
-      { title: 'Télécharger le template Excel', screenshot: 'Capture : bouton "Télécharger le template" sur la zone d\'upload', description: 'Si vous n\'avez pas encore de fichier, cliquez sur "Télécharger le template" pour obtenir la liste des colonnes attendues.' },
-      { title: 'Importer un fichier Excel', screenshot: 'Capture : zone d\'upload avec glisser-déposer', description: 'Glissez votre fichier .xlsx sur la zone d\'upload ou cliquez "Sélectionner un fichier". Le transfert et l\'import se font automatiquement en 2 étapes.' },
-      { title: 'Comprendre les KPIs globaux', screenshot: 'Capture : 4 cards KPI taux livraison / no-show / COD / délais', description: 'Une fois importé, les KPIs s\'affichent automatiquement : taux de livraison, no-show, COD total, et temps moyen par étape.' },
-      { title: 'Utiliser les filtres date/hub/livreur', screenshot: 'Capture : FilterBar avec sélecteurs date, hub, livreur', description: 'Affinez l\'analyse avec les filtres en haut : période personnalisée, hub spécifique, ou livreur individuel. Les graphiques se mettent à jour instantanément.' },
-      { title: 'Lire le classement livreurs', screenshot: 'Capture : tableau LivreurTable avec classement et scores', description: 'Le tableau "Classement Livreurs" trie par taux de livraison. Identifiez les meilleurs et les livreurs à accompagner.' },
-      { title: 'Générer et envoyer le rapport PDF', screenshot: 'Capture : modal d\'envoi email avec destinataire', description: 'Cliquez "Envoyer le rapport" en haut à droite. Entrez l\'email destinataire et envoyez un PDF complet avec tous les KPIs.' },
+      { title: 'Télécharger le template CSV', screenshot: 'Zone d\'upload avec bouton Télécharger le template', imageUrl: '/guides/kpis-upload-zone.jpg', description: 'Cliquez "Télécharger le template" pour obtenir un fichier CSV vide avec les 30 colonnes attendues. Remplissez-le et réimportez.' },
+      { title: 'Importer un fichier Excel', screenshot: 'Zone d\'upload avec glisser-déposer', imageUrl: '/guides/kpis-upload-zone.jpg', description: 'Glissez votre fichier .xlsx sur la zone d\'upload ou cliquez "Sélectionner un fichier". Le transfert et l\'import se font en 2 étapes avec barre de progression.' },
+      { title: 'Comprendre les KPIs globaux', screenshot: 'KPIs affichés après import', imageUrl: '/guides/kpis-filterbar.jpg', description: 'Une fois importé, les KPIs s\'affichent automatiquement : taux de livraison, no-show, COD total, et temps moyen par étape.' },
+      { title: 'Utiliser les filtres date/hub/livreur', screenshot: 'FilterBar avec sélecteurs', imageUrl: '/guides/kpis-filterbar.jpg', description: 'Affinez l\'analyse avec les filtres : période personnalisée, hub spécifique, ou livreur individuel. Les graphiques se mettent à jour instantanément.' },
+      { title: 'Lire le classement livreurs', screenshot: 'Tableau classement livreurs', imageUrl: '/guides/kpis-filterbar.jpg', description: 'Le tableau "Classement Livreurs" trie par taux de livraison. Identifiez les meilleurs et les livreurs à accompagner.' },
+      { title: 'Générer et envoyer le rapport PDF', screenshot: 'Bouton Envoyer le rapport', imageUrl: '/guides/kpis-filterbar.jpg', description: 'Cliquez "Envoyer le rapport" en haut à droite. Entrez l\'email destinataire et envoyez un PDF complet avec tous les KPIs.' },
     ],
     tips: [
       'Format accepté : .xlsx et .xls uniquement',
@@ -83,11 +84,11 @@ const GUIDES: GuideData[] = [
     readTime: '5 min',
     link: '/alertes',
     steps: [
-      { title: 'Comprendre les 3 onglets', screenshot: 'Capture : onglets Alertes / Tickets / Règles', description: 'La page est divisée en 3 onglets : Alertes (incidents détectés), Tickets (suivi des actions), et Règles (configuration des seuils).' },
-      { title: 'Créer une règle d\'alerte', screenshot: 'Capture : formulaire création règle avec seuil et métrique', description: 'Dans l\'onglet Règles, définissez la métrique à surveiller (taux no-show, délai, etc.), le seuil de déclenchement et la sévérité.' },
-      { title: 'Gérer une alerte active', screenshot: 'Capture : liste alertes avec boutons Résoudre / Escalader', description: 'Dans l\'onglet Alertes, chaque alerte affiche sa sévérité, sa date et son statut. Cliquez "Résoudre" une fois l\'action prise.' },
-      { title: 'Créer un ticket depuis une alerte', screenshot: 'Capture : bouton "Créer ticket" sur une alerte', description: 'Pour les alertes nécessitant un suivi, cliquez "Créer ticket". Le ticket est automatiquement lié à l\'alerte et assignable à un responsable.' },
-      { title: 'Escalader un ticket critique', screenshot: 'Capture : ticket avec statut Escaladé rouge', description: 'Si un ticket n\'est pas résolu dans les délais, passez-le en "Escaladé". Il apparaîtra en priorité dans la liste et peut déclencher une notification.' },
+      { title: 'Comprendre les 3 onglets', screenshot: 'Page Alertes — onglets Alertes / Tickets / Règles', imageUrl: '/guides/alertes-tabs.jpg', description: 'La page est divisée en 3 onglets : Alertes (incidents détectés), Tickets (suivi des actions), et Règles (configuration des seuils).' },
+      { title: 'Créer une règle d\'alerte', screenshot: 'Vue globale Alertes & Tickets', imageUrl: '/guides/alertes-overview.jpg', description: 'Dans l\'onglet Règles, définissez la métrique à surveiller (taux no-show, délai, etc.), le seuil de déclenchement et la sévérité.' },
+      { title: 'Gérer une alerte active', screenshot: 'Liste des alertes actives', imageUrl: '/guides/alertes-overview.jpg', description: 'Dans l\'onglet Alertes, chaque alerte affiche sa sévérité, sa date et son statut. Cliquez "Résoudre" une fois l\'action prise.' },
+      { title: 'Créer un ticket depuis une alerte', screenshot: 'Gestion des tickets', imageUrl: '/guides/alertes-overview.jpg', description: 'Pour les alertes nécessitant un suivi, cliquez "Créer ticket". Le ticket est automatiquement lié à l\'alerte et assignable à un responsable.' },
+      { title: 'Escalader un ticket critique', screenshot: 'Statuts des tickets', imageUrl: '/guides/alertes-overview.jpg', description: 'Si un ticket n\'est pas résolu dans les délais, passez-le en "Escaladé". Il apparaîtra en priorité dans la liste et peut déclencher une notification.' },
     ],
     tips: [
       'Configurez les seuils selon votre contexte (taux no-show acceptable, délais max)',
@@ -108,11 +109,11 @@ const GUIDES: GuideData[] = [
     readTime: '4 min',
     link: '/rapports',
     steps: [
-      { title: 'Accéder à la section Rapports', screenshot: 'Capture : page Rapports avec liste des planifications', description: 'Cliquez sur "Rapports" dans la sidebar. La page liste les rapports planifiés existants et l\'historique des envois.' },
-      { title: 'Configurer l\'envoi automatique', screenshot: 'Capture : formulaire nouveau rapport planifié', description: 'Cliquez "Nouveau rapport" et choisissez la fréquence (quotidien, hebdo, mensuel), l\'heure d\'envoi et les destinataires.' },
-      { title: 'Choisir fréquence et heure', screenshot: 'Capture : sélecteur fréquence et heure d\'envoi', description: 'Recommandé : envoi quotidien à 08:00. Le rapport PDF est généré automatiquement depuis les dernières données importées.' },
-      { title: 'Ajouter les destinataires', screenshot: 'Capture : champ email destinataires', description: 'Entrez les adresses email des destinataires. Séparez plusieurs adresses par des virgules. Le rapport leur sera envoyé automatiquement.' },
-      { title: 'Consulter l\'historique des envois', screenshot: 'Capture : tableau historique avec date / statut / destinataire', description: 'L\'historique montre chaque envoi avec sa date, le destinataire et le statut (succès / échec). En cas d\'échec, vérifiez les paramètres SMTP.' },
+      { title: 'Accéder à la section Rapports', screenshot: 'Page Rapports & Planification', imageUrl: '/guides/rapports-overview.jpg', description: 'Cliquez sur "Rapports" dans la sidebar. La page liste les rapports planifiés existants et l\'historique des envois.' },
+      { title: 'Configurer l\'envoi automatique', screenshot: 'Formulaire nouveau rapport planifié', imageUrl: '/guides/rapports-overview.jpg', description: 'Cliquez "Nouveau rapport" et choisissez la fréquence (quotidien, hebdo, mensuel), l\'heure d\'envoi et les destinataires.' },
+      { title: 'Choisir fréquence et heure', screenshot: 'Sélecteur fréquence et heure', imageUrl: '/guides/rapports-overview.jpg', description: 'Recommandé : envoi quotidien à 08:00. Le rapport PDF est généré automatiquement depuis les dernières données importées.' },
+      { title: 'Ajouter les destinataires', screenshot: 'Champ email destinataires', imageUrl: '/guides/rapports-overview.jpg', description: 'Entrez les adresses email des destinataires. Séparez plusieurs adresses par des virgules. Le rapport leur sera envoyé automatiquement.' },
+      { title: 'Consulter l\'historique des envois', screenshot: 'Historique des envois', imageUrl: '/guides/rapports-overview.jpg', description: 'L\'historique montre chaque envoi avec sa date, le destinataire et le statut (succès / échec). En cas d\'échec, vérifiez les paramètres SMTP.' },
     ],
     tips: [
       'Envoi quotidien à 08:00 recommandé pour le rapport du lendemain',
@@ -133,12 +134,12 @@ const GUIDES: GuideData[] = [
     readTime: '5 min',
     link: '/livreurs',
     steps: [
-      { title: 'Accéder à la liste des livreurs', screenshot: 'Capture : tableau livreurs avec colonnes nom / hub / statut', description: 'La page Livreurs liste tous les livreurs actifs avec leur hub d\'appartenance, statut et score de fiabilité.' },
-      { title: 'Ajouter un nouveau livreur', screenshot: 'Capture : bouton "Ajouter livreur" et formulaire', description: 'Cliquez "Ajouter livreur" et remplissez les informations de base : prénom, nom, téléphone, hub d\'affectation.' },
-      { title: 'Remplir la fiche complète', screenshot: 'Capture : fiche livreur avec onglets informations / documents', description: 'La fiche comprend : informations personnelles, documents (CIN, assurance, permis), et l\'historique de performance.' },
-      { title: 'Uploader les documents CIN / assurance', screenshot: 'Capture : zone upload document avec date expiration', description: 'Pour chaque document, uploadez le fichier et renseignez la date d\'expiration. Le système alertera 30 jours avant expiration.' },
-      { title: 'Suivre les documents expirés', screenshot: 'Capture : badge rouge "Expiré" sur fiche livreur', description: 'Les livreurs avec documents expirés apparaissent avec un badge rouge. Traitez ces cas en priorité pour rester conforme.' },
-      { title: 'Exporter la base en CSV', screenshot: 'Capture : bouton Export CSV en haut de page', description: 'Cliquez "Exporter CSV" pour télécharger la liste complète des livreurs avec toutes leurs informations.' },
+      { title: 'Accéder à la liste des livreurs', screenshot: 'Tableau livreurs — vue globale', imageUrl: '/guides/livreurs-overview.jpg', description: 'La page Livreurs liste tous les livreurs actifs avec leur hub d\'appartenance, statut et score de fiabilité.' },
+      { title: 'Ajouter un nouveau livreur', screenshot: 'Bouton Ajouter livreur', imageUrl: '/guides/livreurs-overview.jpg', description: 'Cliquez "Ajouter livreur" et remplissez les informations de base : prénom, nom, téléphone, hub d\'affectation.' },
+      { title: 'Remplir la fiche complète', screenshot: 'Fiche livreur détaillée', imageUrl: '/guides/livreurs-overview.jpg', description: 'La fiche comprend : informations personnelles, documents (CIN, assurance, permis), et l\'historique de performance.' },
+      { title: 'Uploader les documents CIN / assurance', screenshot: 'Zone upload document avec date expiration', imageUrl: '/guides/livreurs-overview.jpg', description: 'Pour chaque document, uploadez le fichier et renseignez la date d\'expiration. Le système alertera 30 jours avant expiration.' },
+      { title: 'Suivre les documents expirés', screenshot: 'Badges statut et expiration', imageUrl: '/guides/livreurs-overview.jpg', description: 'Les livreurs avec documents expirés apparaissent avec un badge rouge. Traitez ces cas en priorité pour rester conforme.' },
+      { title: 'Exporter la base en CSV', screenshot: 'Export CSV livreurs', imageUrl: '/guides/livreurs-overview.jpg', description: 'Cliquez "Exporter CSV" pour télécharger la liste complète des livreurs avec toutes leurs informations.' },
     ],
     tips: [
       'Toujours uploader CIN recto + verso pour une conformité complète',
@@ -159,11 +160,11 @@ const GUIDES: GuideData[] = [
     readTime: '4 min',
     link: '/onboarding',
     steps: [
-      { title: 'Comprendre le pipeline Kanban', screenshot: 'Capture : vue Kanban 5 colonnes prospects → actifs', description: 'Le Kanban affiche 5 colonnes : Prospects, En cours, Formation, Validés, Actifs. Chaque livreur avance de gauche à droite.' },
-      { title: 'Ajouter un prospect', screenshot: 'Capture : bouton "Nouveau prospect" et formulaire', description: 'Cliquez "Nouveau prospect" et renseignez nom, téléphone et source du contact. Le prospect apparaît dans la première colonne.' },
-      { title: 'Faire avancer le livreur dans le pipeline', screenshot: 'Capture : drag-and-drop d\'une carte entre colonnes', description: 'Glissez la carte du livreur vers la colonne suivante au fur et à mesure de l\'avancement (entretien, documents, formation...).' },
-      { title: 'Valider les étapes KYC / Contrat / Formation', screenshot: 'Capture : checklist étapes sur fiche livreur', description: 'Chaque fiche liste les étapes obligatoires : KYC, signature contrat, formation. Cochez chaque étape pour débloquer la suivante.' },
-      { title: 'Passer le livreur en statut Actif', screenshot: 'Capture : bouton "Valider → Actif" sur fiche validée', description: 'Une fois toutes les étapes cochées, cliquez "Passer Actif". Le livreur apparaît dans la base Livreurs et peut être assigné aux tournées.' },
+      { title: 'Comprendre le pipeline Kanban', screenshot: 'Vue Kanban 5 colonnes', imageUrl: '/guides/onboarding-kanban.jpg', description: 'Le Kanban affiche 5 colonnes : Prospects, En cours, Formation, Validés, Actifs. Chaque livreur avance de gauche à droite.' },
+      { title: 'Ajouter un prospect', screenshot: 'Ajouter un nouveau prospect', imageUrl: '/guides/onboarding-kanban.jpg', description: 'Cliquez "Nouveau prospect" et renseignez nom, téléphone et source du contact. Le prospect apparaît dans la première colonne.' },
+      { title: 'Faire avancer le livreur dans le pipeline', screenshot: 'Déplacer une carte entre colonnes', imageUrl: '/guides/onboarding-kanban.jpg', description: 'Glissez la carte du livreur vers la colonne suivante au fur et à mesure de l\'avancement (entretien, documents, formation...).' },
+      { title: 'Valider les étapes KYC / Contrat / Formation', screenshot: 'Checklist étapes validation', imageUrl: '/guides/onboarding-kanban.jpg', description: 'Chaque fiche liste les étapes obligatoires : KYC, signature contrat, formation. Cochez chaque étape pour débloquer la suivante.' },
+      { title: 'Passer le livreur en statut Actif', screenshot: 'Colonne Actifs du Kanban', imageUrl: '/guides/onboarding-kanban.jpg', description: 'Une fois toutes les étapes cochées, cliquez "Passer Actif". Le livreur apparaît dans la base Livreurs et peut être assigné aux tournées.' },
     ],
     tips: [
       'Le pipeline a 5 colonnes : Prospects / En cours / Formation / Validés / Actifs',
@@ -184,11 +185,11 @@ const GUIDES: GuideData[] = [
     readTime: '5 min',
     link: '/score-ia',
     steps: [
-      { title: 'Comprendre le calcul du score', screenshot: 'Capture : formule score IA affichée', description: 'Le score = Taux livraison × 0.4 + Score academy × 0.3 + (100 - Taux noshow) × 0.3. Trois dimensions pondérées pour une vision globale.' },
-      { title: 'Lire le tableau des scores', screenshot: 'Capture : tableau score-ia avec badges couleur', description: 'Le tableau liste chaque livreur avec son score coloré : vert ≥ 80, orange 60-80, rouge < 60. Triez par score pour identifier les priorités.' },
-      { title: 'Identifier les livreurs à risque', screenshot: 'Capture : livreurs en rouge avec badge Critique', description: 'Les livreurs en rouge (< 60) ont déclenché une alerte automatique. Consultez leur fiche pour comprendre quel composant tire le score vers le bas.' },
-      { title: 'Agir sur les recommandations', screenshot: 'Capture : recommandation IA affichée sous le score', description: 'Chaque fiche affiche une recommandation automatique : "Améliorer taux livraison", "Compléter la formation", etc. Suivez ces actions.' },
-      { title: 'Suivre l\'évolution dans le temps', screenshot: 'Capture : graphique évolution score sur 30 jours', description: 'L\'historique montre l\'évolution du score sur les derniers jours. Une tendance à la hausse confirme l\'efficacité des actions prises.' },
+      { title: 'Comprendre le calcul du score', screenshot: 'Page Score IA — vue globale', imageUrl: '/guides/score-ia-overview.jpg', description: 'Le score = Taux livraison × 0.4 + Score academy × 0.3 + (100 - Taux noshow) × 0.3. Trois dimensions pondérées pour une vision globale.' },
+      { title: 'Lire le tableau des scores', screenshot: 'Tableau scores avec badges couleur', imageUrl: '/guides/score-ia-table.jpg', description: 'Le tableau liste chaque livreur avec son score coloré : vert ≥ 80, orange 60-80, rouge < 60. Triez par score pour identifier les priorités.' },
+      { title: 'Identifier les livreurs à risque', screenshot: 'Livreurs critiques en rouge', imageUrl: '/guides/score-ia-table.jpg', description: 'Les livreurs en rouge (< 60) ont déclenché une alerte automatique. Consultez leur fiche pour comprendre quel composant tire le score vers le bas.' },
+      { title: 'Agir sur les recommandations', screenshot: 'Recommandations IA par livreur', imageUrl: '/guides/score-ia-overview.jpg', description: 'Chaque fiche affiche une recommandation automatique : "Améliorer taux livraison", "Compléter la formation", etc. Suivez ces actions.' },
+      { title: 'Suivre l\'évolution dans le temps', screenshot: 'Évolution scores dans le temps', imageUrl: '/guides/score-ia-overview.jpg', description: 'L\'historique montre l\'évolution du score sur les derniers jours. Une tendance à la hausse confirme l\'efficacité des actions prises.' },
     ],
     tips: [
       'Score < 60 → alerte créée automatiquement dans Alertes & Tickets',
@@ -209,11 +210,11 @@ const GUIDES: GuideData[] = [
     readTime: '4 min',
     link: '/academy',
     steps: [
-      { title: 'Accéder au catalogue des formations', screenshot: 'Capture : grille 6 modules colorés', description: 'L\'onglet "Formation Livreurs" affiche les 6 modules disponibles. Chaque carte indique le nombre de leçons, certifiés et participants.' },
-      { title: 'Inscrire un livreur à un module', screenshot: 'Capture : modal module avec liste des livreurs', description: 'Cliquez sur un module pour l\'ouvrir. Sélectionnez un livreur dans la liste et cliquez "Inscrire" pour lancer sa formation.' },
-      { title: 'Suivre la progression', screenshot: 'Capture : barre de progression livreur dans un module', description: 'La barre de progression indique l\'avancement leçon par leçon. Les leçons complétées apparaissent avec une coche verte.' },
-      { title: 'Valider un certificat (score ≥ 70%)', screenshot: 'Capture : badge Certifié vert sur la carte livreur', description: 'Après le quiz final, si le score est ≥ 70%, le livreur obtient son certificat. Le badge "Certifié" apparaît sur sa fiche.' },
-      { title: 'Consulter les Guides Shipinfy', screenshot: 'Capture : onglet Guides Shipinfy avec liste des 8 guides', description: 'L\'onglet "Guides Shipinfy" donne accès aux 8 guides d\'utilisation de la plateforme. Chaque guide explique en détail une section.' },
+      { title: 'Accéder au catalogue des formations', screenshot: 'Onglet Formation Livreurs — 6 modules', imageUrl: '/guides/academy-formation.jpg', description: 'L\'onglet "Formation Livreurs" affiche les 6 modules disponibles. Chaque carte indique le nombre de leçons, certifiés et participants.' },
+      { title: 'Inscrire un livreur à un module', screenshot: 'Cliquer sur un module pour l\'ouvrir', imageUrl: '/guides/academy-formation.jpg', description: 'Cliquez sur un module pour l\'ouvrir. La modal affiche les leçons disponibles et les livreurs inscrits.' },
+      { title: 'Suivre la progression', screenshot: 'Barre de progression par module', imageUrl: '/guides/academy-formation.jpg', description: 'La barre de progression sous chaque module indique le ratio certifiés/participants. Les leçons complétées apparaissent avec une coche verte.' },
+      { title: 'Valider un certificat (score ≥ 70%)', screenshot: 'Statistiques certifications', imageUrl: '/guides/academy-formation.jpg', description: 'Après le quiz final, si le score est ≥ 70%, le livreur obtient son certificat. Le compteur "Certifications" en haut se met à jour.' },
+      { title: 'Consulter les Guides Shipinfy', screenshot: 'Onglet Guides Shipinfy — liste des 8 guides', imageUrl: '/guides/academy-guides-tab.jpg', description: 'L\'onglet "Guides Shipinfy" donne accès aux 8 guides d\'utilisation de la plateforme. Cliquez sur un guide pour l\'ouvrir.' },
     ],
     tips: [
       'Commencez par le module "Soft Skills & Client" — applicable immédiatement',
@@ -312,7 +313,7 @@ function GuideView({ guide, onClose }: { guide: GuideData; onClose: () => void }
                   <span className="text-sm font-semibold text-gray-800">{step.title}</span>
                 </div>
                 <div className="p-4">
-                  <ScreenshotZone label={step.screenshot} />
+                  <ScreenshotZone label={step.screenshot} imageUrl={step.imageUrl} />
                   <p className="text-sm text-gray-600 leading-relaxed">{step.description}</p>
                 </div>
               </div>

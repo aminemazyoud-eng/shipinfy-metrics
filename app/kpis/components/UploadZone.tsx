@@ -1,6 +1,6 @@
 'use client'
 import { useCallback, useEffect, useRef, useState } from 'react'
-import { Upload, Trash2, FileSpreadsheet, AlertCircle, CheckCircle2 } from 'lucide-react'
+import { Upload, Trash2, FileSpreadsheet, AlertCircle, CheckCircle2, Download } from 'lucide-react'
 
 interface Report {
   id: string
@@ -166,6 +166,72 @@ export function UploadZone({ activeReport, onUploadSuccess, onDeleteSuccess }: P
     }
   }, [activeReport, onDeleteSuccess])
 
+  // ── Téléchargement du template Markdown ──────────────────────────────────
+  const downloadTemplateMd = useCallback(() => {
+    const md = `# Template d'import — Shipinfy Metrics
+> Exportez ce fichier depuis Shopify/Mediflows puis importez-le sur /kpis.
+> Le fichier doit être au format **.xlsx** ou **.xls**.
+
+## Colonnes attendues
+
+| Colonne Excel | Description |
+|---|---|
+| \`externalReference\` | Référence externe commande |
+| \`shipperReference\` | Référence expéditeur |
+| \`carrierReference\` | Référence transporteur |
+| \`pickupTimeStart\` | Heure début pickup |
+| \`deliveryTimeStart\` | Heure début créneau livraison |
+| \`deliveryTimeEnd\` | Heure fin créneau livraison |
+| \`dateTimeWhenOrderSent\` | Date/heure envoi commande |
+| \`dateTimeWhenAssigned\` | Date/heure assignation livreur |
+| \`dateTimeWhenInTransport\` | Date/heure prise en transport |
+| \`dateTimeWhenStartDelivery\` | Date/heure début livraison |
+| \`dateTimeWhenDelivrered\` | Date/heure livraison effective |
+| \`dateTimeWhenNoShow\` | Date/heure no-show |
+| \`dateTimeLastUpdate\` | Date/heure dernière mise à jour |
+| \`shippingWorkflowStatus\` | Statut livraison (ex: Delivered, NoShow, ReadyForPickup) |
+| \`paymentOnDeliveryAmount\` | Montant COD (paiement à la livraison) |
+| \`destinationContactDetails.firstname\` | Prénom destinataire |
+| \`destinationContactDetails.lastname\` | Nom destinataire |
+| \`destinationCity.code\` | Code ville destination |
+| \`destinationShippingAddress.longitude\` | Longitude adresse livraison |
+| \`destinationShippingAddress.lattitude\` | Latitude adresse livraison |
+| \`originHub.name\` | Nom du hub de départ |
+| \`originHub.code\` | Code du hub de départ |
+| \`originHub.city.name\` | Ville du hub de départ |
+| \`originHub.address.longitude\` | Longitude hub |
+| \`originHub.address.lattitude\` | Latitude hub |
+| \`sprint.name\` | Nom de la tournée |
+| \`sprint.businessUser.firstName\` | Prénom du livreur |
+| \`sprint.businessUser.lastName\` | Nom du livreur |
+| \`sprintGeoLocationLongitude\` | Longitude position livreur |
+| \`sprintGeoLocationLattitude\` | Latitude position livreur |
+
+## Remarques
+
+- Les colonnes non reconnues sont **ignorées** — pas d'erreur.
+- Les lignes entièrement vides sont **filtrées** automatiquement.
+- Taille maximale : **100 Mo**. Nombre de lignes max recommandé : **200 000**.
+- Les fichiers avec des millions de lignes vides (export Shopify brut) sont supportés.
+
+## Statuts reconnus
+
+| Valeur | Signification |
+|---|---|
+| \`Delivered\` | Livré |
+| \`NoShow\` | Absent |
+| \`ReadyForPickup\` | Prêt pour pickup |
+| Autres | Statut personnalisé |
+`
+    const blob = new Blob([md], { type: 'text/markdown;charset=utf-8' })
+    const url  = URL.createObjectURL(blob)
+    const a    = document.createElement('a')
+    a.href     = url
+    a.download = 'template-import-shipinfy.md'
+    a.click()
+    URL.revokeObjectURL(url)
+  }, [])
+
   // ── Bandeau rapport actif ─────────────────────────────────────────────────
   if (activeReport) {
     return (
@@ -320,15 +386,26 @@ export function UploadZone({ activeReport, onUploadSuccess, onDeleteSuccess }: P
         </div>
       )}
 
-      {/* ── Sélecteur fichier ── */}
+      {/* ── Sélecteur fichier + Template MD ── */}
       {phase === 'idle' && (
-        <label className="mt-4 inline-block cursor-pointer rounded-lg bg-blue-600 px-6 py-2.5 text-sm font-medium text-white hover:bg-blue-700 transition-colors">
-          Sélectionner un fichier
-          <input
-            type="file" accept=".xlsx,.xls" className="hidden"
-            onChange={e => { const f = e.target.files?.[0]; if (f) handleFile(f) }}
-          />
-        </label>
+        <div className="mt-4 flex flex-wrap items-center justify-center gap-3">
+          <label className="inline-flex cursor-pointer items-center gap-2 rounded-lg bg-blue-600 px-6 py-2.5 text-sm font-medium text-white hover:bg-blue-700 transition-colors">
+            <Upload className="h-4 w-4" />
+            Sélectionner un fichier
+            <input
+              type="file" accept=".xlsx,.xls" className="hidden"
+              onChange={e => { const f = e.target.files?.[0]; if (f) handleFile(f) }}
+            />
+          </label>
+          <button
+            type="button"
+            onClick={downloadTemplateMd}
+            className="inline-flex items-center gap-2 rounded-lg border border-gray-300 bg-white px-5 py-2.5 text-sm font-medium text-gray-600 hover:bg-gray-50 transition-colors"
+          >
+            <Download className="h-4 w-4" />
+            Télécharger le template
+          </button>
+        </div>
       )}
     </div>
   )

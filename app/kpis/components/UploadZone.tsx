@@ -17,29 +17,32 @@ interface Props {
 
 type Phase = 'idle' | 'uploading' | 'processing' | 'done'
 
-const MAX_FILE_SIZE_MB  = 100
-const POLL_INTERVAL_MS  = 1500   // poll status every 1.5s
+const MAX_FILE_SIZE_MB = 100
+const POLL_INTERVAL_MS = 1500
 
 export function UploadZone({ activeReport, onUploadSuccess, onDeleteSuccess }: Props) {
-  const [phase,     setPhase]     = useState<Phase>('idle')
-  const [deleting,  setDeleting]  = useState(false)
-  const [dragOver,  setDragOver]  = useState(false)
-  const [error,     setError]     = useState<string | null>(null)
-  const [progress,  setProgress]  = useState({ inserted: 0, total: 0 })
+  const [phase,      setPhase]      = useState<Phase>('idle')
+  const [deleting,   setDeleting]   = useState(false)
+  const [dragOver,   setDragOver]   = useState(false)
+  const [error,      setError]      = useState<string | null>(null)
+  const [progress,   setProgress]   = useState({ inserted: 0, total: 0 })
+  const [uploadPct,  setUploadPct]  = useState(0)   // 0-100 — file bytes sent
+  const [uploadSize, setUploadSize] = useState('')  // e.g. "5.7 Mo"
 
-  // Polling refs
-  const pollRef     = useRef<ReturnType<typeof setInterval> | null>(null)
-  const reportRef   = useRef<{ id: string; filename: string; insertedAt: string; total: number } | null>(null)
+  const pollRef   = useRef<ReturnType<typeof setInterval> | null>(null)
+  const xhrRef    = useRef<XMLHttpRequest | null>(null)
+  const reportRef = useRef<{ id: string; filename: string; insertedAt: string; total: number } | null>(null)
 
-  // ── Stop polling ─────────────────────────────────────────────────────────────
   const stopPoll = useCallback(() => {
     if (pollRef.current) { clearInterval(pollRef.current); pollRef.current = null }
   }, [])
 
-  // Cleanup on unmount
-  useEffect(() => () => stopPoll(), [stopPoll])
+  useEffect(() => () => {
+    stopPoll()
+    xhrRef.current?.abort()
+  }, [stopPoll])
 
-  // ── Start polling after server accepts upload ─────────────────────────────────
+  // ── Polling après que le serveur accepte l'upload ─────────────────────────
   const startPolling = useCallback((reportId: string, totalRows: number) => {
     stopPoll()
     pollRef.current = setInterval(async () => {
@@ -61,60 +64,66 @@ export function UploadZone({ activeReport, onUploadSuccess, onDeleteSuccess }: P
           setPhase('done')
           const r = reportRef.current!
           onUploadSuccess({
-            id:          r.id,
-            filename:    r.filename,
-            uploadedAt:  r.insertedAt,
-            _count:      { orders: data.total || totalRows },
+            id:         r.id,
+            filename:   r.filename,
+            uploadedAt: r.insertedAt,
+            _count:     { orders: data.total || totalRows },
           })
         }
       } catch {
-        // Network hiccup — keep polling
+        // Réseau instable — on continue
       }
     }, POLL_INTERVAL_MS)
   }, [stopPoll, onUploadSuccess])
 
-  // ── File handler ─────────────────────────────────────────────────────────────
-  const handleFile = useCallback(async (file: File) => {
+  // ── Envoi du fichier via XHR (avec progression) ───────────────────────────
+  const handleFile = useCallback((file: File) => {
     if (!file.name.match(/\.(xlsx|xls)$/i)) {
       setError('Format non supporté. Utilisez un fichier .xlsx ou .xls')
       return
     }
     const sizeMB = file.size / (1024 * 1024)
     if (sizeMB > MAX_FILE_SIZE_MB) {
-      setError(`Fichier trop volumineux (${sizeMB.toFixed(1)} Mo). Maximum: ${MAX_FILE_SIZE_MB} Mo.`)
+      setError(`Fichier trop volumineux (${sizeMB.toFixed(1)} Mo). Maximum : ${MAX_FILE_SIZE_MB} Mo.`)
       return
     }
 
     setError(null)
     setPhase('uploading')
+    setUploadPct(0)
+    setUploadSize(`${sizeMB.toFixed(1)} Mo`)
     setProgress({ inserted: 0, total: 0 })
 
-    // Abort if server doesn't respond within 55s (before Traefik's ~60s timeout)
-    const controller = new AbortController()
-    const abortTimer = setTimeout(() => controller.abort(), 55_000)
+    const fd = new FormData()
+    fd.append('file', file)
 
-    try {
-      const fd = new FormData()
-      fd.append('file', file)
+    const xhr = new XMLHttpRequest()
+    xhrRef.current = xhr
 
-      // Server parses XLSX and returns in <3s — then processes in background
-      const res = await fetch('/api/dashboard/upload', {
-        method: 'POST',
-        body: fd,
-        signal: controller.signal,
-      })
-      clearTimeout(abortTimer)
+    // Progression du transfert fichier → serveur
+    xhr.upload.onprogress = (e) => {
+      if (e.lengthComputable) {
+        setUploadPct(Math.round((e.loaded / e.total) * 100))
+      }
+    }
 
-      if (!res.ok) {
-        const body = await res.json().catch(() => ({})) as { error?: string }
-        throw new Error(body.error ?? 'Upload échoué')
+    xhr.onload = () => {
+      xhrRef.current = null
+      if (xhr.status < 200 || xhr.status >= 300) {
+        let msg = 'Upload échoué'
+        try { msg = (JSON.parse(xhr.responseText) as { error?: string }).error ?? msg } catch { /* */ }
+        setError(msg)
+        setPhase('idle')
+        return
       }
 
-      const data = await res.json() as {
-        reportId: string; filename: string; totalRows: number; insertedAt: string
+      let data: { reportId: string; filename: string; totalRows: number; insertedAt: string }
+      try { data = JSON.parse(xhr.responseText) } catch {
+        setError('Réponse serveur invalide. Réessayez.')
+        setPhase('idle')
+        return
       }
 
-      // Store for later use when polling completes
       reportRef.current = {
         id:         data.reportId,
         filename:   data.filename,
@@ -124,22 +133,28 @@ export function UploadZone({ activeReport, onUploadSuccess, onDeleteSuccess }: P
 
       setPhase('processing')
       setProgress({ inserted: 0, total: data.totalRows })
-
-      // Start polling status endpoint
       startPolling(data.reportId, data.totalRows)
+    }
 
-    } catch (err: unknown) {
-      clearTimeout(abortTimer)
-      if (err instanceof Error && err.name === 'AbortError') {
-        setError('Délai dépassé. Le serveur met trop de temps à répondre — réessayez dans quelques secondes.')
-      } else {
-        setError(err instanceof Error ? err.message : 'Erreur lors de l\'import. Réessayez.')
-      }
+    xhr.onerror = () => {
+      xhrRef.current = null
+      setError('Erreur réseau. Vérifiez votre connexion et réessayez.')
       setPhase('idle')
     }
+
+    xhr.ontimeout = () => {
+      xhrRef.current = null
+      setError('Délai dépassé. Le fichier est peut-être trop volumineux pour votre connexion.')
+      setPhase('idle')
+    }
+
+    // 5 minutes max — permet l'envoi de gros fichiers sur connexions lentes
+    xhr.timeout = 300_000
+    xhr.open('POST', '/api/dashboard/upload')
+    xhr.send(fd)
   }, [startPolling])
 
-  // ── Delete handler ────────────────────────────────────────────────────────────
+  // ── Suppression du rapport actif ─────────────────────────────────────────
   const handleDelete = useCallback(async () => {
     if (!activeReport) return
     setDeleting(true)
@@ -151,7 +166,7 @@ export function UploadZone({ activeReport, onUploadSuccess, onDeleteSuccess }: P
     }
   }, [activeReport, onDeleteSuccess])
 
-  // ── Active report banner ──────────────────────────────────────────────────────
+  // ── Bandeau rapport actif ─────────────────────────────────────────────────
   if (activeReport) {
     return (
       <div className="flex items-center justify-between rounded-xl border border-green-200 bg-green-50 p-4">
@@ -177,7 +192,6 @@ export function UploadZone({ activeReport, onUploadSuccess, onDeleteSuccess }: P
     )
   }
 
-  // ── Progress percentage ───────────────────────────────────────────────────────
   const pct = progress.total > 0 ? Math.round((progress.inserted / progress.total) * 100) : 0
 
   return (
@@ -203,18 +217,35 @@ export function UploadZone({ activeReport, onUploadSuccess, onDeleteSuccess }: P
         </>
       )}
 
-      {/* ── Uploading (sending file to server) ── */}
+      {/* ── Uploading — progression réelle de l'envoi ── */}
       {phase === 'uploading' && (
         <>
           <div className="mb-4 flex items-center justify-center">
             <div className="h-10 w-10 animate-spin rounded-full border-4 border-blue-200 border-t-blue-600" />
           </div>
-          <p className="mb-1 text-lg font-semibold text-gray-700">Envoi du fichier...</p>
-          <p className="text-sm text-gray-500">Analyse en cours, patientez quelques secondes</p>
+          <p className="mb-1 text-lg font-semibold text-gray-700">
+            Envoi du fichier — {uploadPct}%
+          </p>
+          <p className="mb-3 text-sm text-gray-500">
+            {uploadSize} en cours de transfert vers le serveur...
+          </p>
+          <div className="mx-auto w-72">
+            <div className="h-3 w-full overflow-hidden rounded-full bg-gray-200">
+              <div
+                className="h-full rounded-full bg-blue-500 transition-all duration-300"
+                style={{ width: `${Math.max(2, uploadPct)}%` }}
+              />
+            </div>
+          </div>
+          <p className="mt-2 text-xs text-gray-400">
+            {uploadPct < 100
+              ? 'Le serveur analysera le fichier dès réception complète'
+              : 'Fichier reçu — analyse en cours...'}
+          </p>
         </>
       )}
 
-      {/* ── Processing (background insertion, real progress bar) ── */}
+      {/* ── Processing — insertion en base ── */}
       {phase === 'processing' && (
         <>
           <div className="mb-4 flex items-center justify-center">
@@ -249,7 +280,7 @@ export function UploadZone({ activeReport, onUploadSuccess, onDeleteSuccess }: P
         </>
       )}
 
-      {/* ── Error ── */}
+      {/* ── Erreur ── */}
       {error && (
         <div className="mt-4 flex items-start gap-2 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-left">
           <AlertCircle className="h-4 w-4 shrink-0 text-red-500 mt-0.5" />
@@ -257,7 +288,7 @@ export function UploadZone({ activeReport, onUploadSuccess, onDeleteSuccess }: P
         </div>
       )}
 
-      {/* ── File picker ── */}
+      {/* ── Sélecteur fichier ── */}
       {phase === 'idle' && (
         <label className="mt-4 inline-block cursor-pointer rounded-lg bg-blue-600 px-6 py-2.5 text-sm font-medium text-white hover:bg-blue-700 transition-colors">
           Sélectionner un fichier

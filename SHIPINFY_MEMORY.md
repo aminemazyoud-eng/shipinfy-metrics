@@ -6,7 +6,7 @@
 
 ---
 
-## VERSION ACTUELLE : v3.1 — Fix XLSX 1M+ lignes
+## VERSION ACTUELLE : v4.0 — Sprint 6 Academy + Guides Shipinfy
 
 ---
 
@@ -36,7 +36,7 @@
 | `/alertes` | `app/alertes/page.tsx` | Alertes + Tickets (3 tabs : alertes / tickets / règles) |
 | `/rapports` | `app/rapports/page.tsx` | Rapports planifiés |
 | `/onboarding` | `app/onboarding/page.tsx` | Kanban RH 5 colonnes (Sprint 3) |
-| `/academy` | `app/academy/page.tsx` | 6 modules de formation (Sprint 4) |
+| `/academy` | `app/academy/page.tsx` | **2 onglets** : Formation Livreurs (6 modules) + Guides Shipinfy (8 guides) — Sprint 6 |
 | `/score-ia` | `app/score-ia/page.tsx` | Score IA fiabilité (Sprint 5) |
 | `/parametres` | `app/parametres/page.tsx` | Paramètres plateforme |
 
@@ -101,6 +101,12 @@ Auto-cleanup après 10 minutes. Valide uniquement en mode Docker standalone (pro
 | `GET/POST/PATCH /api/tickets` | CRUD tickets |
 | `POST /api/tickets/[id]/comments` | Ajouter commentaire |
 
+### Guides Shipinfy (Sprint 6)
+| Route | Rôle |
+|-------|------|
+| `POST /api/guide-feedback` | Enregistre un vote 👍/👎 pour un guide (`{moduleKey, helpful}`) |
+| `GET /api/guide-feedback?moduleKey=xxx` | Compte les votes helpful/notHelpful |
+
 ---
 
 ## 4. FIXES CRITIQUES — NE JAMAIS DÉFAIRE
@@ -110,6 +116,25 @@ Auto-cleanup après 10 minutes. Valide uniquement en mode Docker standalone (pro
 - **Fix** : Server-side XLSX parse + fire-and-forget + polling progress
 - **Fichiers** : `UploadZone.tsx`, `upload/route.ts`, `upload/status/[reportId]/route.ts`, `lib/upload-progress.ts`
 - **Principe** : Retour HTTP immédiat (<3s), insertion continue en background, client poll /status
+
+### F12 — Fix UX Supprimer et réimporter (Sprint 6)
+- **Problème** : Après clic "Supprimer et réimporter", l'UI affichait "Import terminé" au lieu de la zone d'upload
+- **Cause** : `phase` restait à `'done'` après suppression — `activeReport` devenait `null` mais le state local ne se réinitialisait pas
+- **Fix** : `setPhase('idle')` ajouté AVANT `onDeleteSuccess()` dans `handleDelete()`
+- **Fichier** : `app/kpis/components/UploadZone.tsx`
+- **Commit** : `f6a0aba`
+- **⚠️ NE PAS déplacer** `setPhase('idle')` après `onDeleteSuccess()` — doit être avant pour que le rendu soit correct
+
+### F13 — Academy Sprint 6 — 2 onglets + 8 Guides Shipinfy
+- **Onglet 1 — Formation Livreurs** : 6 modules existants conservés + badge "Non formé" orange si 0 module complété
+- **Onglet 2 — Guides Shipinfy** : 8 guides complets (Dashboard, KPIs, Alertes, Rapports, Livreurs, Onboarding, Score IA, Academy)
+- **Chaque guide contient** : steps avec ScreenshotZone, Tips encadrés bleu, FAQ accordéon, barre progression lecture, feedback 👍/👎
+- **Composants créés** :
+  - `app/academy/components/ScreenshotZone.tsx` — placeholder dashed ou image si imageUrl fourni
+  - `app/academy/components/GuideFeedbackBar.tsx` — vote unique, POST vers /api/guide-feedback
+  - `app/academy/components/guides/GuideContent.tsx` — données + rendu des 8 guides
+- **DB ajoutée** : `GuideLesson` + `GuideFeedback` (schema.prisma + init-tables.sql)
+- **⚠️ NE PAS fusionner** les 2 onglets — Guides Shipinfy = section indépendante de la Formation
 
 ### F10 — Bouton "Télécharger le template" sur UploadZone vide
 - **Quoi** : Quand aucun rapport n'est importé (DB vide), un bouton "Télécharger le template" apparaît à côté de "Sélectionner un fichier"
@@ -223,4 +248,4 @@ Quand on ajoute une nouvelle page/feature :
 
 ---
 
-*Dernière mise à jour : 2026-04-11 — Build c9c1952 ✅ LIVE — F10 bouton template MD + F11 doc CASCADE delete — 11 fixes documentés*
+*Dernière mise à jour : 2026-04-11 — Build f6a0aba ✅ LIVE — Sprint 6 : Academy 2 onglets + 8 Guides Shipinfy + F12 fix UX delete + F13 guides — 13 fixes documentés*

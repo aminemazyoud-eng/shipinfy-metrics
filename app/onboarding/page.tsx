@@ -99,23 +99,23 @@ export default function OnboardingPage() {
   return (
     <div className="flex flex-col h-full bg-gray-50">
       {/* Header */}
-      <div className="bg-white border-b border-gray-200 px-6 py-4 flex items-center justify-between">
+      <div className="bg-white border-b border-gray-200 px-4 md:px-6 py-3 md:py-4 flex items-center justify-between gap-3">
         <div className="flex items-center gap-3">
-          <div className="w-9 h-9 rounded-lg bg-blue-100 flex items-center justify-center">
+          <div className="w-9 h-9 rounded-lg bg-blue-100 flex items-center justify-center flex-shrink-0">
             <UserCheck size={18} className="text-blue-600" />
           </div>
           <div>
-            <h1 className="text-lg font-bold text-gray-900">Onboarding Livreurs</h1>
-            <p className="text-xs text-gray-500">{drivers.length} livreurs · Pipeline de recrutement digital</p>
+            <h1 className="text-base lg:text-lg font-bold text-gray-900">Onboarding Livreurs</h1>
+            <p className="text-xs text-gray-500 hidden md:block">{drivers.length} livreurs · Pipeline de recrutement digital</p>
           </div>
         </div>
-        <button onClick={() => setShowAdd(true)} className="flex items-center gap-2 bg-blue-600 text-white px-4 py-2 rounded-lg text-sm font-medium hover:bg-blue-700 transition-colors">
-          <Plus size={15} /> Nouveau livreur
+        <button onClick={() => setShowAdd(true)} className="flex items-center gap-2 bg-blue-600 text-white px-3 lg:px-4 py-2 rounded-lg text-sm font-medium hover:bg-blue-700 transition-colors min-h-[44px] flex-shrink-0">
+          <Plus size={15} /> <span className="hidden sm:inline">Nouveau livreur</span>
         </button>
       </div>
 
-      {/* Stats bar */}
-      <div className="bg-white border-b border-gray-200 px-6 py-2 flex gap-6">
+      {/* Stats bar — scrollable on mobile */}
+      <div className="bg-white border-b border-gray-200 px-4 md:px-6 py-2 flex gap-4 md:gap-6 overflow-x-auto no-scrollbar">
         {COLUMNS.map(col => (
           <div key={col.key} className="flex items-center gap-2">
             <span className="w-2 h-2 rounded-full" style={{background: col.color}} />

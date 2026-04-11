@@ -55,8 +55,8 @@ export default function AcademyPage() {
   return (
     <div className="flex flex-col h-full bg-gray-50">
       {/* Header */}
-      <div className="bg-white border-b border-gray-200 px-6 py-4 flex-shrink-0">
-        <div className="flex items-center gap-3 mb-4">
+      <div className="bg-white border-b border-gray-200 px-4 md:px-6 py-3 md:py-4 flex-shrink-0">
+        <div className="flex items-center gap-3 mb-3 md:mb-4">
           <div className="w-9 h-9 rounded-lg bg-purple-100 flex items-center justify-center">
             <GraduationCap size={18} className="text-purple-600" />
           </div>
@@ -74,7 +74,7 @@ export default function AcademyPage() {
 
         {/* Stats (formation tab only) */}
         {tab === 'formation' && (
-          <div className="grid grid-cols-4 gap-3 mb-4">
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-2 md:gap-3 mb-3 md:mb-4">
             {[
               { label: 'Modules',        value: courses.length,   icon: BookOpen,  color: 'text-blue-600',   bg: 'bg-blue-50'   },
               { label: 'Leçons',         value: totalLessons,     icon: FileText,  color: 'text-purple-600', bg: 'bg-purple-50' },

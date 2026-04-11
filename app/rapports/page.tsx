@@ -92,26 +92,26 @@ export default function RapportsPage() {
   const lastSent   = allLogs[0]
 
   return (
-    <div className="flex flex-col gap-6 p-6 max-w-5xl mx-auto">
+    <div className="flex flex-col gap-4 lg:gap-6 p-3 md:p-4 lg:p-6 max-w-5xl mx-auto">
 
       {/* Header */}
-      <div className="flex items-center justify-between">
+      <div className="flex items-center justify-between flex-wrap gap-3">
         <div>
-          <h1 className="text-2xl font-bold text-gray-900 flex items-center gap-2">
-            <Mail className="h-6 w-6 text-blue-600" /> Rapports & Planification
+          <h1 className="text-lg lg:text-2xl font-bold text-gray-900 flex items-center gap-2">
+            <Mail className="h-5 w-5 lg:h-6 lg:w-6 text-blue-600" /> Rapports & Planification
           </h1>
-          <p className="text-sm text-gray-500 mt-1">Gérez l&apos;envoi automatique des rapports PDF par email</p>
+          <p className="text-xs lg:text-sm text-gray-500 mt-1 hidden md:block">Gérez l&apos;envoi automatique des rapports PDF par email</p>
         </div>
         <button
           onClick={() => setShowForm(v => !v)}
-          className="flex items-center gap-2 bg-blue-600 text-white px-4 py-2 rounded-lg text-sm font-medium hover:bg-blue-700 transition"
+          className="flex items-center gap-2 bg-blue-600 text-white px-3 py-2 lg:px-4 rounded-lg text-sm font-medium hover:bg-blue-700 transition min-h-[44px]"
         >
-          <Plus size={16} /> Nouvelle planification
+          <Plus size={16} /> <span className="hidden sm:inline">Nouvelle planification</span><span className="sm:hidden">Nouveau</span>
         </button>
       </div>
 
       {/* KPI Cards */}
-      <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-3 lg:gap-4">
         {[
           { label: 'Planifications actives', value: schedules.length, icon: <Settings2 className="h-5 w-5 text-blue-500" />, color: 'blue' },
           { label: 'Rapports envoyés', value: totalSent, icon: <Send className="h-5 w-5 text-green-500" />, color: 'green' },

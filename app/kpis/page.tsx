@@ -137,26 +137,27 @@ export default function KpisPage() {
   const sprints = kpis?.byLivreur.map(l => l.name) ?? []
 
   return (
-    <div className="min-h-screen bg-gray-50 p-6">
-      <div className="mx-auto max-w-7xl space-y-6">
+    <div className="min-h-screen bg-gray-50 p-3 md:p-4 lg:p-6">
+      <div className="mx-auto max-w-7xl space-y-4 lg:space-y-6">
 
-        <div className="flex items-center justify-between">
+        <div className="flex items-center justify-between gap-3 flex-wrap">
           <div className="flex items-center gap-3">
-            <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-gradient-to-br from-blue-600 to-blue-700 shadow">
-              <BarChart3 className="h-5 w-5 text-white" />
+            <div className="flex h-9 w-9 lg:h-10 lg:w-10 items-center justify-center rounded-xl bg-gradient-to-br from-blue-600 to-blue-700 shadow">
+              <BarChart3 className="h-4 w-4 lg:h-5 lg:w-5 text-white" />
             </div>
             <div>
-              <h1 className="text-xl font-bold text-gray-900">KPIs & Métriques — Tournées</h1>
-              <p className="text-sm text-gray-500">Analyse des performances de livraison</p>
+              <h1 className="text-lg lg:text-xl font-bold text-gray-900">KPIs & Métriques</h1>
+              <p className="text-xs lg:text-sm text-gray-500 hidden md:block">Analyse des performances de livraison</p>
             </div>
           </div>
           {activeReport && kpis && (
             <button
               onClick={() => setModalOpen(true)}
-              className="flex items-center gap-2 rounded-lg bg-blue-600 px-4 py-2 text-sm font-semibold text-white hover:bg-blue-700 transition-colors shadow-sm"
+              className="flex items-center gap-2 rounded-lg bg-blue-600 px-3 py-2 lg:px-4 text-sm font-semibold text-white hover:bg-blue-700 transition-colors shadow-sm min-h-[44px]"
             >
               <Mail className="h-4 w-4" />
-              Envoyer le rapport
+              <span className="hidden sm:inline">Envoyer le rapport</span>
+              <span className="sm:hidden">Rapport</span>
             </button>
           )}
         </div>

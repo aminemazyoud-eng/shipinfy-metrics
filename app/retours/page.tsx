@@ -90,14 +90,14 @@ export default function RetoursPage() {
   const worstCreneau   = creneauxWithNoShow[0]
 
   return (
-    <div className="flex flex-col gap-6 p-6 max-w-7xl mx-auto">
+    <div className="flex flex-col gap-4 lg:gap-6 p-3 md:p-4 lg:p-6 max-w-7xl mx-auto">
       {/* Header */}
       <div className="flex items-center justify-between flex-wrap gap-3">
         <div>
-          <h1 className="text-2xl font-bold text-gray-900 flex items-center gap-2">
-            <XCircle className="h-6 w-6 text-red-500" /> Retours & NO_SHOW
+          <h1 className="text-lg lg:text-2xl font-bold text-gray-900 flex items-center gap-2">
+            <XCircle className="h-5 w-5 lg:h-6 lg:w-6 text-red-500" /> Retours & NO_SHOW
           </h1>
-          <p className="text-sm text-gray-500 mt-1">Analyse approfondie des non-livraisons — par livreur, hub, créneau</p>
+          <p className="text-xs lg:text-sm text-gray-500 mt-1 hidden md:block">Analyse approfondie des non-livraisons — par livreur, hub, créneau</p>
         </div>
         <div className="flex gap-2 flex-wrap">
           <select
@@ -122,7 +122,7 @@ export default function RetoursPage() {
       </div>
 
       {/* KPI cards */}
-      <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-3 lg:gap-4">
         {[
           { label: 'Total NO_SHOW',      value: data?.noShow ?? 0, color: 'text-red-600',    bg: 'bg-red-50',    icon: <XCircle size={18} className="text-red-500" /> },
           { label: 'Taux NO_SHOW',       value: `${(data?.noShowRate ?? 0).toFixed(1)}%`, color: 'text-orange-600', bg: 'bg-orange-50', icon: <TrendingUp size={18} className="text-orange-500" /> },
@@ -141,7 +141,7 @@ export default function RetoursPage() {
 
       {/* Insights row */}
       {(worstLivreur || worstHub || worstCreneau || worstDayNoShow) && (
-        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
           {[
             { label: 'Livreur critique', value: worstLivreur ? `${worstLivreur.name} (${worstLivreur.noShow} NS)` : '—', icon: '👤' },
             { label: 'Hub critique',     value: worstHub     ? `${worstHub.hubName} (${worstHub.noShow} NS)` : '—', icon: '📍' },

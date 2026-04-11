@@ -216,10 +216,10 @@ export default function PrevisionsPage() {
         </div>
       </div>
 
-      <div className="p-5 space-y-5">
+      <div className="p-3 md:p-4 lg:p-5 space-y-4 lg:space-y-5">
 
         {/* ── KPI summary ─────────────────────────────────────────────────── */}
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+        <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
           <KpiCard
             icon={Package}
             label="Volume prévu 7j"
@@ -257,7 +257,7 @@ export default function PrevisionsPage() {
         {/* ── 7-day forecast cards ─────────────────────────────────────────── */}
         <div>
           <p className="text-xs font-bold text-gray-500 uppercase tracking-wider mb-2.5">Prévisions jour par jour — 7 prochains jours</p>
-          <div className="grid grid-cols-7 gap-2">
+          <div className="grid grid-cols-4 md:grid-cols-7 gap-2">
             {data.forecast.map(f => {
               const c = riskColor(f.risk)
               return (

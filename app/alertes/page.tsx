@@ -155,58 +155,58 @@ export default function AlertesPage() {
   }
 
   return (
-    <div className="flex flex-col gap-6 p-6 max-w-6xl mx-auto">
+    <div className="flex flex-col gap-4 lg:gap-6 p-3 md:p-4 lg:p-6 max-w-6xl mx-auto">
       {/* Header */}
       <div className="flex items-center justify-between flex-wrap gap-3">
         <div>
-          <h1 className="text-2xl font-bold text-gray-900 flex items-center gap-2">
-            <Bell className="h-6 w-6 text-orange-500" /> Alertes & Tickets
+          <h1 className="text-lg lg:text-2xl font-bold text-gray-900 flex items-center gap-2">
+            <Bell className="h-5 w-5 lg:h-6 lg:w-6 text-orange-500" /> Alertes & Tickets
           </h1>
-          <p className="text-sm text-gray-500 mt-1">Surveillance temps réel des KPIs · gestion des incidents</p>
+          <p className="text-xs lg:text-sm text-gray-500 mt-1 hidden md:block">Surveillance temps réel des KPIs · gestion des incidents</p>
         </div>
         <div className="flex gap-2">
           <button
             onClick={handleCheck}
             disabled={checking}
-            className="flex items-center gap-2 border border-gray-200 px-4 py-2 rounded-lg text-sm text-gray-600 hover:bg-gray-50 transition"
+            className="flex items-center gap-2 border border-gray-200 px-3 lg:px-4 py-2 rounded-lg text-sm text-gray-600 hover:bg-gray-50 transition min-h-[44px]"
           >
             <RefreshCw size={15} className={checking ? 'animate-spin' : ''} />
-            Vérifier les seuils
+            <span className="hidden sm:inline">Vérifier les seuils</span>
           </button>
           <button
             onClick={() => setNewTicket({ title: '', description: '', priority: 'moyenne' })}
-            className="flex items-center gap-2 bg-orange-500 text-white px-4 py-2 rounded-lg text-sm font-medium hover:bg-orange-600 transition"
+            className="flex items-center gap-2 bg-orange-500 text-white px-3 lg:px-4 py-2 rounded-lg text-sm font-medium hover:bg-orange-600 transition min-h-[44px]"
           >
-            <Plus size={15} /> Créer un ticket
+            <Plus size={15} /> <span className="hidden sm:inline">Créer un ticket</span>
           </button>
         </div>
       </div>
 
       {/* KPI cards */}
-      <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-3 lg:gap-4">
         {[
           { label: 'Alertes critiques', value: critical.length, color: 'red',    icon: <AlertTriangle size={18} className="text-red-500" /> },
           { label: 'Alertes ouvertes',  value: openAlerts.length, color: 'orange', icon: <BellRing size={18} className="text-orange-500" /> },
           { label: 'En cours',          value: inProg.length,   color: 'blue',   icon: <Clock size={18} className="text-blue-500" /> },
           { label: 'Résolues',          value: resolved.length, color: 'green',  icon: <CheckCircle2 size={18} className="text-green-500" /> },
         ].map(c => (
-          <div key={c.label} className="bg-white rounded-xl border border-gray-200 p-4 flex items-center gap-3">
+          <div key={c.label} className="bg-white rounded-xl border border-gray-200 p-3 lg:p-4 flex items-center gap-3">
             {c.icon}
             <div>
-              <div className="text-2xl font-bold text-gray-900">{c.value}</div>
-              <div className="text-xs text-gray-500">{c.label}</div>
+              <div className="text-xl lg:text-2xl font-bold text-gray-900">{c.value}</div>
+              <div className="text-[10px] lg:text-xs text-gray-500">{c.label}</div>
             </div>
           </div>
         ))}
       </div>
 
-      {/* Tabs */}
-      <div className="flex gap-1 border-b border-gray-200">
+      {/* Tabs — scrollable on mobile */}
+      <div className="flex gap-1 border-b border-gray-200 overflow-x-auto no-scrollbar -mx-3 px-3 md:mx-0 md:px-0">
         {(['alertes', 'tickets', 'regles'] as const).map(t => (
           <button
             key={t}
             onClick={() => setTab(t)}
-            className={`px-4 py-2.5 text-sm font-medium border-b-2 transition capitalize ${tab === t ? 'border-blue-600 text-blue-600' : 'border-transparent text-gray-500 hover:text-gray-700'}`}
+            className={`flex-shrink-0 px-3 md:px-4 py-2.5 text-sm font-medium border-b-2 transition capitalize min-h-[44px] ${tab === t ? 'border-blue-600 text-blue-600' : 'border-transparent text-gray-500 hover:text-gray-700'}`}
           >
             {t === 'alertes' ? `🔔 Alertes (${openAlerts.length + inProg.length})` : t === 'tickets' ? `🎫 Tickets (${tickets.filter(t => t.status !== 'resolu' && t.status !== 'ferme').length})` : '⚙️ Règles'}
           </button>

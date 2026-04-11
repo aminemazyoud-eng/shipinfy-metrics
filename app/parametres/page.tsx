@@ -25,8 +25,8 @@ function Section({ icon: Icon, title, children }: {
 // ─── Field ─────────────────────────────────────────────────────────────────────
 function Field({ label, children, hint }: { label: string; children: React.ReactNode; hint?: string }) {
   return (
-    <div className="flex items-start gap-4">
-      <label className="w-44 flex-shrink-0 text-sm text-gray-600 pt-2 font-medium">{label}</label>
+    <div className="flex flex-col md:flex-row md:items-start gap-1 md:gap-4">
+      <label className="md:w-44 flex-shrink-0 text-sm text-gray-600 md:pt-2 font-medium">{label}</label>
       <div className="flex-1">
         {children}
         {hint && <p className="text-xs text-gray-400 mt-1">{hint}</p>}
@@ -100,7 +100,7 @@ export default function ParametresPage() {
   }
 
   return (
-    <div className="max-w-3xl mx-auto px-6 py-8 space-y-6">
+    <div className="max-w-3xl mx-auto px-3 md:px-6 py-4 md:py-8 space-y-4 md:space-y-6">
 
       {/* Header */}
       <div className="flex items-center gap-3">

@@ -93,14 +93,14 @@ export default function LivreursPage() {
   const totalCOD = livreurs.reduce((s, l) => s + l.totalCOD, 0)
 
   return (
-    <div className="flex flex-col gap-6 p-6 max-w-7xl mx-auto">
+    <div className="flex flex-col gap-4 lg:gap-6 p-3 md:p-4 lg:p-6 max-w-7xl mx-auto">
       {/* Header */}
       <div className="flex items-center justify-between flex-wrap gap-3">
         <div>
-          <h1 className="text-2xl font-bold text-gray-900 flex items-center gap-2">
-            <Users className="h-6 w-6 text-blue-600" /> Performance Livreurs
+          <h1 className="text-lg lg:text-2xl font-bold text-gray-900 flex items-center gap-2">
+            <Users className="h-5 w-5 lg:h-6 lg:w-6 text-blue-600" /> Performance Livreurs
           </h1>
-          <p className="text-sm text-gray-500 mt-1">Classement, analyse individuelle et détection des outliers</p>
+          <p className="text-xs lg:text-sm text-gray-500 mt-1 hidden md:block">Classement, analyse individuelle et détection des outliers</p>
         </div>
         <div className="flex gap-2 items-center flex-wrap">
           <select
@@ -125,18 +125,18 @@ export default function LivreursPage() {
       </div>
 
       {/* Summary KPI Cards */}
-      <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-3 lg:gap-4">
         {[
           { label: 'Livreurs actifs', value: livreurs.length, icon: <Users size={18} className="text-blue-500" /> },
           { label: 'Taux moy. livraison', value: `${avgRate.toFixed(1)}%`, icon: <BarChart3 size={18} className="text-green-500" /> },
           { label: 'Meilleur taux', value: top3[0] ? `${top3[0].deliveryRate.toFixed(1)}%` : '—', icon: <Trophy size={18} className="text-yellow-500" /> },
           { label: 'Total COD livreurs', value: `${Math.round(totalCOD).toLocaleString('fr-MA')} MAD`, icon: <TrendingUp size={18} className="text-purple-500" /> },
         ].map(c => (
-          <div key={c.label} className="bg-white rounded-xl border border-gray-200 p-4 flex items-center gap-3">
+          <div key={c.label} className="bg-white rounded-xl border border-gray-200 p-3 lg:p-4 flex items-center gap-2 lg:gap-3">
             {c.icon}
             <div>
-              <div className="text-xl font-bold text-gray-900">{c.value}</div>
-              <div className="text-xs text-gray-500">{c.label}</div>
+              <div className="text-lg lg:text-xl font-bold text-gray-900">{c.value}</div>
+              <div className="text-[10px] lg:text-xs text-gray-500">{c.label}</div>
             </div>
           </div>
         ))}

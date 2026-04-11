@@ -59,7 +59,7 @@ const DRIVER_STATUS_CONFIG = {
 // ─── Skeleton components ──────────────────────────────────────────────────────
 function SkeletonCard() {
   return (
-    <div className="rounded-xl border bg-white p-5 shadow-sm animate-pulse">
+    <div className="rounded-xl border bg-white p-3 lg:p-5 shadow-sm animate-pulse">
       <div className="mb-3 h-10 w-10 rounded-lg bg-gray-200" />
       <div className="mb-2 h-7 w-16 rounded bg-gray-200" />
       <div className="h-4 w-24 rounded bg-gray-100" />
@@ -90,12 +90,12 @@ const StatCard = memo(function StatCard({ icon, label, value, sub, color }: {
   icon: React.ReactNode; label: string; value: string | number; sub?: string; color: string
 }) {
   return (
-    <div className="rounded-xl border bg-white p-5 shadow-sm">
-      <div className={`mb-3 flex h-10 w-10 items-center justify-center rounded-lg ${color}`}>
+    <div className="rounded-xl border bg-white p-3 lg:p-5 shadow-sm">
+      <div className={`mb-2 lg:mb-3 flex h-8 w-8 lg:h-10 lg:w-10 items-center justify-center rounded-lg ${color}`}>
         {icon}
       </div>
-      <p className="text-2xl font-bold text-gray-900">{value}</p>
-      <p className="text-sm font-medium text-gray-700">{label}</p>
+      <p className="text-xl lg:text-2xl font-bold text-gray-900">{value}</p>
+      <p className="text-xs lg:text-sm font-medium text-gray-700">{label}</p>
       {sub && <p className="text-xs text-gray-400 mt-0.5">{sub}</p>}
     </div>
   )
@@ -142,18 +142,18 @@ export default function RealtimePage() {
   }, [])
 
   return (
-    <div className="min-h-screen bg-gray-50 p-6">
-      <div className="mx-auto max-w-7xl space-y-6">
+    <div className="min-h-screen bg-gray-50 p-3 md:p-4 lg:p-6">
+      <div className="mx-auto max-w-7xl space-y-4 lg:space-y-6">
 
         {/* Header — always visible */}
-        <div className="flex items-center justify-between flex-wrap gap-4">
+        <div className="flex items-center justify-between flex-wrap gap-3 lg:gap-4">
           <div className="flex items-center gap-3">
-            <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-gradient-to-br from-blue-600 to-blue-700 shadow">
-              <Activity className="h-5 w-5 text-white" />
+            <div className="flex h-9 w-9 lg:h-10 lg:w-10 items-center justify-center rounded-xl bg-gradient-to-br from-blue-600 to-blue-700 shadow">
+              <Activity className="h-4 w-4 lg:h-5 lg:w-5 text-white" />
             </div>
             <div>
-              <h1 className="text-xl font-bold text-gray-900">Dashboard Temps Réel</h1>
-              <p className="text-sm text-gray-500">Mise à jour automatique toutes les 30 secondes</p>
+              <h1 className="text-lg lg:text-xl font-bold text-gray-900">Dashboard Temps Réel</h1>
+              <p className="text-xs lg:text-sm text-gray-500">Mise à jour automatique toutes les 30 secondes</p>
             </div>
           </div>
           <div className="flex items-center gap-3 flex-wrap">
@@ -190,7 +190,7 @@ export default function RealtimePage() {
         </div>
 
         {/* KPI Cards — skeleton while loading */}
-        <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-6">
+        <div className="grid grid-cols-2 gap-3 md:grid-cols-3 lg:grid-cols-6 lg:gap-4">
           {loading ? (
             Array.from({ length: 6 }).map((_, i) => <SkeletonCard key={i} />)
           ) : data ? (

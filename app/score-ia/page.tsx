@@ -94,14 +94,14 @@ export default function ScoreIAPage() {
     <div className="flex flex-col h-full bg-gray-50">
 
       {/* Header */}
-      <div className="bg-white border-b border-gray-200 px-6 py-4">
-        <div className="flex items-center justify-between mb-4">
+      <div className="bg-white border-b border-gray-200 px-4 md:px-6 py-3 md:py-4">
+        <div className="flex items-center justify-between mb-3 md:mb-4">
           <div className="flex items-center gap-3">
             <div className="w-9 h-9 rounded-lg bg-purple-100 flex items-center justify-center">
               <Brain size={18} className="text-purple-600" />
             </div>
             <div>
-              <h1 className="text-lg font-bold text-gray-900">Score IA Fiabilité</h1>
+              <h1 className="text-base lg:text-lg font-bold text-gray-900">Score IA Fiabilité</h1>
               <p className="text-xs text-gray-500">
                 {scores.length} livreurs analysés
                 {lastCalc && ` · Mis à jour ${new Date(lastCalc).toLocaleDateString('fr-FR')}`}
@@ -111,15 +111,15 @@ export default function ScoreIAPage() {
           <button
             onClick={calculate}
             disabled={calculating}
-            className="flex items-center gap-2 bg-purple-600 text-white px-4 py-2 rounded-lg text-sm font-medium hover:bg-purple-700 disabled:opacity-50 transition-colors"
+            className="flex items-center gap-2 bg-purple-600 text-white px-3 lg:px-4 py-2 rounded-lg text-sm font-medium hover:bg-purple-700 disabled:opacity-50 transition-colors min-h-[44px]"
           >
             <RefreshCw size={14} className={calculating ? 'animate-spin' : ''} />
-            {calculating ? 'Calcul...' : 'Recalculer'}
+            <span className="hidden sm:inline">{calculating ? 'Calcul...' : 'Recalculer'}</span>
           </button>
         </div>
 
         {/* Stats bar */}
-        <div className="grid grid-cols-4 gap-3">
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-2 md:gap-3">
           {[
             { label: 'Score moyen', value: `${avg.toFixed(1)}`, icon: Target,    color: 'text-purple-600', bg: 'bg-purple-50' },
             { label: 'Excellents',  value: good,                icon: CheckCircle, color: 'text-green-600', bg: 'bg-green-50'  },
@@ -138,7 +138,7 @@ export default function ScoreIAPage() {
       </div>
 
       {/* Filters */}
-      <div className="bg-white border-b border-gray-200 px-6 py-2.5 flex items-center gap-3">
+      <div className="bg-white border-b border-gray-200 px-4 md:px-6 py-2.5 flex items-center gap-2 md:gap-3 flex-wrap">
         <input
           type="text"
           placeholder="Rechercher un livreur..."

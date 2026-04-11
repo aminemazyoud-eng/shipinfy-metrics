@@ -81,14 +81,14 @@ export default function HubsPage() {
   const totalCOD  = hubs.reduce((s, h) => s + h.totalCOD, 0)
 
   return (
-    <div className="flex flex-col gap-6 p-6 max-w-7xl mx-auto">
+    <div className="flex flex-col gap-4 lg:gap-6 p-3 md:p-4 lg:p-6 max-w-7xl mx-auto">
       {/* Header */}
       <div className="flex items-center justify-between flex-wrap gap-3">
         <div>
-          <h1 className="text-2xl font-bold text-gray-900 flex items-center gap-2">
-            <MapPin className="h-6 w-6 text-blue-600" /> Performance Hubs
+          <h1 className="text-lg lg:text-2xl font-bold text-gray-900 flex items-center gap-2">
+            <MapPin className="h-5 w-5 lg:h-6 lg:w-6 text-blue-600" /> Performance Hubs
           </h1>
-          <p className="text-sm text-gray-500 mt-1">Comparaison des hubs · taux de livraison · COD · délais</p>
+          <p className="text-xs lg:text-sm text-gray-500 mt-1 hidden md:block">Comparaison des hubs · taux de livraison · COD · délais</p>
         </div>
         <div className="flex gap-2 flex-wrap">
           <select
@@ -113,7 +113,7 @@ export default function HubsPage() {
       </div>
 
       {/* KPI Summary */}
-      <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-3 lg:gap-4">
         {[
           { label: 'Hubs actifs',       value: hubs.length,         icon: <MapPin size={18} className="text-blue-500" /> },
           { label: 'Taux moy. livraison', value: `${avgRate.toFixed(1)}%`, icon: <TrendingUp size={18} className="text-green-500" /> },

@@ -239,6 +239,23 @@ model CourseProgress {
 
 // ─── SPRINT 5 — SCORE IA ─────────────────────────────────────────────────────
 
+model GuideLesson {
+  id        String   @id @default(cuid())
+  moduleKey String
+  title     String
+  stepOrder Int
+  content   String
+  imageUrl  String?
+  createdAt DateTime @default(now())
+}
+
+model GuideFeedback {
+  id        String   @id @default(cuid())
+  moduleKey String
+  helpful   Boolean
+  createdAt DateTime @default(now())
+}
+
 model ReliabilityScore {
   id              String   @id @default(cuid())
   driverName      String

@@ -160,6 +160,7 @@ export function UploadZone({ activeReport, onUploadSuccess, onDeleteSuccess }: P
     setDeleting(true)
     try {
       await fetch(`/api/dashboard/report/${activeReport.id}`, { method: 'DELETE' })
+      setPhase('idle')
       onDeleteSuccess()
     } finally {
       setDeleting(false)

@@ -245,8 +245,8 @@ export default function Sidebar() {
       {expanded && (
         <div className="flex-shrink-0 p-2.5 border-t border-gray-100">
           <div className="px-3 py-2 bg-blue-50 rounded-xl">
-            <p className="text-[11px] font-black text-blue-700 leading-none">SHIPINFY v3.0</p>
-            <p className="text-[10px] text-blue-400 mt-1 leading-none">Sprint 1→5 — Full Platform</p>
+            <p className="text-[11px] font-black text-blue-700 leading-none">SHIPINFY v3.1</p>
+            <p className="text-[10px] text-blue-400 mt-1 leading-none">Sprint 6 — Academy + Guides</p>
           </div>
         </div>
       )}

@@ -345,3 +345,28 @@ CREATE TABLE IF NOT EXISTS "ReliabilityScore" (
 
 CREATE INDEX IF NOT EXISTS "ReliabilityScore_driverName_idx" ON "ReliabilityScore"("driverName");
 CREATE INDEX IF NOT EXISTS "ReliabilityScore_calculatedAt_idx" ON "ReliabilityScore"("calculatedAt");
+
+-- ─── SPRINT 6 — GUIDES ───────────────────────────────────────────────────────
+
+CREATE TABLE IF NOT EXISTS "GuideLesson" (
+    "id"        TEXT NOT NULL,
+    "moduleKey" TEXT NOT NULL,
+    "title"     TEXT NOT NULL,
+    "stepOrder" INTEGER NOT NULL DEFAULT 0,
+    "content"   TEXT NOT NULL,
+    "imageUrl"  TEXT,
+    "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    CONSTRAINT "GuideLesson_pkey" PRIMARY KEY ("id")
+);
+
+CREATE INDEX IF NOT EXISTS "GuideLesson_moduleKey_idx" ON "GuideLesson"("moduleKey");
+
+CREATE TABLE IF NOT EXISTS "GuideFeedback" (
+    "id"        TEXT NOT NULL,
+    "moduleKey" TEXT NOT NULL,
+    "helpful"   BOOLEAN NOT NULL,
+    "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    CONSTRAINT "GuideFeedback_pkey" PRIMARY KEY ("id")
+);
+
+CREATE INDEX IF NOT EXISTS "GuideFeedback_moduleKey_idx" ON "GuideFeedback"("moduleKey");

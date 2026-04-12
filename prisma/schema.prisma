@@ -378,3 +378,49 @@ model SupportTicket {
   @@index([priority])
   @@index([createdAt])
 }
+
+// ─── SPRINT 9b — MULTI-TENANT + RÔLES + AUTH ─────────────────────────────────
+
+model Tenant {
+  id           String    @id @default(cuid())
+  name         String
+  slug         String    @unique
+  logoUrl      String?
+  primaryColor String    @default("#2563eb")
+  plan         String    @default("basic") // "basic" | "pro" | "enterprise"
+  active       Boolean   @default(true)
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+  users        User[]
+
+  @@index([slug])
+  @@index([active])
+}
+
+model User {
+  id        String    @id @default(cuid())
+  email     String    @unique
+  password  String    // PBKDF2 hash : "salt:hash"
+  name      String?
+  role      String    @default("VIEWER") // "SUPER_ADMIN" | "ADMIN" | "MANAGER" | "VIEWER"
+  tenantId  String?
+  tenant    Tenant?   @relation(fields: [tenantId], references: [id], onDelete: SetNull)
+  active    Boolean   @default(true)
+  createdAt DateTime  @default(now())
+  sessions  Session[]
+
+  @@index([email])
+  @@index([tenantId])
+}
+
+model Session {
+  id        String   @id @default(cuid())
+  token     String   @unique
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  expiresAt DateTime
+  createdAt DateTime @default(now())
+
+  @@index([token])
+  @@index([userId])
+}

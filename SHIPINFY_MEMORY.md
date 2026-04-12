@@ -6,7 +6,7 @@
 
 ---
 
-## VERSION ACTUELLE : v7.0 — Sprint 9 Dispatch + Pointage + Support
+## VERSION ACTUELLE : v8.0 — Sprint 9b Multi-tenant + Rôles + Auth
 
 ---
 
@@ -407,4 +407,51 @@ netPay   = grossPay + bonus - penalty
 
 ---
 
-*Dernière mise à jour : 2026-04-12 — Sprint 9 : Dispatch + Pointage + Support — v7.0 — 14 fixes documentés*
+---
+
+## 13. SPRINT 9b — MULTI-TENANT + RÔLES + AUTH (2026-04-12)
+
+### Architecture
+- **Isolation** : tenantId par client — migration douce (si pas de session → pas de filtre)
+- **Rôles** : SUPER_ADMIN > ADMIN > MANAGER > VIEWER
+- **Auth** : PBKDF2 (Node.js crypto natif) + sessions DB (table Session avec token + expiresAt 7j)
+- **Middleware** : Edge-compatible, redirige /admin si pas de cookie — validation DB dans chaque route
+- **Bootstrap** : POST /api/auth/bootstrap crée le 1er SUPER_ADMIN (one-shot)
+
+### Modèles DB ajoutés
+- `Tenant` — client isolé (name, slug unique, primaryColor, plan, active)
+- `User` — authentification (email unique, password PBKDF2, role, tenantId optionnel)
+- `Session` — tokens auth (token unique, userId, expiresAt)
+
+### Fichiers créés
+- `lib/auth.ts` — hashPassword/verifyPassword (PBKDF2), createSession, getSession, buildSessionCookie, roleAtLeast
+- `middleware.ts` — Edge-compatible, guard /admin pages, backward compat (pas de session = passe)
+- `app/api/auth/login/route.ts` — POST login → cookie httpOnly
+- `app/api/auth/logout/route.ts` — POST logout → clear cookie + delete session DB
+- `app/api/auth/me/route.ts` — GET session courante + tenant info
+- `app/api/auth/bootstrap/route.ts` — POST one-shot création premier SUPER_ADMIN
+- `app/api/admin/tenants/route.ts` — GET/POST tenants (SUPER_ADMIN)
+- `app/api/admin/tenants/[id]/route.ts` — PATCH/DELETE tenant
+- `app/api/admin/tenants/[id]/users/route.ts` — GET/POST users d'un tenant
+- `app/api/admin/users/route.ts` — GET/POST users global (SUPER_ADMIN)
+- `app/admin/page.tsx` — 3 onglets : Tenants, Utilisateurs, Stats globales
+- `app/login/page.tsx` — page login email/password → cookie session
+
+### Fichiers modifiés
+- `prisma/schema.prisma` — Tenant + User + Session ajoutés
+- `prisma/init-tables.sql` — tables `Tenant`, `User`, `Session` ajoutées
+- `components/Sidebar.tsx` — section Administration avec Super Admin (/admin) — version v6.0
+- `components/AppShell.tsx` — idem
+- `components/BottomNav.tsx` — Super Admin ajouté dans MORE_ITEMS
+- `components/MobileHeader.tsx` — /admin ajouté dans ROUTE_LABELS
+
+### ⚠️ Règles importantes
+- Password : PBKDF2 salt:hash (NOT bcrypt — non disponible en dépendances)
+- Session cookie : httpOnly, SameSite=Lax, 7j TTL
+- Backward compat : si pas de session → toutes les API passent sans 401 (migration douce)
+- bootstrap : fonctionne une seule fois — retourne 409 si des users existent déjà
+- La page /login est exclue de la sidebar (pas dans SECTIONS)
+
+---
+
+*Dernière mise à jour : 2026-04-12 — Sprint 9b : Multi-tenant + Rôles + Auth — v8.0*

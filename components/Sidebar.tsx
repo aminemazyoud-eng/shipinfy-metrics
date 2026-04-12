@@ -8,7 +8,7 @@ import {
   Activity, BarChart3, Users, MapPin, XCircle,
   TrendingUp, Bell, Mail, Settings,
   UserCheck, GraduationCap, ChevronRight, Brain, DollarSign,
-  Truck, Clock, HeadphonesIcon,
+  Truck, Clock, HeadphonesIcon, Shield,
 } from 'lucide-react'
 
 // ─── Types ─────────────────────────────────────────────────────────────────────
@@ -65,6 +65,13 @@ const SECTIONS: NavSection[] = [
       { href: '/academy',    label: 'Academy',    icon: GraduationCap,disabled: false },
     ],
   },
+  {
+    key: 'admin',
+    label: 'Administration',
+    items: [
+      { href: '/admin', label: 'Super Admin', icon: Shield, disabled: false },
+    ],
+  },
 ]
 
 // ─── Floating tooltip (collapsed mode) ────────────────────────────────────────
@@ -90,7 +97,7 @@ export default function Sidebar() {
 
   // Accordion state per section, persisted in localStorage
   const [accordion, setAccordion] = useState<Record<string, boolean>>({
-    analytics: true, performance: true, operations: true, rh: true,
+    analytics: true, performance: true, operations: true, rh: true, admin: false,
   })
 
 
@@ -252,7 +259,7 @@ export default function Sidebar() {
         <div className="flex-shrink-0 p-2.5 border-t border-gray-100">
           <div className="px-3 py-2 bg-blue-50 rounded-xl">
             <p className="text-[11px] font-black text-blue-700 leading-none">SHIPINFY v5.0</p>
-            <p className="text-[10px] text-blue-400 mt-1 leading-none">Sprint 9 — Dispatch + Pointage</p>
+            <p className="text-[10px] text-blue-400 mt-1 leading-none">Sprint 9 — Multi-tenant + Rôles</p>
           </div>
         </div>
       )}

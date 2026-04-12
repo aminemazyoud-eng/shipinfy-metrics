@@ -486,3 +486,79 @@ CREATE INDEX IF NOT EXISTS "SupportTicket_status_idx"    ON "SupportTicket"("sta
 CREATE INDEX IF NOT EXISTS "SupportTicket_priority_idx"  ON "SupportTicket"("priority");
 CREATE INDEX IF NOT EXISTS "SupportTicket_createdAt_idx" ON "SupportTicket"("createdAt");
 
+-- ─── SPRINT 9b — MULTI-TENANT + RÔLES ────────────────────────────────────────
+
+CREATE TABLE IF NOT EXISTS "Tenant" (
+  "id"           TEXT NOT NULL,
+  "name"         TEXT NOT NULL,
+  "slug"         TEXT NOT NULL,
+  "logoUrl"      TEXT,
+  "primaryColor" TEXT NOT NULL DEFAULT '#2563eb',
+  "plan"         TEXT NOT NULL DEFAULT 'basic',
+  "active"       BOOLEAN NOT NULL DEFAULT true,
+  "createdAt"    TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  "updatedAt"    TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  CONSTRAINT "Tenant_pkey" PRIMARY KEY ("id")
+);
+
+CREATE UNIQUE INDEX IF NOT EXISTS "Tenant_slug_key"  ON "Tenant"("slug");
+CREATE INDEX IF NOT EXISTS "Tenant_slug_idx"         ON "Tenant"("slug");
+CREATE INDEX IF NOT EXISTS "Tenant_active_idx"       ON "Tenant"("active");
+
+CREATE TABLE IF NOT EXISTS "User" (
+  "id"        TEXT NOT NULL,
+  "email"     TEXT NOT NULL,
+  "password"  TEXT NOT NULL,
+  "name"      TEXT,
+  "role"      TEXT NOT NULL DEFAULT 'VIEWER',
+  "tenantId"  TEXT,
+  "active"    BOOLEAN NOT NULL DEFAULT true,
+  "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  CONSTRAINT "User_pkey" PRIMARY KEY ("id")
+);
+
+CREATE UNIQUE INDEX IF NOT EXISTS "User_email_key"    ON "User"("email");
+CREATE INDEX IF NOT EXISTS "User_email_idx"           ON "User"("email");
+CREATE INDEX IF NOT EXISTS "User_tenantId_idx"        ON "User"("tenantId");
+
+DO $$
+BEGIN
+  IF NOT EXISTS (
+    SELECT 1 FROM pg_constraint WHERE conname = 'User_tenantId_fkey'
+  ) THEN
+    ALTER TABLE "User" ADD CONSTRAINT "User_tenantId_fkey"
+      FOREIGN KEY ("tenantId") REFERENCES "Tenant"("id") ON DELETE SET NULL;
+  END IF;
+END $$;
+
+CREATE TABLE IF NOT EXISTS "Session" (
+  "id"        TEXT NOT NULL,
+  "token"     TEXT NOT NULL,
+  "userId"    TEXT NOT NULL,
+  "expiresAt" TIMESTAMP(3) NOT NULL,
+  "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  CONSTRAINT "Session_pkey" PRIMARY KEY ("id")
+);
+
+CREATE UNIQUE INDEX IF NOT EXISTS "Session_token_key" ON "Session"("token");
+CREATE INDEX IF NOT EXISTS "Session_token_idx"        ON "Session"("token");
+CREATE INDEX IF NOT EXISTS "Session_userId_idx"       ON "Session"("userId");
+
+DO $$
+BEGIN
+  IF NOT EXISTS (
+    SELECT 1 FROM pg_constraint WHERE conname = 'Session_userId_fkey'
+  ) THEN
+    ALTER TABLE "Session" ADD CONSTRAINT "Session_userId_fkey"
+      FOREIGN KEY ("userId") REFERENCES "User"("id") ON DELETE CASCADE;
+  END IF;
+END $$;
+
+-- Seed demo tenant if none exist
+INSERT INTO "Tenant" ("id","name","slug","primaryColor","plan","active")
+SELECT 'tenant_shipinfy_demo','Shipinfy Demo','shipinfy-demo','#2563eb','pro',true
+WHERE NOT EXISTS (SELECT 1 FROM "Tenant" WHERE "id" = 'tenant_shipinfy_demo');
+
+-- Super admin seeded via /api/auth/bootstrap on first run
+-- (password hashing requires Node.js crypto — cannot compute in SQL)
+

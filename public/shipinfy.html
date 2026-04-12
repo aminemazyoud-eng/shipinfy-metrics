@@ -38,14 +38,14 @@ body{background:#f8fafc;color:var(--text);font-family:-apple-system,BlinkMacSyst
 .btn-fs:hover{background:#f1f5f9}
 
 /* ── TAB PANELS ───────────────────────────────────────────────────────────── */
-.tab-panel{display:none}
-.tab-panel.active{display:block}
+.tab-panel{display:none !important}
+.tab-panel.active{display:block !important}
+.tab-panel.active#tab-process{display:flex !important}
 
 /* ════════════════════════════════════════════════════════════════════════════
    TAB 1 — FLUX OPÉRATIONNEL
    ════════════════════════════════════════════════════════════════════════════ */
-#tab-process{padding:28px 16px;display:flex;justify-content:center;align-items:flex-start}
-#tab-process.active{display:flex}
+#tab-process{padding:28px 16px;justify-content:center;align-items:flex-start}
 
 .pf-page{width:1160px;max-width:100%;background:#fff;border-radius:16px;overflow:hidden;box-shadow:0 1px 3px rgba(0,0,0,.08),0 8px 32px rgba(0,0,0,.06);border:1px solid #e2e8f0}
 .pf-label-bar{display:grid;grid-template-columns:1fr 60px 1fr;background:#f8fafc;border-bottom:1px solid #e2e8f0}

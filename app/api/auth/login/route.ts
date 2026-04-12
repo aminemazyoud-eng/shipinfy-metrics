@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
-import { verifyPassword, createSession, buildSessionCookie } from '@/lib/auth'
+import { verifyPassword, createSession, buildSessionCookie, buildRoleCookie } from '@/lib/auth'
 
 export async function POST(req: Request) {
   try {
@@ -23,21 +23,13 @@ export async function POST(req: Request) {
 
     const token = await createSession(user.id)
 
-    return NextResponse.json(
-      {
-        user: {
-          id:       user.id,
-          email:    user.email,
-          name:     user.name,
-          role:     user.role,
-          tenantId: user.tenantId,
-        },
-      },
-      {
-        status: 200,
-        headers: { 'Set-Cookie': buildSessionCookie(token) },
-      }
+    const response = NextResponse.json(
+      { user: { id: user.id, email: user.email, name: user.name, role: user.role, tenantId: user.tenantId } },
+      { status: 200 }
     )
+    response.headers.set('Set-Cookie', buildSessionCookie(token))
+    response.headers.append('Set-Cookie', buildRoleCookie(user.role))
+    return response
   } catch (e) {
     console.error('[auth/login]', e)
     return NextResponse.json({ error: 'Erreur serveur' }, { status: 500 })

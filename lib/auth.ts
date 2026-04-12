@@ -6,7 +6,8 @@ const ITERATIONS  = 100_000
 const KEY_LEN     = 64
 const DIGEST      = 'sha512'
 const SESSION_TTL = 7 * 24 * 60 * 60 * 1000 // 7 days
-const COOKIE_NAME = 'shipinfy_session'
+export const COOKIE_NAME      = 'shipinfy_session'
+export const ROLE_COOKIE_NAME = 'shipinfy_role'
 
 // ─── Password ─────────────────────────────────────────────────────────────────
 
@@ -80,13 +81,18 @@ export function buildSessionCookie(token: string): string {
   return `${COOKIE_NAME}=${token}; HttpOnly; SameSite=Lax; Path=/; Max-Age=${maxAge}`
 }
 
+export function buildRoleCookie(role: string): string {
+  const maxAge = Math.floor(SESSION_TTL / 1000)
+  return `${ROLE_COOKIE_NAME}=${role}; HttpOnly; SameSite=Lax; Path=/; Max-Age=${maxAge}`
+}
+
 export async function deleteSession(token: string): Promise<void> {
   await prisma.session.deleteMany({ where: { token } }).catch(() => {})
 }
 
 // ─── Role guards ──────────────────────────────────────────────────────────────
 
-export const ROLES = ['VIEWER', 'MANAGER', 'ADMIN', 'SUPER_ADMIN'] as const
+export const ROLES = ['VIEWER', 'SUPPORT', 'DISPATCHER', 'COORDINATOR', 'MANAGER', 'ADMIN', 'SUPER_ADMIN'] as const
 export type  Role  = typeof ROLES[number]
 
 export function roleAtLeast(userRole: string, required: Role): boolean {

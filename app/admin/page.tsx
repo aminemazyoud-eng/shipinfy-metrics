@@ -3,8 +3,9 @@ import { useEffect, useState, useCallback } from 'react'
 import {
   Building2, Users, Plus, Check, X, ChevronDown, ChevronUp,
   Shield, Crown, Eye, UserCog, ToggleLeft, ToggleRight,
-  Trash2, BarChart3, Globe, LogOut,
+  Trash2, BarChart3, Globe, LogOut, Compass, Truck, HeadphonesIcon,
 } from 'lucide-react'
+import { ALL_ROLES } from '@/lib/permissions'
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -41,16 +42,22 @@ const PLAN_LABELS: Record<string, string> = {
   basic: 'Basic', pro: 'Pro', enterprise: 'Enterprise',
 }
 const ROLE_COLORS: Record<string, string> = {
-  SUPER_ADMIN: 'bg-red-100 text-red-700',
-  ADMIN:       'bg-orange-100 text-orange-700',
-  MANAGER:     'bg-blue-100 text-blue-700',
-  VIEWER:      'bg-gray-100 text-gray-600',
+  SUPER_ADMIN:  'bg-red-100 text-red-700',
+  ADMIN:        'bg-orange-100 text-orange-700',
+  MANAGER:      'bg-blue-100 text-blue-700',
+  COORDINATOR:  'bg-emerald-100 text-emerald-700',
+  DISPATCHER:   'bg-cyan-100 text-cyan-700',
+  SUPPORT:      'bg-yellow-100 text-yellow-700',
+  VIEWER:       'bg-gray-100 text-gray-600',
 }
 const ROLE_ICONS: Record<string, React.ReactNode> = {
-  SUPER_ADMIN: <Crown size={10} />,
-  ADMIN:       <Shield size={10} />,
-  MANAGER:     <UserCog size={10} />,
-  VIEWER:      <Eye size={10} />,
+  SUPER_ADMIN:  <Crown size={10} />,
+  ADMIN:        <Shield size={10} />,
+  MANAGER:      <UserCog size={10} />,
+  COORDINATOR:  <Compass size={10} />,
+  DISPATCHER:   <Truck size={10} />,
+  SUPPORT:      <HeadphonesIcon size={10} />,
+  VIEWER:       <Eye size={10} />,
 }
 
 // ─── Shared components ────────────────────────────────────────────────────────
@@ -339,6 +346,22 @@ function UsersTab() {
     setAdding(false)
   }
 
+  const handleRoleChange = async (id: string, role: string) => {
+    setUsers(prev => prev.map(u => u.id === id ? { ...u, role } : u))
+    await fetch(`/api/admin/users/${id}`, {
+      method: 'PATCH', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ role }),
+    })
+  }
+
+  const handleToggleActive = async (id: string, active: boolean) => {
+    setUsers(prev => prev.map(u => u.id === id ? { ...u, active } : u))
+    await fetch(`/api/admin/users/${id}`, {
+      method: 'PATCH', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ active }),
+    })
+  }
+
   return (
     <div className="space-y-4">
       <div className="flex items-center justify-between">
@@ -360,12 +383,11 @@ function UsersTab() {
               className="border border-gray-200 rounded-lg px-2.5 py-1.5 text-xs" placeholder="Mot de passe *" required />
             <select value={form.role} onChange={e => setForm(f => ({ ...f, role: e.target.value }))}
               className="border border-gray-200 rounded-lg px-2.5 py-1.5 text-xs">
-              <option value="VIEWER">VIEWER</option><option value="MANAGER">MANAGER</option>
-              <option value="ADMIN">ADMIN</option><option value="SUPER_ADMIN">SUPER_ADMIN</option>
+              {ALL_ROLES.map(r => <option key={r} value={r}>{r}</option>)}
             </select>
             <select value={form.tenantId} onChange={e => setForm(f => ({ ...f, tenantId: e.target.value }))}
               className="col-span-2 border border-gray-200 rounded-lg px-2.5 py-1.5 text-xs">
-              <option value="">Aucun tenant (SUPER_ADMIN global)</option>
+              <option value="">Aucun tenant (global)</option>
               {tenants.map(t => <option key={t.id} value={t.id}>{t.name}</option>)}
             </select>
           </div>
@@ -385,7 +407,7 @@ function UsersTab() {
         ) : users.length === 0 ? (
           <div className="py-8 text-center text-sm text-gray-400">Aucun utilisateur.</div>
         ) : users.map(u => (
-          <div key={u.id} className="flex items-center gap-3 px-4 py-3 border-b border-gray-100 last:border-b-0">
+          <div key={u.id} className={`flex items-center gap-3 px-4 py-3 border-b border-gray-100 last:border-b-0 ${!u.active ? 'opacity-50' : ''}`}>
             <div className="w-8 h-8 rounded-full bg-blue-100 flex items-center justify-center flex-shrink-0">
               <span className="text-[11px] font-bold text-blue-700">{(u.name ?? u.email).charAt(0).toUpperCase()}</span>
             </div>
@@ -393,9 +415,21 @@ function UsersTab() {
               <p className="text-sm font-semibold text-gray-800 truncate">{u.name ?? '—'}</p>
               <p className="text-xs text-gray-400 truncate">{u.email}</p>
             </div>
-            <div className="hidden sm:block text-xs text-gray-400 truncate max-w-[120px]">{tenantName(u.tenantId)}</div>
-            <RoleBadge role={u.role} />
-            {u.active ? <Check size={12} className="text-green-500" /> : <X size={12} className="text-red-400" />}
+            <div className="hidden sm:block text-xs text-gray-400 truncate max-w-[80px]">{tenantName(u.tenantId)}</div>
+            {/* Inline role selector */}
+            <select
+              value={u.role}
+              onChange={e => handleRoleChange(u.id, e.target.value)}
+              className={`text-[10px] font-semibold px-1.5 py-0.5 rounded-md border-0 cursor-pointer ${ROLE_COLORS[u.role] ?? 'bg-gray-100 text-gray-600'}`}
+            >
+              {ALL_ROLES.map(r => <option key={r} value={r}>{r}</option>)}
+            </select>
+            {/* Toggle active */}
+            <button onClick={() => handleToggleActive(u.id, !u.active)} className="text-gray-300 hover:text-blue-600 transition-colors flex-shrink-0">
+              {u.active
+                ? <ToggleRight size={20} className="text-blue-600" />
+                : <ToggleLeft size={20} />}
+            </button>
           </div>
         ))}
       </div>
@@ -469,10 +503,13 @@ function StatsTab() {
         <p className="text-xs font-bold text-gray-500 uppercase tracking-wide mb-3">Légende des rôles</p>
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
           {[
-            { role: 'SUPER_ADMIN', desc: 'Accès total — tous les tenants' },
-            { role: 'ADMIN',       desc: 'Tout sauf gestion des tenants' },
-            { role: 'MANAGER',     desc: 'Opérations, dispatch, support' },
-            { role: 'VIEWER',      desc: 'Lecture seule' },
+            { role: 'SUPER_ADMIN',  desc: 'Accès total + gestion comptes' },
+            { role: 'ADMIN',        desc: 'Tout sauf /admin' },
+            { role: 'MANAGER',      desc: 'Opérations complètes' },
+            { role: 'COORDINATOR',  desc: 'Dispatch + Shifts + RH' },
+            { role: 'DISPATCHER',   desc: 'Dispatch + Alertes uniquement' },
+            { role: 'SUPPORT',      desc: 'Support client + Alertes' },
+            { role: 'VIEWER',       desc: 'Dashboard lecture seule' },
           ].map(r => (
             <div key={r.role} className="bg-gray-50 rounded-lg p-2.5 border border-gray-100">
               <RoleBadge role={r.role} />

@@ -12,6 +12,8 @@ import {
 import type { LucideProps } from 'lucide-react'
 import MobileHeader from '@/components/MobileHeader'
 import BottomNav from '@/components/BottomNav'
+import { useCurrentUser } from '@/hooks/useCurrentUser'
+import { getAllowedRoutes } from '@/lib/permissions'
 
 // ── Nav items (mirrors Sidebar.tsx) ────────────────────────────────────────────
 interface NavItem { href: string; label: string; icon: React.ComponentType<LucideProps> }
@@ -65,6 +67,11 @@ const SECTIONS: NavSection[] = [
 // ── Tablet slide-in Sidebar ─────────────────────────────────────────────────────
 function TabletSidebar({ open, onClose }: { open: boolean; onClose: () => void }) {
   const pathname = usePathname()
+  const { user }  = useCurrentUser()
+  const allowedRoutes = getAllowedRoutes(user?.role ?? 'VIEWER')
+  const visibleSections = SECTIONS
+    .map(s => ({ ...s, items: s.items.filter(i => allowedRoutes.includes(i.href)) }))
+    .filter(s => s.items.length > 0)
 
   return (
     <>
@@ -104,7 +111,7 @@ function TabletSidebar({ open, onClose }: { open: boolean; onClose: () => void }
 
         {/* Nav */}
         <nav className="flex-1 overflow-y-auto py-2 space-y-0.5">
-          {SECTIONS.map(section => (
+          {visibleSections.map(section => (
             <div key={section.key}>
               <div className="px-4 pt-3 pb-1">
                 <span className="text-[10px] font-bold text-gray-400 uppercase tracking-[0.07em]">
@@ -133,6 +140,7 @@ function TabletSidebar({ open, onClose }: { open: boolean; onClose: () => void }
           ))}
 
           {/* Paramètres */}
+          {allowedRoutes.includes('/parametres') && <>
           <div className="mx-3 my-1 h-px bg-gray-100" />
           <Link
             href="/parametres"
@@ -145,6 +153,7 @@ function TabletSidebar({ open, onClose }: { open: boolean; onClose: () => void }
             <Settings size={16} />
             <span>Paramètres</span>
           </Link>
+          </>}
         </nav>
 
         {/* Footer */}

@@ -43,8 +43,8 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: 'Mot de passe minimum 6 caractères' }, { status: 400 })
     }
 
-    const VALID_ROLES = ['SUPER_ADMIN', 'ADMIN', 'MANAGER', 'VIEWER']
-    const userRole = VALID_ROLES.includes(role) ? role : 'VIEWER'
+    const { ROLES } = await import('@/lib/auth')
+    const userRole = (ROLES as readonly string[]).includes(role) ? role : 'VIEWER'
 
     const user = await prisma.user.create({
       data: {

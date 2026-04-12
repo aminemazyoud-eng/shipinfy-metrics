@@ -1,7 +1,5 @@
 import { NextResponse } from 'next/server'
-import { deleteSession } from '@/lib/auth'
-
-const COOKIE_NAME = 'shipinfy_session'
+import { deleteSession, COOKIE_NAME, ROLE_COOKIE_NAME } from '@/lib/auth'
 
 export async function POST(req: Request) {
   const cookieHeader = req.headers.get('cookie') ?? ''
@@ -10,9 +8,8 @@ export async function POST(req: Request) {
 
   if (token) await deleteSession(token)
 
-  return NextResponse.json({ ok: true }, {
-    headers: {
-      'Set-Cookie': `${COOKIE_NAME}=; HttpOnly; SameSite=Lax; Path=/; Max-Age=0`,
-    },
-  })
+  const response = NextResponse.json({ ok: true })
+  response.headers.set('Set-Cookie', `${COOKIE_NAME}=; HttpOnly; SameSite=Lax; Path=/; Max-Age=0`)
+  response.headers.append('Set-Cookie', `${ROLE_COOKIE_NAME}=; HttpOnly; SameSite=Lax; Path=/; Max-Age=0`)
+  return response
 }

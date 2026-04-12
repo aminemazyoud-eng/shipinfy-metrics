@@ -2,6 +2,8 @@
 import { useState } from 'react'
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
+import { useCurrentUser } from '@/hooks/useCurrentUser'
+import { getAllowedRoutes } from '@/lib/permissions'
 import {
   Activity, BarChart3, Bell, Users, MoreHorizontal,
   MapPin, XCircle, GraduationCap, Brain,
@@ -36,6 +38,10 @@ const MORE_ITEMS = [
 export default function BottomNav() {
   const pathname  = usePathname()
   const [open, setOpen] = useState(false)
+  const { user } = useCurrentUser()
+  const allowedRoutes = getAllowedRoutes(user?.role ?? 'VIEWER')
+  const visibleMain = MAIN_ITEMS.filter(i => allowedRoutes.includes(i.href))
+  const visibleMore = MORE_ITEMS.filter(i => allowedRoutes.includes(i.href))
 
   return (
     <>
@@ -44,7 +50,7 @@ export default function BottomNav() {
         className="lg:hidden fixed bottom-0 left-0 right-0 z-50 bg-white border-t border-gray-200 flex items-center"
         style={{ paddingBottom: 'env(safe-area-inset-bottom)', height: 'calc(60px + env(safe-area-inset-bottom))' }}
       >
-        {MAIN_ITEMS.map(item => {
+        {visibleMain.map(item => {
           const isActive = pathname === item.href || (item.href !== '/' && pathname.startsWith(item.href))
           return (
             <Link
@@ -103,7 +109,7 @@ export default function BottomNav() {
 
             {/* Items grid */}
             <div className="grid grid-cols-4 gap-1 p-3 max-h-[60vh] overflow-y-auto">
-              {MORE_ITEMS.map(item => {
+              {visibleMore.map(item => {
                 const isActive = pathname === item.href || (item.href !== '/' && pathname.startsWith(item.href))
                 return (
                   <Link

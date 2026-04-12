@@ -10,6 +10,8 @@ import {
   UserCheck, GraduationCap, ChevronRight, Brain, DollarSign,
   Truck, Clock, HeadphonesIcon, Shield, Calendar,
 } from 'lucide-react'
+import { useCurrentUser } from '@/hooks/useCurrentUser'
+import { getAllowedRoutes } from '@/lib/permissions'
 
 // ─── Types ─────────────────────────────────────────────────────────────────────
 interface NavItem {
@@ -91,6 +93,12 @@ function Tooltip({ label }: { label: string }) {
 // ─── Main Sidebar ──────────────────────────────────────────────────────────────
 export default function Sidebar() {
   const pathname = usePathname()
+  const { user }  = useCurrentUser()
+  const allowedRoutes = getAllowedRoutes(user?.role ?? 'VIEWER')
+
+  const visibleSections = SECTIONS
+    .map(s => ({ ...s, items: s.items.filter(i => allowedRoutes.includes(i.href)) }))
+    .filter(s => s.items.length > 0)
 
   const [expanded, setExpanded]   = useState(false)
   const leaveTimer                = useRef<ReturnType<typeof setTimeout> | null>(null)
@@ -159,7 +167,7 @@ export default function Sidebar() {
 
       {/* ── Nav ───────────────────────────────────────────────────────────── */}
       <nav className="flex-1 overflow-y-auto overflow-x-hidden py-2 space-y-0.5">
-        {SECTIONS.map(section => (
+        {visibleSections.map(section => (
           <div key={section.key}>
 
             {/* Section header */}
@@ -234,6 +242,7 @@ export default function Sidebar() {
         ))}
 
         {/* ── Separator + Paramètres ────────────────────────────────────── */}
+        {allowedRoutes.includes('/parametres') && <>
         <div className={expanded ? 'mx-3 my-1 h-px bg-gray-100' : 'mx-3 my-0.5 h-px bg-gray-100'} />
 
         <div className="relative">
@@ -253,6 +262,7 @@ export default function Sidebar() {
             {expanded && <span>Paramètres</span>}
           </Link>
         </div>
+        </>}
       </nav>
 
       {/* ── Footer (expanded only) ────────────────────────────────────────── */}

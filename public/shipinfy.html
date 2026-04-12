@@ -1,0 +1,602 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>SHIPINFY — Vue complète</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+<style>
+/* ── RESET & ROOT ─────────────────────────────────────────────────────────── */
+:root {
+  --bg:#fff; --bg2:#f8fafc; --bg3:#f1f5f9; --bg4:#e8eef6;
+  --blue:#2563eb; --purple:#7c3aed; --green:#16a34a;
+  --orange:#ea580c; --red:#dc2626; --gray:#64748b;
+  --accent:#4f46e5; --cyan:#0891b2;
+  --text:#0f172a; --muted:#64748b; --border:#e2e8f0;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+body{background:#f8fafc;color:var(--text);font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Arial,sans-serif;min-height:100vh;overflow-x:hidden}
+
+/* ── UNIFIED HEADER ───────────────────────────────────────────────────────── */
+.main-hdr{background:#fff;border-bottom:1px solid var(--border);padding:14px 28px;display:flex;align-items:center;justify-content:space-between;position:sticky;top:0;z-index:300;box-shadow:0 1px 4px rgba(0,0,0,.06)}
+.mh-brand{display:flex;align-items:center;gap:12px}
+.mh-logo{width:40px;height:40px;background:#2563eb;border-radius:10px;display:flex;align-items:center;justify-content:center;font-weight:900;font-size:16px;color:#fff;flex-shrink:0}
+.mh-title{font-size:17px;font-weight:900;color:#0f172a}
+.mh-sub{font-size:10px;color:var(--muted);margin-top:1px}
+.mh-right{display:flex;align-items:center;gap:10px}
+
+/* ── TABS ─────────────────────────────────────────────────────────────────── */
+.tabs{display:flex;background:#f1f5f9;border-radius:10px;padding:3px;gap:2px}
+.tab-btn{padding:7px 18px;border-radius:8px;border:none;font-size:12px;font-weight:700;cursor:pointer;background:transparent;color:#64748b;transition:all .15s;white-space:nowrap}
+.tab-btn.active{background:#fff;color:#2563eb;box-shadow:0 1px 4px rgba(0,0,0,.1)}
+.tab-btn:hover:not(.active){background:#e8eef6;color:#334155}
+
+/* ── EXPORT BTN ───────────────────────────────────────────────────────────── */
+.btn-exp{background:#2563eb;color:#fff;border:none;padding:8px 18px;border-radius:8px;font-size:12px;font-weight:700;cursor:pointer;display:flex;align-items:center;gap:5px;transition:background .15s}
+.btn-exp:hover{background:#1d4ed8}
+.btn-fs{background:#fff;color:#334155;border:1px solid var(--border);padding:8px 14px;border-radius:8px;font-size:12px;font-weight:700;cursor:pointer;transition:background .15s}
+.btn-fs:hover{background:#f1f5f9}
+
+/* ── TAB PANELS ───────────────────────────────────────────────────────────── */
+.tab-panel{display:none}
+.tab-panel.active{display:block}
+
+/* ════════════════════════════════════════════════════════════════════════════
+   TAB 1 — FLUX OPÉRATIONNEL
+   ════════════════════════════════════════════════════════════════════════════ */
+#tab-process{padding:28px 16px;display:flex;justify-content:center;align-items:flex-start}
+#tab-process.active{display:flex}
+
+.pf-page{width:1160px;max-width:100%;background:#fff;border-radius:16px;overflow:hidden;box-shadow:0 1px 3px rgba(0,0,0,.08),0 8px 32px rgba(0,0,0,.06);border:1px solid #e2e8f0}
+.pf-label-bar{display:grid;grid-template-columns:1fr 60px 1fr;background:#f8fafc;border-bottom:1px solid #e2e8f0}
+.pf-lbi{padding:11px 24px;font-size:13px;font-weight:700;display:flex;align-items:center;gap:8px}
+.pf-lbi.old{color:#64748b;background:#f1f5f9;border-right:1px solid #e2e8f0}
+.pf-lbi.modern{color:#2563eb;background:#eff6ff;border-left:1px solid #e2e8f0}
+.pf-lba{display:flex;align-items:center;justify-content:center;font-size:20px;color:#94a3b8}
+.pf-body{display:grid;grid-template-columns:1fr 56px 1fr}
+.pf-old{padding:24px 20px 28px;background:#f8fafc;border-right:1px solid #e2e8f0}
+.pf-new{padding:24px 20px 28px;background:#fff}
+.pf-mid{display:flex;align-items:center;justify-content:center;background:#f8fafc}
+.chaos-grid{display:grid;grid-template-columns:1fr 1fr;gap:9px;margin-bottom:16px}
+.chaos-card{background:#fff;border:1.5px solid #e2e8f0;border-radius:10px;padding:12px;text-align:center}
+.chaos-card .cc-icon{font-size:24px;margin-bottom:5px}
+.chaos-card .cc-label{font-size:11.5px;font-weight:600;color:#475569;line-height:1.3}
+.chaos-mess{text-align:center;padding:10px 0;color:#94a3b8;font-size:18px;letter-spacing:4px}
+.pain-box{background:#fff5f5;border:1.5px solid #fecaca;border-radius:10px;padding:13px 15px;margin-top:4px}
+.pain-box .pb-title{display:flex;align-items:center;gap:6px;font-size:12.5px;font-weight:700;color:#dc2626;margin-bottom:8px}
+.pain-box li{font-size:12px;color:#7f1d1d;margin-left:14px;margin-bottom:4px;line-height:1.4}
+.pf-flow{display:flex;flex-direction:column;align-items:center;gap:0;margin-bottom:18px}
+.fc-arrow{width:2px;height:15px;background:#cbd5e1;position:relative;flex-shrink:0}
+.fc-arrow::after{content:'';position:absolute;bottom:-5px;left:50%;transform:translateX(-50%);border-left:5px solid transparent;border-right:5px solid transparent;border-top:6px solid #cbd5e1}
+.node-pill{padding:7px 20px;border-radius:20px;font-size:12.5px;font-weight:700;color:#fff;text-align:center}
+.node-pill.start{background:#16a34a}
+.node-pill.end{background:#dc2626}
+.node-box{background:#fff;border:1.5px solid #bfdbfe;border-radius:10px;padding:9px 16px;font-size:12.5px;font-weight:600;color:#1e40af;text-align:center;min-width:200px;box-shadow:0 1px 4px rgba(37,99,235,.08)}
+.node-diamond{background:#eff6ff;border:2px solid #93c5fd;border-radius:8px;padding:8px 16px;font-size:12px;font-weight:700;color:#1d4ed8;text-align:center;min-width:180px;clip-path:polygon(12px 0%,calc(100% - 12px) 0%,100% 50%,calc(100% - 12px) 100%,12px 100%,0% 50%);padding-left:22px;padding-right:22px}
+.branch-row{display:flex;align-items:flex-start;gap:18px;margin-top:10px}
+.branch{display:flex;flex-direction:column;align-items:center;gap:0}
+.branch-tag{font-size:10.5px;font-weight:700;padding:2px 9px;border-radius:10px;margin-bottom:5px}
+.branch-tag.yes{background:#dcfce7;color:#15803d}
+.branch-tag.no{background:#fee2e2;color:#dc2626}
+.node-mini{background:#fff;border:1.5px solid #e2e8f0;border-radius:8px;padding:7px 11px;font-size:11px;font-weight:600;color:#334155;text-align:center;min-width:100px}
+.node-output{background:linear-gradient(135deg,#eff6ff,#f0fdf4);border:1.5px solid #93c5fd;border-radius:10px;padding:9px 18px;font-size:12.5px;font-weight:600;color:#1e40af;text-align:center;min-width:200px}
+.pf-bottom{display:grid;grid-template-columns:1fr 1fr;gap:9px}
+.info-card{background:#f8fafc;border:1.5px solid #e2e8f0;border-radius:10px;padding:13px}
+.info-card .ic-title{display:flex;align-items:center;gap:6px;font-size:12px;font-weight:700;color:#0f172a;margin-bottom:7px}
+.info-card li{font-size:11.5px;color:#475569;margin-left:14px;margin-bottom:4px;line-height:1.4}
+.pf-stats{display:grid;grid-template-columns:repeat(4,1fr);border-top:1px solid #e2e8f0;background:#f8fafc}
+.pf-stat{padding:16px 20px;border-right:1px solid #e2e8f0;text-align:center}
+.pf-stat:last-child{border-right:none}
+.pf-stat .sv{font-size:20px;font-weight:800}
+.pf-stat .sv.blue{color:#2563eb}.pf-stat .sv.green{color:#16a34a}.pf-stat .sv.orange{color:#ea580c}.pf-stat .sv.red{color:#dc2626}
+.pf-stat .sl{font-size:11.5px;color:#64748b;font-weight:500;margin-top:2px}
+.arrow-svg{width:30px}
+
+/* ════════════════════════════════════════════════════════════════════════════
+   TAB 2 — ARCHITECTURE WORKFLOW
+   ════════════════════════════════════════════════════════════════════════════ */
+.canvas{padding:28px 32px;max-width:1520px;margin:0 auto;position:relative}
+.lvl{font-size:9px;font-weight:800;text-transform:uppercase;letter-spacing:.12em;color:#94a3b8;margin:28px 0 14px;display:flex;align-items:center;gap:10px}
+.lvl::before,.lvl::after{content:'';flex:1;height:1px;background:#e2e8f0}
+.lvl::before{flex:0 0 0}
+.blk{background:#fff;border:1.5px solid var(--border);border-radius:12px;padding:14px 16px;position:relative;transition:all .2s;cursor:default;overflow:hidden;box-shadow:0 1px 3px rgba(0,0,0,.05)}
+.blk:hover{transform:translateY(-3px);box-shadow:0 8px 24px rgba(0,0,0,.1);z-index:20}
+.blk-ic{font-size:22px;margin-bottom:8px;line-height:1}
+.blk-t{font-size:12px;font-weight:800;margin-bottom:4px;line-height:1.3;color:#0f172a}
+.blk-s{font-size:10px;color:var(--muted);line-height:1.5}
+.blk-tag{position:absolute;top:8px;right:8px;font-size:8px;font-weight:700;padding:2px 6px;border-radius:99px;background:#f1f5f9;color:var(--muted)}
+.c-blue{color:var(--blue);border-color:#bfdbfe;background:#eff6ff}
+.c-purple{color:var(--purple);border-color:#ddd6fe;background:#f5f3ff}
+.c-green{color:var(--green);border-color:#bbf7d0;background:#f0fdf4}
+.c-orange{color:var(--orange);border-color:#fed7aa;background:#fff7ed}
+.c-red{color:var(--red);border-color:#fecaca;background:#fef2f2}
+.c-gray{color:var(--gray);border-color:#e2e8f0;background:#f8fafc}
+.c-cyan{color:var(--cyan);border-color:#a5f3fc;background:#ecfeff}
+.arrow-down{display:flex;flex-direction:column;align-items:center;gap:0;padding:6px 0}
+.arrow-down .line{width:2px;height:20px;background:linear-gradient(to bottom,#e2e8f0,#bfdbfe)}
+.arrow-down .head{width:0;height:0;border-left:6px solid transparent;border-right:6px solid transparent;border-top:8px solid #93c5fd}
+.arrows-row{display:flex;justify-content:space-around;padding:0 10%}
+.arrows-row .arrow-down .line{background:linear-gradient(to bottom,#bfdbfe,#e2e8f0)}
+.g3{display:grid;grid-template-columns:repeat(3,1fr);gap:14px}
+.g3s{display:grid;grid-template-columns:repeat(3,1fr);gap:14px;margin-top:12px}
+.db-wrap{display:flex;justify-content:center;padding:8px 0}
+.db-blk{background:linear-gradient(135deg,#eff6ff,#f5f3ff);border:2px solid #bfdbfe;border-radius:14px;padding:18px 28px;display:flex;align-items:center;gap:16px;width:380px;position:relative;overflow:hidden;box-shadow:0 2px 8px rgba(37,99,235,.1)}
+.db-blk::after{content:'';position:absolute;top:-30px;right:-30px;width:120px;height:120px;background:radial-gradient(circle,rgba(37,99,235,.08),transparent);border-radius:50%}
+.db-ic{font-size:36px;flex-shrink:0}
+.db-title{font-size:15px;font-weight:900;color:#2563eb}
+.db-sub{font-size:10px;color:var(--muted);margin-top:3px}
+.db-tags{display:flex;gap:5px;flex-wrap:wrap;margin-top:8px}
+.db-tag{font-size:9px;padding:2px 6px;border-radius:5px;background:#dbeafe;color:#1d4ed8;font-weight:700}
+.eng-wrap{background:#faf5ff;border:1.5px solid #ddd6fe;border-radius:16px;padding:20px;position:relative;overflow:hidden}
+.eng-wrap::before{content:'MOTEURS';position:absolute;right:16px;top:50%;transform:translateY(-50%) rotate(90deg);font-size:9px;font-weight:800;letter-spacing:.2em;color:rgba(124,58,237,.15)}
+.eng-hdr{font-size:10px;font-weight:800;color:var(--purple);text-transform:uppercase;letter-spacing:.08em;margin-bottom:14px;display:flex;align-items:center;gap:8px}
+.g6{display:grid;grid-template-columns:repeat(6,1fr);gap:10px}
+.g5{display:grid;grid-template-columns:repeat(5,1fr);gap:10px;margin-bottom:10px}
+.g4{display:grid;grid-template-columns:repeat(4,1fr);gap:14px}
+.conn-section{background:#fff;border:1px solid #e2e8f0;border-radius:14px;padding:18px 22px;box-shadow:0 1px 3px rgba(0,0,0,.05)}
+.conn-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:10px}
+.conn-item{display:flex;align-items:flex-start;gap:10px;background:#f8fafc;border-radius:9px;padding:10px 12px;transition:.2s;border:1px solid #f1f5f9}
+.conn-item:hover{background:#f1f5f9;transform:translateY(-1px)}
+.conn-arr{font-size:20px;flex-shrink:0;line-height:1;margin-top:2px}
+.conn-txt{font-size:10px;color:#64748b;line-height:1.5}
+.conn-txt strong{color:#0f172a;font-size:11px;display:block;margin-bottom:2px}
+.sec-panel{background:#fef2f2;border:1.5px solid #fecaca;border-radius:14px;padding:20px 24px}
+.sec-grid{display:grid;grid-template-columns:1fr 1fr;gap:20px;margin-top:16px}
+.tenant-item{background:#fff;border:1px solid #e2e8f0;border-radius:8px;padding:10px 14px;display:flex;align-items:center;gap:10px;margin-bottom:6px;font-size:12px;font-weight:600;transition:.15s;color:#0f172a}
+.tenant-item:hover{background:#f8fafc}
+.t-dot{width:9px;height:9px;border-radius:50%;flex-shrink:0}
+.roles-wrap{display:grid;grid-template-columns:1fr 1fr;gap:6px;margin-top:8px}
+.rbadge{padding:6px 10px;border-radius:8px;text-align:center;font-size:9px;font-weight:800;text-transform:uppercase;letter-spacing:.04em;transition:.15s;border:1px solid #e2e8f0;background:#fff;color:#334155}
+.rbadge:hover{transform:scale(1.05);background:#f1f5f9}
+.sec-info{display:flex;flex-wrap:wrap;gap:10px;margin-top:16px;padding-top:14px;border-top:1px solid #fecaca}
+.sec-pill{display:flex;align-items:center;gap:6px;font-size:10px;color:#64748b;background:#fff;border:1px solid #e2e8f0;padding:5px 10px;border-radius:99px}
+.pitch{background:linear-gradient(135deg,#eff6ff,#f5f3ff);border:1.5px solid #bfdbfe;border-radius:20px;padding:28px 32px;position:relative;overflow:hidden}
+.pitch-hdr{font-size:17px;font-weight:900;color:#0f172a;margin-bottom:22px;display:flex;align-items:center;gap:10px}
+.pitch-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:14px;position:relative;z-index:1}
+.pitch-card{background:#fff;border:1.5px solid #e2e8f0;border-radius:12px;padding:18px;transition:all .2s;box-shadow:0 1px 3px rgba(0,0,0,.05)}
+.pitch-card:hover{box-shadow:0 4px 12px rgba(37,99,235,.1);transform:translateY(-2px)}
+.p-emoji{font-size:26px;margin-bottom:8px}
+.p-val{font-size:30px;font-weight:900;color:#2563eb;line-height:1;margin-bottom:4px}
+.p-lbl{font-size:10px;color:#64748b;line-height:1.5}
+.legend{display:flex;flex-wrap:wrap;gap:8px;padding:14px 18px;background:#fff;border-radius:12px;border:1px solid #e2e8f0;margin-bottom:22px;box-shadow:0 1px 3px rgba(0,0,0,.05)}
+.leg-item{display:flex;align-items:center;gap:6px;padding:5px 10px;border-radius:7px;cursor:pointer;font-size:10px;font-weight:700;transition:.15s;border:1px solid transparent;color:#64748b}
+.leg-item:hover,.leg-item.on{background:#f1f5f9;border-color:#e2e8f0;color:#0f172a}
+.leg-dot{width:9px;height:9px;border-radius:50%;flex-shrink:0}
+.tip{position:fixed;z-index:9999;background:#fff;border:1px solid #e2e8f0;border-radius:10px;padding:12px 14px;max-width:230px;pointer-events:none;opacity:0;transform:translateY(6px);transition:all .15s;box-shadow:0 8px 24px rgba(0,0,0,.12)}
+.tip.on{opacity:1;transform:translateY(0)}
+.tip-t{font-size:12px;font-weight:800;margin-bottom:7px;color:#0f172a}
+.tip-r{display:flex;gap:6px;margin-bottom:3px;font-size:10px;color:#64748b}
+.tip-k{color:#2563eb;font-weight:700;min-width:46px;flex-shrink:0}
+.tip-st{display:inline-flex;align-items:center;gap:4px;font-size:9px;font-weight:700;padding:3px 7px;border-radius:99px;margin-top:5px}
+.st-live{background:#dcfce7;color:#16a34a}
+.st-wip{background:#fef9c3;color:#ca8a04}
+.blk.dim{opacity:.15}
+.wf-footer{text-align:center;padding:18px;color:#94a3b8;font-size:10px;border-top:1px solid #e2e8f0;margin-top:6px;background:#fff}
+
+/* Responsive */
+@media(max-width:1100px){.g6{grid-template-columns:repeat(3,1fr)}.pitch-grid{grid-template-columns:repeat(2,1fr)}.conn-grid{grid-template-columns:repeat(2,1fr)}}
+@media(max-width:800px){.canvas{padding:16px}.g3,.g3s{grid-template-columns:1fr}.g6{grid-template-columns:repeat(2,1fr)}.g5{grid-template-columns:repeat(2,1fr)}.g4{grid-template-columns:repeat(2,1fr)}.pitch-grid{grid-template-columns:1fr}.conn-grid{grid-template-columns:1fr}.sec-grid{grid-template-columns:1fr}.db-blk{width:100%}.pf-body{grid-template-columns:1fr}.pf-mid{display:none}.pf-stats{grid-template-columns:repeat(2,1fr)}.tabs .tab-btn span{display:none}}
+:fullscreen body{overflow:auto}
+:fullscreen .main-hdr{display:none}
+</style>
+</head>
+<body>
+
+<!-- TOOLTIP (workflow) -->
+<div class="tip" id="tip"><div class="tip-t" id="tip-t"></div><div id="tip-b"></div></div>
+
+<!-- ═══ UNIFIED HEADER ══════════════════════════════════════════════════════ -->
+<div class="main-hdr">
+  <div class="mh-brand">
+    <div class="mh-logo">SH</div>
+    <div>
+      <div class="mh-title">SHIPINFY Metrics</div>
+      <div class="mh-sub">v5.0 · Sprint 1 → 14 · Schéma interactif</div>
+    </div>
+  </div>
+
+  <div class="tabs">
+    <button class="tab-btn active" id="tb-process" onclick="showTab('process')">
+      📊 <span>Flux Opérationnel</span>
+    </button>
+    <button class="tab-btn" id="tb-workflow" onclick="showTab('workflow')">
+      🏗️ <span>Architecture Technique</span>
+    </button>
+  </div>
+
+  <div class="mh-right">
+    <button class="btn-fs" onclick="toggleFS()">⛶ Présentation</button>
+    <button class="btn-exp" onclick="exportPNG()">↓ Exporter PNG</button>
+  </div>
+</div>
+
+<!-- ═══════════════════════════════════════════════════════════════════════════
+     TAB 1 — FLUX OPÉRATIONNEL
+     ═══════════════════════════════════════════════════════════════════════════ -->
+<div id="tab-process" class="tab-panel active">
+<div class="pf-page" id="pf-diagram">
+
+  <!-- LABEL BAR -->
+  <div class="pf-label-bar">
+    <div class="pf-lbi old">📋 Ancienne méthode : Excel + WhatsApp + Intuition</div>
+    <div class="pf-lba">→</div>
+    <div class="pf-lbi modern">🚀 Méthode moderne : Shipinfy Metrics</div>
+  </div>
+
+  <!-- BODY -->
+  <div class="pf-body">
+
+    <!-- LEFT: OLD WAY -->
+    <div class="pf-old">
+      <div class="chaos-grid">
+        <div class="chaos-card"><div class="cc-icon">📄</div><div class="cc-label">Commandes<br>saisies manuellement</div></div>
+        <div class="chaos-card"><div class="cc-icon">📱</div><div class="cc-label">Affectation<br>via WhatsApp</div></div>
+        <div class="chaos-card"><div class="cc-icon">📊</div><div class="cc-label">Suivi sur<br>fichier Excel</div></div>
+        <div class="chaos-card"><div class="cc-icon">🤷</div><div class="cc-label">Reporting<br>inexistant</div></div>
+        <div class="chaos-card"><div class="cc-icon">🔁</div><div class="cc-label">Retours non<br>tracés</div></div>
+        <div class="chaos-card"><div class="cc-icon">⚠️</div><div class="cc-label">Erreurs<br>d'affectation</div></div>
+        <div class="chaos-card"><div class="cc-icon">😤</div><div class="cc-label">Livreurs<br>non évalués</div></div>
+        <div class="chaos-card"><div class="cc-icon">💸</div><div class="cc-label">Rémunération<br>calculée à la main</div></div>
+      </div>
+      <div class="chaos-mess">⇅ ↗ ↙ ↕ ↘ ↖</div>
+      <div class="pain-box">
+        <div class="pb-title">⛔ Points de douleur</div>
+        <ul>
+          <li>Aucune visibilité temps réel sur les livraisons</li>
+          <li>Conflits d'affectation et doublons fréquents</li>
+          <li>Problèmes détectés trop tard pour corriger</li>
+          <li>KPIs calculés manuellement en fin de journée</li>
+          <li>Pas d'historique ni de traçabilité livreur</li>
+          <li>Support client sans tickets ni suivi</li>
+        </ul>
+      </div>
+    </div>
+
+    <!-- MIDDLE ARROW -->
+    <div class="pf-mid">
+      <svg class="arrow-svg" viewBox="0 0 30 80" fill="none">
+        <path d="M15 6 L15 66" stroke="#2563eb" stroke-width="2.5" stroke-dasharray="5,3"/>
+        <polygon points="9,60 15,72 21,60" fill="#2563eb"/>
+      </svg>
+    </div>
+
+    <!-- RIGHT: MODERN WAY -->
+    <div class="pf-new">
+      <div class="pf-flow">
+        <div class="node-pill start">▶ Commande reçue</div>
+        <div class="fc-arrow"></div>
+        <div class="node-box">🗂 Dispatch — Affectation livreur</div>
+        <div class="fc-arrow"></div>
+        <div class="node-diamond">Livreur disponible ?</div>
+        <div class="branch-row">
+          <div class="branch">
+            <div class="branch-tag yes">✓ OUI</div>
+            <div class="fc-arrow"></div>
+            <div class="node-mini">📍 Pointage<br>Shift confirmé</div>
+            <div class="fc-arrow"></div>
+            <div class="node-mini">🚚 Livraison<br>en cours</div>
+          </div>
+          <div class="branch">
+            <div class="branch-tag no">✗ NON</div>
+            <div class="fc-arrow"></div>
+            <div class="node-mini">🔁 Réaffectation<br>automatique</div>
+            <div class="fc-arrow"></div>
+            <div class="node-mini">🔔 Alerte<br>coordinateur</div>
+          </div>
+        </div>
+        <div class="fc-arrow" style="margin-top:10px"></div>
+        <div class="node-box">🤖 Score IA — Évaluation livreur</div>
+        <div class="fc-arrow"></div>
+        <div class="node-diamond">Problème signalé ?</div>
+        <div class="branch-row">
+          <div class="branch">
+            <div class="branch-tag yes">✓ OUI</div>
+            <div class="fc-arrow"></div>
+            <div class="node-mini">🎫 Ticket<br>Support créé</div>
+          </div>
+          <div class="branch">
+            <div class="branch-tag no">✗ NON</div>
+            <div class="fc-arrow"></div>
+            <div class="node-mini">✅ Livraison<br>confirmée</div>
+          </div>
+        </div>
+        <div class="fc-arrow" style="margin-top:10px"></div>
+        <div class="node-output">📊 Dashboard KPIs + Rémunération + N8N Slack</div>
+        <div class="fc-arrow"></div>
+        <div class="node-pill end">■ Fin du cycle</div>
+      </div>
+      <div class="pf-bottom">
+        <div class="info-card">
+          <div class="ic-title">⚡ Capacités clés</div>
+          <ul>
+            <li>Dispatch automatique multi-hub</li>
+            <li>Alertes prédictives (Slack)</li>
+            <li>Score IA par livreur</li>
+            <li>Rémunération calculée auto</li>
+            <li>Reporting temps réel</li>
+          </ul>
+        </div>
+        <div class="info-card">
+          <div class="ic-title">👥 Qui en bénéficie</div>
+          <ul>
+            <li>Coordinateurs & Managers</li>
+            <li>Dispatchers</li>
+            <li>Support client</li>
+            <li>RH & Finance</li>
+            <li>Direction (KPIs exec)</li>
+          </ul>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- STATS ROW -->
+  <div class="pf-stats">
+    <div class="pf-stat"><div class="sv blue">+35%</div><div class="sl">Taux de livraison</div></div>
+    <div class="pf-stat"><div class="sv green">−80%</div><div class="sl">Temps affectation</div></div>
+    <div class="pf-stat"><div class="sv orange">7 rôles</div><div class="sl">Accès granulaires</div></div>
+    <div class="pf-stat"><div class="sv red">0</div><div class="sl">Erreurs manuelles</div></div>
+  </div>
+
+</div><!-- /pf-page -->
+</div><!-- /tab-process -->
+
+<!-- ═══════════════════════════════════════════════════════════════════════════
+     TAB 2 — ARCHITECTURE TECHNIQUE
+     ═══════════════════════════════════════════════════════════════════════════ -->
+<div id="tab-workflow" class="tab-panel">
+<div class="canvas" id="wf-canvas">
+
+  <!-- LEGEND -->
+  <div class="legend">
+    <div class="leg-item on" data-f="all" onclick="doFilter(this,'all')"><div class="leg-dot" style="background:#4f46e5"></div>Tout afficher</div>
+    <div class="leg-item" data-f="blue" onclick="doFilter(this,'blue')"><div class="leg-dot" style="background:#2563eb"></div>🔵 Entrée données</div>
+    <div class="leg-item" data-f="purple" onclick="doFilter(this,'purple')"><div class="leg-dot" style="background:#7c3aed"></div>🟣 Moteurs calcul</div>
+    <div class="leg-item" data-f="green" onclick="doFilter(this,'green')"><div class="leg-dot" style="background:#16a34a"></div>🟢 Modules interface</div>
+    <div class="leg-item" data-f="orange" onclick="doFilter(this,'orange')"><div class="leg-dot" style="background:#ea580c"></div>🟠 Sorties / Notifs</div>
+    <div class="leg-item" data-f="red" onclick="doFilter(this,'red')"><div class="leg-dot" style="background:#dc2626"></div>🔴 Alertes / Sécurité</div>
+    <div class="leg-item" data-f="gray" onclick="doFilter(this,'gray')"><div class="leg-dot" style="background:#64748b"></div>⚫ Infrastructure</div>
+  </div>
+
+  <!-- NIVEAU 1 -->
+  <div class="lvl">Niveau 1 — Entrée des données</div>
+  <div class="g3">
+    <div class="blk c-blue" data-cat="blue" data-title="Import Excel / CSV" data-tech="SheetJS · PapaParse" data-freq="Manuel (upload)" data-sprint="Sprint 1" data-status="live"><span class="blk-tag">S1</span><div class="blk-ic">📊</div><div class="blk-t">Import Excel / CSV</div><div class="blk-s">Upload fichiers livreurs<br>Mapping colonnes automatique</div></div>
+    <div class="blk c-blue" data-cat="blue" data-title="API Back-office" data-tech="REST API · Prisma" data-freq="Temps réel" data-sprint="Sprint 9" data-status="live"><span class="blk-tag">S9</span><div class="blk-ic">🔗</div><div class="blk-t">API Back-office</div><div class="blk-s">Sync commandes & statuts<br>Webhooks entrants</div></div>
+    <div class="blk c-blue" data-cat="blue" data-title="GPS Livreur Live" data-tech="Redis · WebSocket" data-freq="Temps réel" data-sprint="Sprint 9" data-status="live"><span class="blk-tag">S9</span><div class="blk-ic">📍</div><div class="blk-t">GPS Livreur Live</div><div class="blk-s">Positions en temps réel<br>Détection anomalies km</div></div>
+  </div>
+  <div class="arrows-row" style="margin-top:2px">
+    <div class="arrow-down"><div class="line"></div><div class="head"></div></div>
+    <div class="arrow-down"><div class="line"></div><div class="head"></div></div>
+    <div class="arrow-down"><div class="line"></div><div class="head"></div></div>
+  </div>
+  <div class="g3s">
+    <div class="blk c-gray" data-cat="gray" data-title="Parser XLSX" data-tech="lib/excel-mapping.ts" data-freq="À l'import" data-sprint="Sprint 1" data-status="live"><div class="blk-ic">⚙️</div><div class="blk-t">Parser XLSX</div><div class="blk-s">Normalisation données<br>Validation & mapping colonnes</div></div>
+    <div class="blk c-orange" data-cat="orange" data-title="Webhook N8N (entrant)" data-tech="lib/n8n-bridge.ts" data-freq="Event-driven" data-sprint="Sprint 11" data-status="live"><div class="blk-ic">⚡</div><div class="blk-t">Webhook N8N</div><div class="blk-s">Événements entrants<br>Trigger automatisations</div></div>
+    <div class="blk c-gray" data-cat="gray" data-title="Redis — Cache Positions" data-tech="Redis / Upstash · TTL 5min" data-freq="Temps réel" data-sprint="Sprint 9" data-status="live"><div class="blk-ic">💾</div><div class="blk-t">Redis Positions</div><div class="blk-s">Cache GPS livreurs<br>TTL 5 minutes</div></div>
+  </div>
+  <div style="display:flex;justify-content:center;padding:6px 0 4px">
+    <div class="arrow-down"><div class="line" style="height:28px;background:linear-gradient(to bottom,rgba(79,70,229,.6),rgba(79,70,229,.2))"></div><div class="head"></div></div>
+  </div>
+  <div class="db-wrap">
+    <div class="db-blk" id="b-db" data-cat="gray" data-title="PostgreSQL — Supabase" data-tech="Prisma 5 ORM · Supabase" data-freq="Persistance temps réel" data-sprint="Sprint 1" data-status="live">
+      <div class="db-ic">🗄️</div>
+      <div><div class="db-title">PostgreSQL — Supabase</div><div class="db-sub">22+ tables · Prisma 5 ORM · Données isolées par tenant</div><div class="db-tags"><span class="db-tag">DeliveryOrder</span><span class="db-tag">Driver</span><span class="db-tag">ShiftSlot</span><span class="db-tag">N8NConfig</span><span class="db-tag">User/Session</span></div></div>
+    </div>
+  </div>
+
+  <!-- NIVEAU 2 -->
+  <div class="lvl">Niveau 2 — Moteurs de traitement automatique</div>
+  <div class="eng-wrap">
+    <div class="eng-hdr">⚡ Calculs automatiques — import · cron · événement</div>
+    <div class="g6">
+      <div class="blk c-purple" data-cat="purple" data-title="Score IA Livreur" data-tech="lib/shift-engine.ts" data-freq="À chaque import" data-sprint="Sprint 5" data-status="live"><div class="blk-ic">🧠</div><div class="blk-t">Score IA</div><div class="blk-s">deliveryRate×0.4<br>+academy×0.3<br>−noshow×0.3</div></div>
+      <div class="blk c-purple" data-cat="purple" data-title="Moteur Rémunération" data-tech="DriverPay · PayConfig" data-freq="À l'import" data-sprint="Sprint 8" data-status="live"><div class="blk-ic">💰</div><div class="blk-t">Rémunération</div><div class="blk-s">B + D×K + S + Q<br>3 modes tarifaires<br>Bonus / Pénalité auto</div></div>
+      <div class="blk c-purple" data-cat="purple" data-title="Moteur Dispatch IA" data-tech="lib/shift-engine.ts" data-freq="À la demande" data-sprint="Sprint 9" data-status="live"><div class="blk-ic">🚚</div><div class="blk-t">Dispatch</div><div class="blk-s">Proximité + Score<br>Charge zone + Créneau<br>Auto-assign express</div></div>
+      <div class="blk c-purple" data-cat="purple" data-title="Alert Engine" data-tech="lib/alert-engine.ts" data-freq="Cron 5min" data-sprint="Sprint 7" data-status="live"><div class="blk-ic">🚨</div><div class="blk-t">Alert Engine</div><div class="blk-s">Seuils configurables<br>Level 1/2/3 auto<br>Escalade N8N</div></div>
+      <div class="blk c-purple" data-cat="purple" data-title="Shift Engine" data-tech="lib/shift-engine.ts" data-freq="Planifié −24h" data-sprint="Sprint 10" data-status="live"><div class="blk-ic">📅</div><div class="blk-t">Shifts Engine</div><div class="blk-s">Score ≥ 80 → priorité<br>−24h avant créneau<br>Équilibrage zones</div></div>
+      <div class="blk c-purple" data-cat="purple" data-title="ML Prévisions J+1" data-tech="Algorithme interne" data-freq="Cron 01:00" data-sprint="Sprint 6" data-status="live"><div class="blk-ic">📈</div><div class="blk-t">Prévisions ML</div><div class="blk-s">Volume J+1<br>Zones chaudes<br>Besoins livreurs</div></div>
+    </div>
+  </div>
+
+  <!-- NIVEAU 3 -->
+  <div class="lvl">Niveau 3 — Modules interface (Next.js App Router)</div>
+  <div class="g5">
+    <div class="blk c-green" data-cat="green" data-title="Dashboard Temps Réel" data-tech="Next.js · Recharts" data-freq="Temps réel" data-sprint="Sprint 1" data-status="live"><span class="blk-tag">S1</span><div class="blk-ic">📊</div><div class="blk-t">Dashboard</div><div class="blk-s">Live KPIs · Commandes<br>en cours · Statuts</div></div>
+    <div class="blk c-green" data-cat="green" data-title="KPIs & Métriques" data-tech="PDFKit · Nodemailer" data-freq="À l'import" data-sprint="Sprint 2" data-status="live"><span class="blk-tag">S2</span><div class="blk-ic">📉</div><div class="blk-t">KPIs & Métriques</div><div class="blk-s">Import Excel · Filtres<br>PDF Report · Email auto</div></div>
+    <div class="blk c-red" data-cat="red" data-title="Alertes & Tickets" data-tech="Alert Engine + Slack" data-freq="Temps réel" data-sprint="Sprint 7" data-status="live"><span class="blk-tag">S7</span><div class="blk-ic">🚨</div><div class="blk-t">Alertes & Tickets</div><div class="blk-s">Level 1/2/3 auto<br>Slack · Tickets internes</div></div>
+    <div class="blk c-green" data-cat="green" data-title="Livreurs — Base Données" data-tech="Driver · OnboardingStep" data-freq="Manuel + Auto" data-sprint="Sprint 3" data-status="live"><span class="blk-tag">S3</span><div class="blk-ic">🧑‍💼</div><div class="blk-t">Livreurs</div><div class="blk-s">Fiches KYC · Documents<br>Assurance · Score IA</div></div>
+    <div class="blk c-green" data-cat="green" data-title="Shifts & Planning" data-tech="ShiftSlot · ShiftAssignment" data-freq="Planifié" data-sprint="Sprint 10" data-status="live"><span class="blk-tag">S10</span><div class="blk-ic">🗓️</div><div class="blk-t">Shifts & Planning</div><div class="blk-s">Créneaux par zone<br>Équilibrage · Priorité</div></div>
+  </div>
+  <div class="g5">
+    <div class="blk c-green" data-cat="green" data-title="Hubs — Performance" data-tech="Aggregation Prisma" data-freq="À l'import" data-sprint="Sprint 2" data-status="live"><span class="blk-tag">S2</span><div class="blk-ic">🏠</div><div class="blk-t">Hubs</div><div class="blk-s">Perf par zone · COD<br>Comparatif inter-hubs</div></div>
+    <div class="blk c-green" data-cat="green" data-title="Retours & NO_SHOW" data-tech="DeliveryOrder filters" data-freq="À l'import" data-sprint="Sprint 2" data-status="live"><span class="blk-tag">S2</span><div class="blk-ic">↩️</div><div class="blk-t">Retours / NO_SHOW</div><div class="blk-s">Analyse par créneau<br>Tendance · Par livreur</div></div>
+    <div class="blk c-green" data-cat="green" data-title="Rémunération UI" data-tech="DriverPay · PayConfig" data-freq="À l'import" data-sprint="Sprint 8" data-status="live"><span class="blk-tag">S8</span><div class="blk-ic">💳</div><div class="blk-t">Rémunération</div><div class="blk-s">B+D×K+S+Q · Validation<br>Export CSV complet</div></div>
+    <div class="blk c-green" data-cat="green" data-title="Onboarding Kanban RH" data-tech="OnboardingStep table" data-freq="Manuel RH" data-sprint="Sprint 3" data-status="live"><span class="blk-tag">S3</span><div class="blk-ic">📋</div><div class="blk-t">Onboarding</div><div class="blk-s">Kanban RH · 5 colonnes<br>KYC + contrat · Actif</div></div>
+    <div class="blk c-green" data-cat="green" data-title="Academy Formation" data-tech="Course · Lesson · Quiz" data-freq="À la demande" data-sprint="Sprint 4" data-status="live"><span class="blk-tag">S4</span><div class="blk-ic">🎓</div><div class="blk-t">Academy</div><div class="blk-s">6 modules · Quiz<br>Certification · Guidelines</div></div>
+  </div>
+
+  <!-- NIVEAU 4 -->
+  <div class="lvl">Niveau 4 — Sorties & Automatisations</div>
+  <div class="g4">
+    <div class="blk c-orange" data-cat="orange" data-title="PDF Report Auto" data-tech="PDFKit · Nodemailer" data-freq="Cron 01:40 + manuel" data-sprint="Sprint 2" data-status="live"><div class="blk-ic">📄</div><div class="blk-t">PDF Report</div><div class="blk-s">Généré automatiquement<br>Quotidien · Envoi email</div></div>
+    <div class="blk c-orange" data-cat="orange" data-title="Slack Notifications" data-tech="SlackConfig · Webhook" data-freq="Level 2+ immédiat" data-sprint="Sprint 7" data-status="live"><div class="blk-ic">💬</div><div class="blk-t">Slack</div><div class="blk-s">Alertes Level 2+<br>Critique → immédiat</div></div>
+    <div class="blk c-orange" data-cat="orange" data-title="WhatsApp via N8N" data-tech="N8N · Evolution API" data-freq="Événement trigger" data-sprint="Sprint 11" data-status="live"><div class="blk-ic">📱</div><div class="blk-t">WhatsApp / N8N</div><div class="blk-s">Rapport PDF livreur<br>Tracking client · Auto</div></div>
+    <div class="blk c-orange" data-cat="orange" data-title="Email planifié SMTP" data-tech="Nodemailer · SMTP Gmail" data-freq="Cron 01:40 + bienvenue" data-sprint="Sprint 2" data-status="live"><div class="blk-ic">✉️</div><div class="blk-t">Email planifié</div><div class="blk-s">Cron 01:40 · SMTP<br>Bienvenue compte · Multi-dest</div></div>
+  </div>
+
+  <!-- CONNEXIONS -->
+  <div class="lvl">Règles métier — Connexions intelligentes</div>
+  <div class="conn-section">
+    <div class="conn-grid">
+      <div class="conn-item"><div class="conn-arr" style="color:#16a34a">→</div><div class="conn-txt"><strong>Academy is_active ✅</strong>Débloque les shifts premium +24h avant le créneau</div></div>
+      <div class="conn-item"><div class="conn-arr" style="color:#dc2626">→</div><div class="conn-txt"><strong>Score IA &lt; 60</strong>Alerte préventive automatique Level 1 déclenchée</div></div>
+      <div class="conn-item"><div class="conn-arr" style="color:#4f46e5">→</div><div class="conn-txt"><strong>Score IA ≥ 80</strong>Priorité shifts 24h avant · Badge PREMIUM activé</div></div>
+      <div class="conn-item"><div class="conn-arr" style="color:#dc2626">→</div><div class="conn-txt"><strong>Alerte Level 3</strong>Slack + Email + N8N WhatsApp simultanément</div></div>
+      <div class="conn-item"><div class="conn-arr" style="color:#2563eb">→</div><div class="conn-txt"><strong>Import Excel</strong>KPIs + Score IA + Rémunération recalculés auto</div></div>
+      <div class="conn-item"><div class="conn-arr" style="color:#7c3aed">→</div><div class="conn-txt"><strong>KPIs J−1</strong>Alimente ML prévision volume J+1 zones</div></div>
+      <div class="conn-item"><div class="conn-arr" style="color:#ea580c">→</div><div class="conn-txt"><strong>GPS vs Excel km</strong>Détection fraude kilométrique automatique</div></div>
+      <div class="conn-item"><div class="conn-arr" style="color:#ea580c">→</div><div class="conn-txt"><strong>N8N Webhook sortant</strong>WhatsApp livreur + client en temps réel</div></div>
+      <div class="conn-item"><div class="conn-arr" style="color:#0891b2">→</div><div class="conn-txt"><strong>Dispatch Score Auto</strong>Assignment commande express par IA priorité</div></div>
+    </div>
+  </div>
+
+  <!-- NIVEAU 5 -->
+  <div class="lvl">Niveau 5 — Multi-tenant & Sécurité RBAC</div>
+  <div class="sec-panel">
+    <div style="display:flex;align-items:center;gap:12px">
+      <span style="font-size:28px">🔒</span>
+      <div>
+        <div style="font-size:15px;font-weight:900;color:#dc2626">Multi-tenant + RBAC 7 Rôles</div>
+        <div style="font-size:10px;color:#64748b;margin-top:2px">Isolation complète · Données séparées par organisation · White-label</div>
+      </div>
+    </div>
+    <div class="sec-grid">
+      <div>
+        <div style="font-size:9px;font-weight:800;text-transform:uppercase;color:#94a3b8;letter-spacing:.1em;margin-bottom:10px">Tenants isolés</div>
+        <div class="tenant-item"><div class="t-dot" style="background:#2563eb"></div>Tenant A<span style="font-size:9px;color:#94a3b8;margin-left:auto">Données isolées 100%</span></div>
+        <div class="tenant-item"><div class="t-dot" style="background:#16a34a"></div>Tenant B<span style="font-size:9px;color:#94a3b8;margin-left:auto">Données isolées 100%</span></div>
+        <div class="tenant-item"><div class="t-dot" style="background:#ea580c"></div>Tenant C<span style="font-size:9px;color:#94a3b8;margin-left:auto">Données isolées 100%</span></div>
+        <div style="margin-top:10px;font-size:9px;color:#94a3b8">🎨 White-label : logo + couleurs par tenant</div>
+      </div>
+      <div>
+        <div style="font-size:9px;font-weight:800;text-transform:uppercase;color:#94a3b8;letter-spacing:.1em;margin-bottom:10px">Hiérarchie des rôles</div>
+        <div class="roles-wrap">
+          <div class="rbadge" style="background:#fef2f2;color:#dc2626;border-color:#fecaca">SUPER_ADMIN</div>
+          <div class="rbadge" style="background:#fff7ed;color:#ea580c;border-color:#fed7aa">ADMIN</div>
+          <div class="rbadge" style="background:#eff6ff;color:#2563eb;border-color:#bfdbfe">MANAGER</div>
+          <div class="rbadge" style="background:#f0fdf4;color:#16a34a;border-color:#bbf7d0">COORDINATOR</div>
+          <div class="rbadge" style="background:#ecfeff;color:#0891b2;border-color:#a5f3fc">DISPATCHER</div>
+          <div class="rbadge" style="background:#fefce8;color:#ca8a04;border-color:#fef08a">SUPPORT</div>
+          <div class="rbadge" style="background:#f8fafc;color:#64748b;border-color:#e2e8f0">VIEWER</div>
+          <div class="rbadge" style="background:#f5f3ff;color:#7c3aed;border-color:#ddd6fe;font-size:8px">Email bienvenue auto ✉️</div>
+        </div>
+      </div>
+    </div>
+    <div class="sec-info">
+      <div class="sec-pill">🔑 Cookie HttpOnly Session</div>
+      <div class="sec-pill">🔐 PBKDF2-SHA512 100k iter</div>
+      <div class="sec-pill">⚡ Edge Proxy canAccess()</div>
+      <div class="sec-pill">🛡️ HMAC SHA256 N8N</div>
+      <div class="sec-pill">📧 Welcome email auto</div>
+      <div class="sec-pill">🔄 lib/permissions.ts source unique</div>
+    </div>
+  </div>
+
+  <!-- PITCH -->
+  <div class="lvl">Valeur métier — Pitch</div>
+  <div class="pitch">
+    <div class="pitch-hdr">🚀 SHIPINFY — Valeur Métier pour la Logistique Dernière Mile</div>
+    <div class="pitch-grid">
+      <div class="pitch-card"><div class="p-emoji">⏱️</div><div class="p-val">−70%</div><div class="p-lbl">Gain de temps dispatcher<br>Assignment automatique IA</div></div>
+      <div class="pitch-card"><div class="p-emoji">📊</div><div class="p-val">100%</div><div class="p-lbl">Visibilité temps réel<br>KPIs · GPS · Statuts live</div></div>
+      <div class="pitch-card"><div class="p-emoji">🚨</div><div class="p-val">J−1</div><div class="p-lbl">Alertes préventives<br>Avant que le problème arrive</div></div>
+      <div class="pitch-card"><div class="p-emoji">💰</div><div class="p-val">Auto</div><div class="p-lbl">Calcul rémunération<br>3 modes B+D×K+S+Q</div></div>
+      <div class="pitch-card"><div class="p-emoji">🎓</div><div class="p-val">+30%</div><div class="p-lbl">Performance livreurs<br>Academy certifiante intégrée</div></div>
+      <div class="pitch-card"><div class="p-emoji">🔒</div><div class="p-val">100%</div><div class="p-lbl">Isolation multi-tenant<br>RBAC 7 rôles granulaires</div></div>
+      <div class="pitch-card"><div class="p-emoji">📱</div><div class="p-val">3×</div><div class="p-lbl">Mobile + Tablet + Web<br>Interface responsive Sprint 12</div></div>
+      <div class="pitch-card"><div class="p-emoji">⚡</div><div class="p-val">N8N</div><div class="p-lbl">Automatisations infinies<br>WhatsApp · Slack · Email</div></div>
+    </div>
+  </div>
+
+  <div class="wf-footer">SHIPINFY Metrics v5.0 · Sprint 1 → 14 · Next.js 16 · Prisma 5 · Supabase · N8N · Dokploy · metrics.mediflows.shop</div>
+
+</div><!-- /wf-canvas -->
+</div><!-- /tab-workflow -->
+
+<script>
+// ── TAB SWITCHING ────────────────────────────────────────────────────────────
+function showTab(name) {
+  document.querySelectorAll('.tab-panel').forEach(p => p.classList.remove('active'))
+  document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'))
+  document.getElementById('tab-' + name).classList.add('active')
+  document.getElementById('tb-' + name).classList.add('active')
+}
+
+// ── TOOLTIP (workflow tab) ───────────────────────────────────────────────────
+const tip  = document.getElementById('tip')
+const tipT = document.getElementById('tip-t')
+const tipB = document.getElementById('tip-b')
+document.querySelectorAll('[data-title]').forEach(el => {
+  el.addEventListener('mouseenter', e => {
+    const d = el.dataset
+    tipT.textContent = d.title || ''
+    const stCls   = d.status === 'live' ? 'st-live' : 'st-wip'
+    const stLabel = d.status === 'live' ? '✅ Live en production' : '🔄 En cours'
+    tipB.innerHTML = `
+      ${d.tech   ? `<div class="tip-r"><span class="tip-k">Tech</span><span>${d.tech}</span></div>` : ''}
+      ${d.freq   ? `<div class="tip-r"><span class="tip-k">Fréq.</span><span>${d.freq}</span></div>` : ''}
+      ${d.sprint ? `<div class="tip-r"><span class="tip-k">Sprint</span><span>${d.sprint}</span></div>` : ''}
+      <div class="tip-st ${stCls}">${stLabel}</div>`
+    tip.classList.add('on')
+    moveTip(e)
+  })
+  el.addEventListener('mousemove', moveTip)
+  el.addEventListener('mouseleave', () => tip.classList.remove('on'))
+})
+function moveTip(e) {
+  const x = e.clientX + 18, y = e.clientY + 18
+  const tw = 240, th = 130
+  tip.style.left = (x + tw > window.innerWidth  ? e.clientX - tw - 10 : x) + 'px'
+  tip.style.top  = (y + th > window.innerHeight ? e.clientY - th - 10 : y) + 'px'
+}
+
+// ── LEGEND FILTER ────────────────────────────────────────────────────────────
+function doFilter(el, cat) {
+  document.querySelectorAll('.leg-item').forEach(x => x.classList.remove('on'))
+  el.classList.add('on')
+  document.querySelectorAll('.blk').forEach(b => {
+    b.classList.toggle('dim', cat !== 'all' && b.dataset.cat !== cat)
+  })
+}
+
+// ── FULLSCREEN ───────────────────────────────────────────────────────────────
+function toggleFS() {
+  if (!document.fullscreenElement) {
+    document.documentElement.requestFullscreen().catch(() => {})
+  } else {
+    document.exitFullscreen()
+  }
+}
+
+// ── EXPORT PNG ───────────────────────────────────────────────────────────────
+async function exportPNG() {
+  const btn = document.querySelector('.btn-exp')
+  btn.textContent = '⏳ Export...'
+  btn.disabled = true
+  try {
+    const activeTab = document.querySelector('.tab-panel.active')
+    const target = activeTab.id === 'tab-process'
+      ? document.getElementById('pf-diagram')
+      : document.getElementById('wf-canvas')
+    const filename = activeTab.id === 'tab-process'
+      ? 'shipinfy-process-flow.png'
+      : 'shipinfy-architecture.png'
+    const cvs = await html2canvas(target, {
+      backgroundColor: '#f8fafc',
+      scale: 1.5,
+      useCORS: true,
+      logging: false,
+      scrollY: -window.scrollY,
+    })
+    const a = document.createElement('a')
+    a.download = filename
+    a.href = cvs.toDataURL('image/png')
+    a.click()
+  } catch(e) {
+    alert('Export: ' + e.message)
+  } finally {
+    btn.textContent = '↓ Exporter PNG'
+    btn.disabled = false
+  }
+}
+
+// ── KEYBOARD ─────────────────────────────────────────────────────────────────
+document.addEventListener('keydown', e => {
+  if (e.key === 'F11' || (e.key === 'f' && e.metaKey)) { e.preventDefault(); toggleFS() }
+  if (e.key === '1') showTab('process')
+  if (e.key === '2') showTab('workflow')
+})
+</script>
+</body>
+</html>

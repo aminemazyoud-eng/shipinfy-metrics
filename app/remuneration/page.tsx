@@ -55,10 +55,11 @@ export default function RemunerationPage() {
 
   // Load reports
   useEffect(() => {
-    fetch('/api/dashboard/reports').then(r => r.json()).then((rs: Report[]) => {
-      setReports(rs)
-      if (rs.length > 0) setReportId(rs[0].id)
-    })
+    fetch('/api/dashboard/reports').then(r => r.json()).then((rs: unknown) => {
+      if (!Array.isArray(rs)) return
+      setReports(rs as Report[])
+      if (rs.length > 0) setReportId((rs[0] as Report).id)
+    }).catch(() => {})
   }, [])
 
   // Load configs

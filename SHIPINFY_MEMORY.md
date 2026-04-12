@@ -6,7 +6,7 @@
 
 ---
 
-## VERSION ACTUELLE : v8.0 — Sprint 9b Multi-tenant + Rôles + Auth
+## VERSION ACTUELLE : v9.0 — Sprint 10 Shifts & Planning
 
 ---
 
@@ -454,4 +454,50 @@ netPay   = grossPay + bonus - penalty
 
 ---
 
-*Dernière mise à jour : 2026-04-12 — Sprint 9b : Multi-tenant + Rôles + Auth — v8.0*
+---
+
+## 14. SPRINT 10 — SHIFTS & PLANNING (2026-04-12)
+
+### Architecture
+- **Créneaux** : ShiftSlot par zone/date/plage horaire — max/min livreurs configurables
+- **Priorisation Score IA** : score ≥ 80 → accès 48h avant, 60–79 → 24h, < 60 → 12h seulement
+- **Premium** : slots marqués `premiumOnly = true` → Score IA ≥ 60 requis (Academy R9)
+- **Équilibrage** : `rebalanceZone()` retire les scores les plus bas si dépassement maxDrivers
+
+### Formules priorisation (source Prompt Master)
+```
+score >= 80 → fenêtre 48h (priorité maximum — badge Crown)
+score 60-79 → fenêtre 24h (accès standard)
+score < 60  → fenêtre 12h (accès limité)
+```
+
+### Modèles DB ajoutés
+- `ShiftSlot` — créneau par zone/date/horaire (maxDrivers, minDrivers, premiumOnly)
+- `ShiftAssignment` — assignation livreur×slot avec scoreIA + priority flag (`@@unique([slotId, driverName])`)
+
+### Fichiers créés
+- `lib/shift-engine.ts` — canAccessSlot(), assignDriver(), rebalanceZone()
+- `app/api/shifts/route.ts` — GET (filtres zone/date/week) + POST créer slot
+- `app/api/shifts/[id]/route.ts` — PATCH/DELETE slot (fix F2 async params)
+- `app/api/shifts/[id]/assign/route.ts` — POST assigner + DELETE désassigner livreur
+- `app/api/shifts/available/route.ts` — GET slots disponibles pour un driverName (filtre score)
+- `app/api/shifts/rebalance/route.ts` — POST rééquilibrer zone/date
+- `app/shifts/page.tsx` — 2 onglets : Planning (calendrier 7j) + Règles & Config
+
+### Fichiers modifiés
+- `prisma/schema.prisma` — ShiftSlot + ShiftAssignment ajoutés
+- `prisma/init-tables.sql` — tables ShiftSlot + ShiftAssignment ajoutées
+- `components/Sidebar.tsx` — Shifts & Planning dans section Opérations — version Sprint 10
+- `components/AppShell.tsx` — idem
+- `components/BottomNav.tsx` — Shifts ajouté dans MORE_ITEMS
+- `components/MobileHeader.tsx` — /shifts ajouté
+
+### ⚠️ Règles importantes
+- Score IA = modèle `ReliabilityScore` (champ `driverName` + `score`)
+- assignDriver() déduplique automatiquement (unique constraint slotId+driverName)
+- rebalanceZone() trie par scoreIA ASC et retire les scores les plus bas en priorité
+- Slots premium bloqués si scoreIA < 60 (lié à Academy R9)
+
+---
+
+*Dernière mise à jour : 2026-04-12 — Sprint 10 : Shifts & Planning — v9.0*

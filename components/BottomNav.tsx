@@ -6,7 +6,7 @@ import {
   Activity, BarChart3, Bell, Users, MoreHorizontal,
   MapPin, XCircle, GraduationCap, Brain,
   FileText, UserCheck, Settings, TrendingUp, X, DollarSign,
-  Truck, Clock, HeadphonesIcon, Shield,
+  Truck, Clock, HeadphonesIcon, Shield, Calendar,
 } from 'lucide-react'
 
 const MAIN_ITEMS = [
@@ -19,6 +19,7 @@ const MAIN_ITEMS = [
 const MORE_ITEMS = [
   { href: '/previsions',   label: 'Prévisions',       icon: TrendingUp    },
   { href: '/dispatch',     label: 'Dispatch',          icon: Truck         },
+  { href: '/shifts',       label: 'Shifts & Planning', icon: Calendar      },
   { href: '/pointage',     label: 'Pointage',          icon: Clock         },
   { href: '/support',      label: 'Support',           icon: HeadphonesIcon},
   { href: '/remuneration', label: 'Rémunération',     icon: DollarSign    },

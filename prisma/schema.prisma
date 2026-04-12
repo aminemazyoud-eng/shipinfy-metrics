@@ -379,6 +379,42 @@ model SupportTicket {
   @@index([createdAt])
 }
 
+// ─── SPRINT 10 — SHIFTS & PLANNING ──────────────────────────────────────────
+
+model ShiftSlot {
+  id          String            @id @default(cuid())
+  tenantId    String?
+  zone        String
+  date        DateTime          // date du créneau (minuit UTC)
+  startTime   String            // "08:00"
+  endTime     String            // "14:00"
+  maxDrivers  Int               @default(5)
+  minDrivers  Int               @default(2)
+  premiumOnly Boolean           @default(false) // is_active requis si true (R9)
+  assignments ShiftAssignment[]
+  createdAt   DateTime          @default(now())
+  updatedAt   DateTime          @updatedAt
+
+  @@index([date])
+  @@index([zone])
+  @@index([tenantId])
+}
+
+model ShiftAssignment {
+  id         String    @id @default(cuid())
+  slotId     String
+  slot       ShiftSlot @relation(fields: [slotId], references: [id], onDelete: Cascade)
+  driverName String
+  scoreIA    Float?
+  priority   Boolean   @default(false) // true si scoreIA >= 80
+  status     String    @default("assigned") // "assigned" | "confirmed" | "no_show"
+  createdAt  DateTime  @default(now())
+
+  @@unique([slotId, driverName])
+  @@index([slotId])
+  @@index([driverName])
+}
+
 // ─── SPRINT 9b — MULTI-TENANT + RÔLES + AUTH ─────────────────────────────────
 
 model Tenant {

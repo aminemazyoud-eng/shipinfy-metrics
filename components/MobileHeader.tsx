@@ -21,6 +21,7 @@ const ROUTE_LABELS: Record<string, string> = {
   '/score-ia':     'Score IA',
   '/parametres':   'Paramètres',
   '/admin':        'Super Admin',
+  '/shifts':       'Shifts & Planning',
 }
 
 interface Props {

@@ -486,6 +486,52 @@ CREATE INDEX IF NOT EXISTS "SupportTicket_status_idx"    ON "SupportTicket"("sta
 CREATE INDEX IF NOT EXISTS "SupportTicket_priority_idx"  ON "SupportTicket"("priority");
 CREATE INDEX IF NOT EXISTS "SupportTicket_createdAt_idx" ON "SupportTicket"("createdAt");
 
+-- ─── SPRINT 10 — SHIFTS & PLANNING ──────────────────────────────────────────
+
+CREATE TABLE IF NOT EXISTS "ShiftSlot" (
+  "id"          TEXT NOT NULL,
+  "tenantId"    TEXT,
+  "zone"        TEXT NOT NULL,
+  "date"        TIMESTAMP(3) NOT NULL,
+  "startTime"   TEXT NOT NULL DEFAULT '08:00',
+  "endTime"     TEXT NOT NULL DEFAULT '14:00',
+  "maxDrivers"  INTEGER NOT NULL DEFAULT 5,
+  "minDrivers"  INTEGER NOT NULL DEFAULT 2,
+  "premiumOnly" BOOLEAN NOT NULL DEFAULT false,
+  "createdAt"   TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  "updatedAt"   TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  CONSTRAINT "ShiftSlot_pkey" PRIMARY KEY ("id")
+);
+
+CREATE INDEX IF NOT EXISTS "ShiftSlot_date_idx"     ON "ShiftSlot"("date");
+CREATE INDEX IF NOT EXISTS "ShiftSlot_zone_idx"     ON "ShiftSlot"("zone");
+CREATE INDEX IF NOT EXISTS "ShiftSlot_tenantId_idx" ON "ShiftSlot"("tenantId");
+
+CREATE TABLE IF NOT EXISTS "ShiftAssignment" (
+  "id"         TEXT NOT NULL,
+  "slotId"     TEXT NOT NULL,
+  "driverName" TEXT NOT NULL,
+  "scoreIA"    DOUBLE PRECISION,
+  "priority"   BOOLEAN NOT NULL DEFAULT false,
+  "status"     TEXT NOT NULL DEFAULT 'assigned',
+  "createdAt"  TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  CONSTRAINT "ShiftAssignment_pkey" PRIMARY KEY ("id")
+);
+
+CREATE UNIQUE INDEX IF NOT EXISTS "ShiftAssignment_slotId_driverName_key" ON "ShiftAssignment"("slotId","driverName");
+CREATE INDEX IF NOT EXISTS "ShiftAssignment_slotId_idx"     ON "ShiftAssignment"("slotId");
+CREATE INDEX IF NOT EXISTS "ShiftAssignment_driverName_idx" ON "ShiftAssignment"("driverName");
+
+DO $$
+BEGIN
+  IF NOT EXISTS (
+    SELECT 1 FROM pg_constraint WHERE conname = 'ShiftAssignment_slotId_fkey'
+  ) THEN
+    ALTER TABLE "ShiftAssignment" ADD CONSTRAINT "ShiftAssignment_slotId_fkey"
+      FOREIGN KEY ("slotId") REFERENCES "ShiftSlot"("id") ON DELETE CASCADE;
+  END IF;
+END $$;
+
 -- ─── SPRINT 9b — MULTI-TENANT + RÔLES ────────────────────────────────────────
 
 CREATE TABLE IF NOT EXISTS "Tenant" (

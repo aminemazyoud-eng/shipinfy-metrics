@@ -8,7 +8,7 @@ import {
   Activity, BarChart3, Users, MapPin, XCircle,
   TrendingUp, Bell, Mail, Settings,
   UserCheck, GraduationCap, ChevronRight, Brain, DollarSign,
-  Truck, Clock, HeadphonesIcon, Shield,
+  Truck, Clock, HeadphonesIcon, Shield, Calendar,
 } from 'lucide-react'
 
 // ─── Types ─────────────────────────────────────────────────────────────────────
@@ -51,6 +51,7 @@ const SECTIONS: NavSection[] = [
     label: 'Opérations',
     items: [
       { href: '/dispatch', label: 'Dispatch',          icon: Truck,           disabled: false },
+      { href: '/shifts',   label: 'Shifts & Planning', icon: Calendar,        disabled: false },
       { href: '/alertes',  label: 'Alertes & Tickets', icon: Bell,            disabled: false },
       { href: '/rapports', label: 'Rapports',           icon: Mail,            disabled: false },
       { href: '/support',  label: 'Support Client',     icon: HeadphonesIcon,  disabled: false },
@@ -259,7 +260,7 @@ export default function Sidebar() {
         <div className="flex-shrink-0 p-2.5 border-t border-gray-100">
           <div className="px-3 py-2 bg-blue-50 rounded-xl">
             <p className="text-[11px] font-black text-blue-700 leading-none">SHIPINFY v5.0</p>
-            <p className="text-[10px] text-blue-400 mt-1 leading-none">Sprint 9 — Multi-tenant + Rôles</p>
+            <p className="text-[10px] text-blue-400 mt-1 leading-none">Sprint 10 — Shifts & Planning</p>
           </div>
         </div>
       )}

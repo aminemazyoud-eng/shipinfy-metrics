@@ -370,3 +370,38 @@ CREATE TABLE IF NOT EXISTS "GuideFeedback" (
 );
 
 CREATE INDEX IF NOT EXISTS "GuideFeedback_moduleKey_idx" ON "GuideFeedback"("moduleKey");
+
+-- ─── SPRINT 7 — ALERTES PRÉDICTIVES + SLACK ─────────────────────────────────
+
+CREATE TABLE IF NOT EXISTS "DeliveryAlert" (
+  "id"           TEXT NOT NULL,
+  "orderId"      TEXT,
+  "reportId"     TEXT,
+  "driverName"   TEXT,
+  "mode"         TEXT NOT NULL DEFAULT 'standard',
+  "level"        INTEGER NOT NULL DEFAULT 1,
+  "type"         TEXT NOT NULL,
+  "message"      TEXT NOT NULL,
+  "channel"      TEXT NOT NULL DEFAULT 'inapp',
+  "acknowledged" BOOLEAN NOT NULL DEFAULT false,
+  "triggeredAt"  TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  "ackAt"        TIMESTAMP(3),
+  "ackBy"        TEXT,
+  "createdAt"    TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  CONSTRAINT "DeliveryAlert_pkey" PRIMARY KEY ("id")
+);
+
+CREATE INDEX IF NOT EXISTS "DeliveryAlert_acknowledged_idx" ON "DeliveryAlert"("acknowledged");
+CREATE INDEX IF NOT EXISTS "DeliveryAlert_level_idx"        ON "DeliveryAlert"("level");
+CREATE INDEX IF NOT EXISTS "DeliveryAlert_createdAt_idx"    ON "DeliveryAlert"("createdAt");
+
+CREATE TABLE IF NOT EXISTS "SlackConfig" (
+  "id"         TEXT NOT NULL,
+  "webhookUrl" TEXT NOT NULL,
+  "channel"    TEXT NOT NULL DEFAULT '#alertes-livraison',
+  "active"     BOOLEAN NOT NULL DEFAULT true,
+  "createdAt"  TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  "updatedAt"  TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  CONSTRAINT "SlackConfig_pkey" PRIMARY KEY ("id")
+);
+

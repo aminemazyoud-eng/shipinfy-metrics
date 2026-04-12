@@ -8,6 +8,8 @@
 import cron from 'node-cron'
 import { PrismaClient } from '@prisma/client'
 import nodemailer from 'nodemailer'
+// Sprint 7 — moteur alertes prédictives
+import { checkStandardDelays, runPredictiveAlerts } from '@/lib/alert-engine'
 
 // Prisma client dédié au scheduler (pas le singleton global)
 const db = new PrismaClient()
@@ -229,7 +231,27 @@ export function startCronScheduler() {
     }
   }, { timezone: 'Africa/Casablanca' })
 
-  console.log('[cron] Scheduler actif (rapports + alertes + score IA).')
+  // Sprint 7 — Alertes retards Standard toutes les 5 min
+  cron.schedule('*/5 * * * *', async () => {
+    try {
+      const r = await checkStandardDelays()
+      if (r.created > 0) console.log(`[cron] Alertes retards: ${r.created} créées (${r.checked} commandes vérifiées)`)
+    } catch (e) {
+      console.error('[cron] checkStandardDelays:', e)
+    }
+  }, { timezone: 'Africa/Casablanca' })
+
+  // Sprint 7 — Prévisions prédictives Score IA chaque matin 07:00
+  cron.schedule('0 7 * * *', async () => {
+    try {
+      const r = await runPredictiveAlerts()
+      if (r.created > 0) console.log(`[cron] Alertes prédictives: ${r.created} créées (${r.checked} livreurs analysés)`)
+    } catch (e) {
+      console.error('[cron] runPredictiveAlerts:', e)
+    }
+  }, { timezone: 'Africa/Casablanca' })
+
+  console.log('[cron] Scheduler actif (rapports + alertes + score IA + prédictif).')
 }
 
 /**

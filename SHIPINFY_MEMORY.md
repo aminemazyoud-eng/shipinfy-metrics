@@ -6,7 +6,7 @@
 
 ---
 
-## VERSION ACTUELLE : v4.0 — Sprint 6 Academy + Guides Shipinfy
+## VERSION ACTUELLE : v5.0 — Sprint 7 Alertes Prédictives + Slack
 
 ---
 
@@ -33,7 +33,7 @@
 | `/livreurs` | `app/livreurs/page.tsx` | Tableau livreurs |
 | `/hubs` | `app/hubs/page.tsx` | Tableau hubs |
 | `/retours` | `app/retours/page.tsx` | Gestion retours |
-| `/alertes` | `app/alertes/page.tsx` | Alertes + Tickets (3 tabs : alertes / tickets / règles) |
+| `/alertes` | `app/alertes/page.tsx` | Alertes + Tickets (**4 tabs** : alertes / tickets / règles / **⏱️ Retards temps réel** — Sprint 7) |
 | `/rapports` | `app/rapports/page.tsx` | Rapports planifiés |
 | `/onboarding` | `app/onboarding/page.tsx` | Kanban RH 5 colonnes (Sprint 3) |
 | `/academy` | `app/academy/page.tsx` | **2 onglets** : Formation Livreurs (6 modules) + Guides Shipinfy (8 guides) — Sprint 6 |
@@ -106,6 +106,15 @@ Auto-cleanup après 10 minutes. Valide uniquement en mode Docker standalone (pro
 |-------|------|
 | `POST /api/guide-feedback` | Enregistre un vote 👍/👎 pour un guide (`{moduleKey, helpful}`) |
 | `GET /api/guide-feedback?moduleKey=xxx` | Compte les votes helpful/notHelpful |
+
+### Alertes Prédictives + Slack (Sprint 7)
+| Route | Rôle |
+|-------|------|
+| `GET /api/alerts/delivery` | Liste DeliveryAlert (filtre level/mode/ack/limit) |
+| `PATCH /api/alerts/delivery/[id]/ack` | Acquitter une alerte (await params — fix F2) |
+| `POST /api/alerts/predict` | Déclencher manuellement prévision + check retards |
+| `GET/POST /api/slack/config` | Config webhook Slack (GET active, POST crée) |
+| `PUT /api/slack/config` | Tester le webhook Slack |
 
 ---
 
@@ -248,4 +257,56 @@ Quand on ajoute une nouvelle page/feature :
 
 ---
 
-*Dernière mise à jour : 2026-04-11 — Build f6a0aba ✅ LIVE — Sprint 6 : Academy 2 onglets + 8 Guides Shipinfy + F12 fix UX delete + F13 guides — 13 fixes documentés*
+---
+
+## 9. SPRINT 7 — ALERTES PRÉDICTIVES + SLACK (2026-04-12)
+
+### Architecture
+- **Moteur** : `lib/alert-engine.ts` — détection retards Standard toutes les 5min via cron, prévisions Score IA à 07:00
+- **Déduplication** : 30min pour alertes retards, 24h pour alertes prédictives
+- **Escalade** : level 1 = in-app, level 2 = in-app + Slack, level 3 = in-app + Slack + log
+- **Mode Express** : no-op jusqu'à Sprint Express 1 (LiveOrder inexistant)
+
+### Modèles DB ajoutés
+- `DeliveryAlert` — alertes retards/prédictives avec level 1/2/3
+- `SlackConfig` — config webhook Slack (1 config active à la fois)
+
+### Fichiers créés
+- `lib/alert-engine.ts` — moteur complet (checkStandardDelays, checkExpressDelays, runPredictiveAlerts, createDeliveryAlert, notifySlack)
+- `app/api/alerts/delivery/route.ts` — GET liste DeliveryAlert
+- `app/api/alerts/delivery/[id]/ack/route.ts` — PATCH acquitter
+- `app/api/alerts/predict/route.ts` — POST déclenchement manuel
+- `app/api/slack/config/route.ts` — GET/POST/PUT config + test webhook
+
+### Fichiers modifiés
+- `lib/cron.ts` — 2 nouveaux jobs : `*/5 * * * *` (retards) + `0 7 * * *` (prédictif)
+- `prisma/schema.prisma` — modèles DeliveryAlert + SlackConfig ajoutés
+- `prisma/init-tables.sql` — tables `DeliveryAlert` + `SlackConfig` ajoutées
+- `app/alertes/page.tsx` — 4e onglet "⏱️ Retards" avec filtres level, bouton acquitter, bouton prévision manuelle
+- `app/parametres/page.tsx` — section "Notifications Slack" avec webhook URL, canal, toggle actif, bouton test + save
+
+### ⚠️ Règle importante
+- `ReliabilityScore` est le bon nom du modèle Score IA (pas `DriverScore`)
+- `deliveryTimeEnd` + `dateTimeWhenAssigned` pour calculer le ratio d'avancement du créneau
+
+---
+
+## 10. RESPONSIVE MOBILE + TABLET (Sprint 7 — 2026-04-12)
+
+### Composants créés
+- `components/MobileHeader.tsx` — header sticky `lg:hidden` (hamburger + logo + titre + cloche + avatar)
+- `components/BottomNav.tsx` — nav fixe bas `lg:hidden` (4 liens + drawer "Plus" 8 modules)
+- `components/AppShell.tsx` — gère état menu tablet, slide-in sidebar 280px avec backdrop
+
+### Règle layout
+- Desktop `lg:` → INCHANGÉ (ml-[60px] sur main, Sidebar overlay 60px/240px)
+- Tablet `md:` → AppShell injecte hamburger header + sidebar 280px slide-in
+- Mobile → Bottom nav fixe, pb-[76px] sur main
+
+### Sidebar modifiée
+- `hidden lg:block` sur le wrapper Sidebar dans layout.tsx
+- Prévisions déplacé dans section Analytics (Dashboard / KPIs / Prévisions)
+
+---
+
+*Dernière mise à jour : 2026-04-12 — Sprint 7 : Alertes prédictives + Slack + Responsive mobile/tablet — v5.0 — 14 fixes documentés*

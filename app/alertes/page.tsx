@@ -3,6 +3,7 @@ import { useState, useEffect, useCallback } from 'react'
 import {
   Bell, BellRing, AlertTriangle, Info, CheckCircle2, Clock,
   Plus, X, MessageSquare, Ticket, Settings2, RefreshCw, Zap,
+  TrendingUp, ShieldAlert, Eye, Loader2,
 } from 'lucide-react'
 
 interface AlertRule {
@@ -52,13 +53,42 @@ const METRIC_LABELS: Record<string, string> = {
   no_show_count: 'Nombre NO_SHOW', on_time_rate: 'Taux On-Time',
 }
 
+// ── DeliveryAlert (Sprint 7) ─────────────────────────────────────────────────
+interface DeliveryAlert {
+  id: string; orderId: string | null; reportId: string | null
+  driverName: string | null; mode: string; level: number; type: string
+  message: string; acknowledged: boolean; triggeredAt: string
+  ackBy: string | null
+}
+
+const LEVEL_STYLE: Record<number, string> = {
+  1: 'bg-yellow-50 border-yellow-200 text-yellow-800',
+  2: 'bg-orange-50 border-orange-200 text-orange-800',
+  3: 'bg-red-50 border-red-200 text-red-800',
+}
+const LEVEL_LABEL: Record<number, string> = {
+  1: '⚠️ Warning', 2: '🟠 Danger', 3: '🔴 Critique',
+}
+const TYPE_LABEL: Record<string, string> = {
+  delay_risk:       'Risque retard',
+  delay_confirmed:  'Retard confirmé',
+  gps_blocked:      'GPS bloqué',
+  predictive:       'Prévision IA',
+}
+
 export default function AlertesPage() {
   const [alerts, setAlerts]   = useState<Alert[]>([])
   const [tickets, setTickets] = useState<Ticket[]>([])
   const [rules, setRules]     = useState<AlertRule[]>([])
-  const [tab, setTab]         = useState<'alertes' | 'tickets' | 'regles'>('alertes')
+  const [tab, setTab]         = useState<'alertes' | 'tickets' | 'regles' | 'retards'>('alertes')
   const [loading, setLoading] = useState(true)
   const [checking, setChecking] = useState(false)
+
+  // Sprint 7 — Retards temps réel
+  const [deliveryAlerts, setDeliveryAlerts] = useState<DeliveryAlert[]>([])
+  const [daLoading, setDaLoading]           = useState(false)
+  const [predicting, setPredicting]         = useState(false)
+  const [daFilter, setDaFilter]             = useState<'all' | '1' | '2' | '3'>('all')
 
   // Modals
   const [newTicket, setNewTicket] = useState<{ alertId?: string; title: string; description: string; priority: string } | null>(null)
@@ -68,6 +98,16 @@ export default function AlertesPage() {
 
   // New rule form
   const [newRule, setNewRule] = useState<{ name: string; metric: string; operator: string; threshold: string; severity: string } | null>(null)
+
+  const loadDeliveryAlerts = useCallback(async () => {
+    setDaLoading(true)
+    try {
+      const res = await fetch('/api/alerts/delivery?ack=false&limit=100')
+      if (res.ok) setDeliveryAlerts(await res.json())
+    } finally {
+      setDaLoading(false)
+    }
+  }, [])
 
   const load = useCallback(async () => {
     setLoading(true)
@@ -86,6 +126,7 @@ export default function AlertesPage() {
   }, [])
 
   useEffect(() => { load() }, [load])
+  useEffect(() => { if (tab === 'retards') loadDeliveryAlerts() }, [tab, loadDeliveryAlerts])
 
   async function handleCheck() {
     setChecking(true)
@@ -141,6 +182,23 @@ export default function AlertesPage() {
 
   async function deleteRule(id: string) {
     await fetch(`/api/alerts/rules?id=${id}`, { method: 'DELETE' }); load()
+  }
+
+  // Sprint 7
+  async function ackDeliveryAlert(id: string) {
+    await fetch(`/api/alerts/delivery/${id}/ack`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ ackBy: 'Manager' }) })
+    loadDeliveryAlerts()
+  }
+
+  async function runPredict() {
+    setPredicting(true)
+    try {
+      const res = await fetch('/api/alerts/predict', { method: 'POST' })
+      const d = await res.json() as { total?: number }
+      if ((d.total ?? 0) > 0) await loadDeliveryAlerts()
+    } finally {
+      setPredicting(false)
+    }
   }
 
   const openAlerts    = alerts.filter(a => a.status === 'open')
@@ -202,13 +260,18 @@ export default function AlertesPage() {
 
       {/* Tabs — scrollable on mobile */}
       <div className="flex gap-1 border-b border-gray-200 overflow-x-auto no-scrollbar -mx-3 px-3 md:mx-0 md:px-0">
-        {(['alertes', 'tickets', 'regles'] as const).map(t => (
+        {[
+          { key: 'alertes',  label: `🔔 Alertes (${openAlerts.length + inProg.length})` },
+          { key: 'tickets',  label: `🎫 Tickets (${tickets.filter(t => t.status !== 'resolu' && t.status !== 'ferme').length})` },
+          { key: 'regles',   label: '⚙️ Règles' },
+          { key: 'retards',  label: `⏱️ Retards (${deliveryAlerts.filter(a => !a.acknowledged).length})` },
+        ].map(t => (
           <button
-            key={t}
-            onClick={() => setTab(t)}
-            className={`flex-shrink-0 px-3 md:px-4 py-2.5 text-sm font-medium border-b-2 transition capitalize min-h-[44px] ${tab === t ? 'border-blue-600 text-blue-600' : 'border-transparent text-gray-500 hover:text-gray-700'}`}
+            key={t.key}
+            onClick={() => setTab(t.key as typeof tab)}
+            className={`flex-shrink-0 px-3 md:px-4 py-2.5 text-sm font-medium border-b-2 transition min-h-[44px] ${tab === t.key ? 'border-blue-600 text-blue-600' : 'border-transparent text-gray-500 hover:text-gray-700'}`}
           >
-            {t === 'alertes' ? `🔔 Alertes (${openAlerts.length + inProg.length})` : t === 'tickets' ? `🎫 Tickets (${tickets.filter(t => t.status !== 'resolu' && t.status !== 'ferme').length})` : '⚙️ Règles'}
+            {t.label}
           </button>
         ))}
       </div>
@@ -482,6 +545,92 @@ export default function AlertesPage() {
               </button>
             </div>
           </div>
+        </div>
+      )}
+
+      {/* ── RETARDS TEMPS RÉEL TAB (Sprint 7) ──────────────────────────── */}
+      {tab === 'retards' && (
+        <div className="space-y-4">
+          {/* Sub-header */}
+          <div className="flex items-center justify-between flex-wrap gap-3">
+            <div className="flex items-center gap-2 flex-wrap">
+              {/* Filtres level */}
+              {[
+                { key: 'all', label: 'Tous' },
+                { key: '1',   label: '⚠️ Warning' },
+                { key: '2',   label: '🟠 Danger' },
+                { key: '3',   label: '🔴 Critique' },
+              ].map(f => (
+                <button
+                  key={f.key}
+                  onClick={() => setDaFilter(f.key as typeof daFilter)}
+                  className={`text-xs px-3 py-1.5 rounded-lg font-medium transition min-h-[36px] ${daFilter === f.key ? 'bg-blue-600 text-white' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'}`}
+                >
+                  {f.label}
+                </button>
+              ))}
+            </div>
+            <div className="flex gap-2">
+              <button
+                onClick={loadDeliveryAlerts}
+                className="flex items-center gap-2 border border-gray-200 px-3 py-2 rounded-lg text-sm text-gray-600 hover:bg-gray-50 transition min-h-[44px]"
+              >
+                <RefreshCw size={14} className={daLoading ? 'animate-spin' : ''} />
+                <span className="hidden sm:inline">Actualiser</span>
+              </button>
+              <button
+                onClick={runPredict}
+                disabled={predicting}
+                className="flex items-center gap-2 bg-purple-600 text-white px-3 py-2 rounded-lg text-sm font-medium hover:bg-purple-700 disabled:opacity-50 transition min-h-[44px]"
+              >
+                {predicting ? <Loader2 size={14} className="animate-spin" /> : <TrendingUp size={14} />}
+                <span className="hidden sm:inline">{predicting ? 'Analyse...' : 'Lancer prévision'}</span>
+              </button>
+            </div>
+          </div>
+
+          {daLoading ? (
+            <div className="py-12 text-center text-gray-400 text-sm">Chargement…</div>
+          ) : deliveryAlerts.filter(a => daFilter === 'all' || String(a.level) === daFilter).length === 0 ? (
+            <div className="py-14 text-center">
+              <ShieldAlert className="h-10 w-10 text-gray-200 mx-auto mb-3" />
+              <p className="text-gray-500 font-medium">Aucun retard détecté</p>
+              <p className="text-xs text-gray-400 mt-1">Le moteur vérifie les créneaux toutes les 5 minutes. Cliquez sur &ldquo;Lancer prévision&rdquo; pour un check immédiat.</p>
+            </div>
+          ) : (
+            <div className="space-y-2">
+              {deliveryAlerts
+                .filter(a => daFilter === 'all' || String(a.level) === daFilter)
+                .map(a => (
+                  <div key={a.id} className={`rounded-xl border p-4 flex items-start gap-3 ${LEVEL_STYLE[a.level] ?? 'bg-gray-50 border-gray-200'}`}>
+                    <div className="flex-shrink-0 mt-0.5">
+                      {a.level === 3 ? <AlertTriangle size={16} className="text-red-500" /> : a.level === 2 ? <BellRing size={16} className="text-orange-500" /> : <Info size={16} className="text-yellow-600" />}
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-2 flex-wrap mb-1">
+                        <span className="text-xs font-bold">{LEVEL_LABEL[a.level]}</span>
+                        <span className="text-xs px-2 py-0.5 bg-white bg-opacity-60 rounded-full font-medium">{TYPE_LABEL[a.type] ?? a.type}</span>
+                        {a.mode === 'express' && <span className="text-xs px-2 py-0.5 bg-blue-100 text-blue-700 rounded-full font-medium">Express</span>}
+                      </div>
+                      <p className="text-sm font-medium leading-snug">{a.message}</p>
+                      {a.driverName && (
+                        <p className="text-xs mt-1 opacity-70">Livreur : {a.driverName}</p>
+                      )}
+                      <p className="text-xs mt-1 opacity-50">
+                        {new Date(a.triggeredAt).toLocaleString('fr-FR', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' })}
+                      </p>
+                    </div>
+                    <button
+                      onClick={() => ackDeliveryAlert(a.id)}
+                      className="flex-shrink-0 flex items-center gap-1.5 text-xs bg-white bg-opacity-70 border border-current px-2.5 py-1.5 rounded-lg hover:bg-opacity-100 transition font-medium min-h-[36px]"
+                    >
+                      <Eye size={12} /> Acquitter
+                    </button>
+                  </div>
+                ))
+              }
+            </div>
+          )}
         </div>
       )}
     </div>

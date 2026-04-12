@@ -270,3 +270,35 @@ model ReliabilityScore {
   @@index([driverName])
   @@index([calculatedAt])
 }
+
+// ─── SPRINT 7 — ALERTES PRÉDICTIVES + SLACK ───────────────────────────────────
+
+model DeliveryAlert {
+  id           String    @id @default(cuid())
+  orderId      String?
+  reportId     String?
+  driverName   String?
+  mode         String    @default("standard") // "standard" | "express"
+  level        Int       @default(1)           // 1=warning 2=danger 3=critical
+  type         String    // "delay_risk" | "delay_confirmed" | "gps_blocked" | "predictive"
+  message      String
+  channel      String    @default("inapp")
+  acknowledged Boolean   @default(false)
+  triggeredAt  DateTime  @default(now())
+  ackAt        DateTime?
+  ackBy        String?
+  createdAt    DateTime  @default(now())
+
+  @@index([acknowledged])
+  @@index([level])
+  @@index([createdAt])
+}
+
+model SlackConfig {
+  id         String   @id @default(cuid())
+  webhookUrl String
+  channel    String   @default("#alertes-livraison")
+  active     Boolean  @default(true)
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+}

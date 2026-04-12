@@ -1,8 +1,9 @@
 'use client'
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import {
   Settings, Mail, Bell, Database, Shield, RefreshCw,
   CheckCircle, AlertTriangle, Save, Eye, EyeOff,
+  Hash, Loader2, CheckCircle2, XCircle,
 } from 'lucide-react'
 
 // ─── Section wrapper ───────────────────────────────────────────────────────────
@@ -65,8 +66,57 @@ export default function ParametresPage() {
 
   // UI states
   const [testStatus, setTestStatus] = useState<'idle' | 'loading' | 'ok' | 'error'>('idle')
-  const [saved, setSaved] = useState(false)
-  const [showEnv, setShowEnv] = useState(false)
+  const [saved, setSaved]       = useState(false)
+  const [showEnv, setShowEnv]   = useState(false)
+
+  // Sprint 7 — Slack config
+  const [slackWebhook, setSlackWebhook] = useState('')
+  const [slackChannel, setSlackChannel] = useState('#alertes-livraison')
+  const [slackActive, setSlackActive]   = useState(true)
+  const [slackSaving, setSlackSaving]   = useState(false)
+  const [slackSaved, setSlackSaved]     = useState(false)
+  const [slackTest, setSlackTest]       = useState<'idle' | 'loading' | 'ok' | 'error'>('idle')
+
+  useEffect(() => {
+    fetch('/api/slack/config').then(r => r.json()).then((d: { webhookUrl?: string; channel?: string; active?: boolean }) => {
+      if (d.webhookUrl) setSlackWebhook(d.webhookUrl)
+      if (d.channel)    setSlackChannel(d.channel)
+      if (d.active !== undefined) setSlackActive(d.active)
+    }).catch(() => {})
+  }, [])
+
+  async function saveSlack() {
+    if (!slackWebhook) return
+    setSlackSaving(true)
+    try {
+      await fetch('/api/slack/config', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ webhookUrl: slackWebhook, channel: slackChannel, active: slackActive }),
+      })
+      setSlackSaved(true)
+      setTimeout(() => setSlackSaved(false), 3000)
+    } finally {
+      setSlackSaving(false)
+    }
+  }
+
+  async function testSlack() {
+    if (!slackWebhook) return
+    setSlackTest('loading')
+    try {
+      const res = await fetch('/api/slack/config', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ webhookUrl: slackWebhook }),
+      })
+      const d = await res.json() as { ok?: boolean }
+      setSlackTest(d.ok ? 'ok' : 'error')
+    } catch {
+      setSlackTest('error')
+    }
+    setTimeout(() => setSlackTest('idle'), 4000)
+  }
 
   async function testEmail() {
     if (!notifEmail) return
@@ -269,6 +319,57 @@ export default function ParametresPage() {
             <span>Hébergement</span>
             <span className="font-mono text-xs">Dokploy · Docker Standalone</span>
           </div>
+        </div>
+      </Section>
+
+      {/* ── Sprint 7 — Slack Notifications ─────────────────────────── */}
+      <Section icon={Hash} title="Notifications Slack">
+        <div className="space-y-4">
+          <Field label="Webhook URL" hint="Depuis Slack → Apps → Incoming Webhooks → Add New Webhook">
+            <input
+              type="url"
+              placeholder="https://hooks.slack.com/services/..."
+              value={slackWebhook}
+              onChange={e => setSlackWebhook(e.target.value)}
+              className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400 font-mono"
+            />
+          </Field>
+          <Field label="Canal Slack">
+            <input
+              type="text"
+              placeholder="#alertes-livraison"
+              value={slackChannel}
+              onChange={e => setSlackChannel(e.target.value)}
+              className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400"
+            />
+          </Field>
+          <Field label="Actif">
+            <div className="flex items-center gap-3 pt-1">
+              <Toggle enabled={slackActive} onChange={setSlackActive} />
+              <span className="text-xs text-gray-500">{slackActive ? 'Notifications activées' : 'Notifications désactivées'}</span>
+            </div>
+          </Field>
+          <div className="flex gap-2 pt-1 flex-wrap">
+            <button
+              onClick={testSlack}
+              disabled={!slackWebhook || slackTest === 'loading'}
+              className="flex items-center gap-2 border border-gray-200 px-4 py-2 rounded-lg text-sm text-gray-600 hover:bg-gray-50 transition disabled:opacity-50 min-h-[40px]"
+            >
+              {slackTest === 'loading' ? <Loader2 size={14} className="animate-spin" /> : slackTest === 'ok' ? <CheckCircle2 size={14} className="text-green-500" /> : slackTest === 'error' ? <XCircle size={14} className="text-red-500" /> : <RefreshCw size={14} />}
+              {slackTest === 'ok' ? 'Message envoyé !' : slackTest === 'error' ? 'Erreur webhook' : 'Tester'}
+            </button>
+            <button
+              onClick={saveSlack}
+              disabled={!slackWebhook || slackSaving}
+              className="flex items-center gap-2 bg-blue-600 text-white px-4 py-2 rounded-lg text-sm font-medium hover:bg-blue-700 transition disabled:opacity-50 min-h-[40px]"
+            >
+              {slackSaving ? <Loader2 size={14} className="animate-spin" /> : slackSaved ? <CheckCircle2 size={14} /> : <Save size={14} />}
+              {slackSaved ? 'Sauvegardé !' : 'Sauvegarder'}
+            </button>
+          </div>
+          <p className="text-xs text-gray-400 mt-1">
+            Niveau 2 (Danger) → Slack. Niveau 3 (Critique) → Slack + log email. Vérification toutes les 5 minutes.
+          </p>
         </div>
       </Section>
 

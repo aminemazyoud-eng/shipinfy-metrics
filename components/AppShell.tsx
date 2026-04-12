@@ -7,6 +7,7 @@ import {
   Activity, BarChart3, Users, MapPin, XCircle,
   TrendingUp, Bell, Mail, Settings, UserCheck,
   GraduationCap, Brain, X, ChevronRight, DollarSign,
+  Truck, Clock, HeadphonesIcon,
 } from 'lucide-react'
 import type { LucideProps } from 'lucide-react'
 import MobileHeader from '@/components/MobileHeader'
@@ -38,13 +39,16 @@ const SECTIONS: NavSection[] = [
   {
     key: 'operations', label: 'Opérations',
     items: [
-      { href: '/alertes',  label: 'Alertes & Tickets', icon: Bell },
-      { href: '/rapports', label: 'Rapports',           icon: Mail },
+      { href: '/dispatch', label: 'Dispatch',          icon: Truck          },
+      { href: '/alertes',  label: 'Alertes & Tickets', icon: Bell           },
+      { href: '/rapports', label: 'Rapports',           icon: Mail           },
+      { href: '/support',  label: 'Support Client',     icon: HeadphonesIcon },
     ],
   },
   {
     key: 'rh', label: 'RH & Formation',
     items: [
+      { href: '/pointage',   label: 'Pointage',   icon: Clock         },
       { href: '/onboarding', label: 'Onboarding', icon: UserCheck     },
       { href: '/academy',    label: 'Academy',    icon: GraduationCap },
     ],
@@ -139,8 +143,8 @@ function TabletSidebar({ open, onClose }: { open: boolean; onClose: () => void }
         {/* Footer */}
         <div className="p-3 border-t border-gray-100">
           <div className="px-3 py-2 bg-blue-50 rounded-xl">
-            <p className="text-[11px] font-black text-blue-700">SHIPINFY v4.0</p>
-            <p className="text-[10px] text-blue-400 mt-0.5">Sprint 8 — Rémunération</p>
+            <p className="text-[11px] font-black text-blue-700">SHIPINFY v5.0</p>
+            <p className="text-[10px] text-blue-400 mt-0.5">Sprint 9 — Dispatch + Pointage</p>
           </div>
         </div>
       </aside>

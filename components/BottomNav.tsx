@@ -4,8 +4,9 @@ import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 import {
   Activity, BarChart3, Bell, Users, MoreHorizontal,
-  MapPin, XCircle, BookOpen, GraduationCap, Brain,
+  MapPin, XCircle, GraduationCap, Brain,
   FileText, UserCheck, Settings, TrendingUp, X, DollarSign,
+  Truck, Clock, HeadphonesIcon,
 } from 'lucide-react'
 
 const MAIN_ITEMS = [
@@ -17,6 +18,9 @@ const MAIN_ITEMS = [
 
 const MORE_ITEMS = [
   { href: '/previsions',   label: 'Prévisions',       icon: TrendingUp    },
+  { href: '/dispatch',     label: 'Dispatch',          icon: Truck         },
+  { href: '/pointage',     label: 'Pointage',          icon: Clock         },
+  { href: '/support',      label: 'Support',           icon: HeadphonesIcon},
   { href: '/remuneration', label: 'Rémunération',     icon: DollarSign    },
   { href: '/hubs',         label: 'Hubs',              icon: MapPin        },
   { href: '/retours',      label: 'Retours & NO_SHOW', icon: XCircle       },

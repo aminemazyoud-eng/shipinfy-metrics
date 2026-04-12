@@ -4,18 +4,22 @@ import Image from 'next/image'
 import { Menu, Bell } from 'lucide-react'
 
 const ROUTE_LABELS: Record<string, string> = {
-  '/':           'Dashboard',
-  '/kpis':       'KPIs & Métriques',
-  '/previsions': 'Prévisions',
-  '/livreurs':   'Livreurs',
-  '/hubs':       'Hubs',
-  '/retours':    'Retours & NO_SHOW',
-  '/alertes':    'Alertes & Tickets',
-  '/rapports':   'Rapports',
-  '/onboarding': 'Onboarding',
-  '/academy':    'Academy',
-  '/score-ia':   'Score IA',
-  '/parametres': 'Paramètres',
+  '/':             'Dashboard',
+  '/kpis':         'KPIs & Métriques',
+  '/previsions':   'Prévisions',
+  '/livreurs':     'Livreurs',
+  '/remuneration': 'Rémunération',
+  '/hubs':         'Hubs',
+  '/retours':      'Retours & NO_SHOW',
+  '/alertes':      'Alertes & Tickets',
+  '/rapports':     'Rapports',
+  '/dispatch':     'Dispatch',
+  '/pointage':     'Pointage',
+  '/support':      'Support Client',
+  '/onboarding':   'Onboarding',
+  '/academy':      'Academy',
+  '/score-ia':     'Score IA',
+  '/parametres':   'Paramètres',
 }
 
 interface Props {

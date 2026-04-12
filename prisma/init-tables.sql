@@ -443,3 +443,46 @@ CREATE UNIQUE INDEX IF NOT EXISTS "DriverPay_reportId_driverName_mode_key" ON "D
 CREATE INDEX IF NOT EXISTS "DriverPay_reportId_idx"   ON "DriverPay"("reportId");
 CREATE INDEX IF NOT EXISTS "DriverPay_driverName_idx" ON "DriverPay"("driverName");
 
+-- ─── SPRINT 9 — DISPATCH + POINTAGE + SUPPORT ────────────────────────────────
+
+CREATE TABLE IF NOT EXISTS "DriverAttendance" (
+  "id"         TEXT NOT NULL,
+  "driverName" TEXT NOT NULL,
+  "date"       TIMESTAMP(3) NOT NULL,
+  "hub"        TEXT,
+  "checkIn"    TIMESTAMP(3),
+  "checkOut"   TIMESTAMP(3),
+  "status"     TEXT NOT NULL DEFAULT 'present',
+  "notes"      TEXT,
+  "createdAt"  TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  "updatedAt"  TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  CONSTRAINT "DriverAttendance_pkey" PRIMARY KEY ("id")
+);
+
+CREATE UNIQUE INDEX IF NOT EXISTS "DriverAttendance_driverName_date_key" ON "DriverAttendance"("driverName","date");
+CREATE INDEX IF NOT EXISTS "DriverAttendance_date_idx"       ON "DriverAttendance"("date");
+CREATE INDEX IF NOT EXISTS "DriverAttendance_driverName_idx" ON "DriverAttendance"("driverName");
+
+CREATE TABLE IF NOT EXISTS "SupportTicket" (
+  "id"          TEXT NOT NULL,
+  "reference"   TEXT NOT NULL,
+  "category"    TEXT NOT NULL,
+  "priority"    TEXT NOT NULL DEFAULT 'normale',
+  "status"      TEXT NOT NULL DEFAULT 'ouvert',
+  "subject"     TEXT NOT NULL,
+  "description" TEXT NOT NULL,
+  "clientName"  TEXT,
+  "clientPhone" TEXT,
+  "orderRef"    TEXT,
+  "assignedTo"  TEXT,
+  "resolvedAt"  TIMESTAMP(3),
+  "createdAt"   TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  "updatedAt"   TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  CONSTRAINT "SupportTicket_pkey" PRIMARY KEY ("id")
+);
+
+CREATE UNIQUE INDEX IF NOT EXISTS "SupportTicket_reference_key" ON "SupportTicket"("reference");
+CREATE INDEX IF NOT EXISTS "SupportTicket_status_idx"    ON "SupportTicket"("status");
+CREATE INDEX IF NOT EXISTS "SupportTicket_priority_idx"  ON "SupportTicket"("priority");
+CREATE INDEX IF NOT EXISTS "SupportTicket_createdAt_idx" ON "SupportTicket"("createdAt");
+

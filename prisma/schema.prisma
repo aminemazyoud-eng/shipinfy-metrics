@@ -338,3 +338,43 @@ model DriverPay {
   @@index([reportId])
   @@index([driverName])
 }
+
+// ─── SPRINT 9 — DISPATCH + POINTAGE + SUPPORT ────────────────────────────────
+
+model DriverAttendance {
+  id         String    @id @default(cuid())
+  driverName String
+  date       DateTime  // date du jour (minuit UTC)
+  hub        String?
+  checkIn    DateTime?
+  checkOut   DateTime?
+  status     String    @default("present") // "present"|"absent"|"late"|"leave"
+  notes      String?
+  createdAt  DateTime  @default(now())
+  updatedAt  DateTime  @updatedAt
+
+  @@unique([driverName, date])
+  @@index([date])
+  @@index([driverName])
+}
+
+model SupportTicket {
+  id          String    @id @default(cuid())
+  reference   String    @unique // SUP-0001
+  category    String    // "livraison_manquee"|"retard"|"reclamation_cod"|"mauvais_service"|"autre"
+  priority    String    @default("normale") // "urgent"|"haute"|"normale"|"basse"
+  status      String    @default("ouvert")  // "ouvert"|"en_cours"|"resolu"|"ferme"
+  subject     String
+  description String
+  clientName  String?
+  clientPhone String?
+  orderRef    String?
+  assignedTo  String?
+  resolvedAt  DateTime?
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  @@index([status])
+  @@index([priority])
+  @@index([createdAt])
+}

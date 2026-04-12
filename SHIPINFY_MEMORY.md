@@ -6,7 +6,7 @@
 
 ---
 
-## VERSION ACTUELLE : v6.0 — Sprint 8 Rémunération Livreurs
+## VERSION ACTUELLE : v7.0 — Sprint 9 Dispatch + Pointage + Support
 
 ---
 
@@ -35,6 +35,9 @@
 | `/retours` | `app/retours/page.tsx` | Gestion retours |
 | `/alertes`       | `app/alertes/page.tsx`       | Alertes + Tickets (**4 tabs** : alertes / tickets / règles / **⏱️ Retards temps réel** — Sprint 7) |
 | `/remuneration`  | `app/remuneration/page.tsx`  | **Rémunération Livreurs** : calcul automatique par course Standard/Express — Sprint 8 |
+| `/dispatch`      | `app/dispatch/page.tsx`      | **Dispatch Opérationnel** : tournées par livreur, avancement, commandes récentes — Sprint 9 |
+| `/pointage`      | `app/pointage/page.tsx`      | **Pointage Livreurs** : présences journalières, check-in/out, durée — Sprint 9 |
+| `/support`       | `app/support/page.tsx`       | **Support Client** : tickets réclamations avec priorité/statut/catégorie — Sprint 9 |
 | `/rapports` | `app/rapports/page.tsx` | Rapports planifiés |
 | `/onboarding` | `app/onboarding/page.tsx` | Kanban RH 5 colonnes (Sprint 3) |
 | `/academy` | `app/academy/page.tsx` | **2 onglets** : Formation Livreurs (6 modules) + Guides Shipinfy (8 guides) — Sprint 6 |
@@ -124,6 +127,18 @@ Auto-cleanup après 10 minutes. Valide uniquement en mode Docker standalone (pro
 | `POST /api/remuneration/config` | Upsert config par mode (standard/express) |
 | `POST /api/remuneration/calculate` | Calcule et persiste la rémunération par livreur pour un rapport |
 | `GET /api/remuneration?reportId=xxx` | Récupère les DriverPay déjà calculés pour un rapport |
+
+### Dispatch + Pointage + Support (Sprint 9)
+| Route | Rôle |
+|-------|------|
+| `GET /api/dispatch?reportId=xxx` | Vue opérationnelle par livreur : byStatus, pct avancement, 5 dernières commandes |
+| `GET /api/pointage?date=YYYY-MM-DD` | Pointages du jour (défaut = aujourd'hui) |
+| `POST /api/pointage` | Créer / upsert un pointage (driverName + date = clé unique) |
+| `PATCH /api/pointage/[id]` | Mettre à jour checkOut / status / notes |
+| `DELETE /api/pointage/[id]` | Supprimer un pointage |
+| `GET /api/support` | Liste tickets support (filtre status/priority) |
+| `POST /api/support` | Créer ticket (auto-génère référence SUP-XXXX) |
+| `PATCH /api/support/[id]` | Mettre à jour statut / priorité / assignedTo |
 
 ---
 
@@ -361,4 +376,35 @@ netPay   = grossPay + bonus - penalty
 
 ---
 
-*Dernière mise à jour : 2026-04-12 — Sprint 8 : Rémunération Livreurs — v6.0 — 14 fixes documentés*
+---
+
+## 12. SPRINT 9 — DISPATCH + POINTAGE + SUPPORT (2026-04-12)
+
+### Dispatch
+- Pas de nouveau modèle DB — utilise `DeliveryOrder` existant
+- `GET /api/dispatch?reportId=xxx` : groupe par livreur, calcule byStatus + pct avancement + 5 dernières commandes
+- Page `/dispatch` : cartes résumé globales, barre progression globale, accordion par livreur avec filtres hub
+
+### Pointage
+- Modèle `DriverAttendance` avec `@@unique([driverName, date])` — upsert idempotent
+- `status` : 'present' | 'late' | 'absent' | 'leave'
+- `POST /api/pointage` : upsert par (driverName, date)
+- `PATCH /api/pointage/[id]` : update checkOut / status / notes (fix F2 async params)
+- Page `/pointage` : sélecteur date, formulaire ajout, tableau avec bouton "Check-out"
+
+### Support
+- Modèle `SupportTicket` avec `reference` unique auto-générée (SUP-XXXX)
+- Catégories : livraison_manquee | retard | reclamation_cod | mauvais_service | autre
+- Priorités : urgent | haute | normale | basse
+- Statuts : ouvert | en_cours | resolu | ferme
+- Page `/support` : filtres par statut, formulaire création, clic sur ticket → detail inline + changement statut
+
+### Navigation mise à jour
+- Sidebar : Dispatch + Support dans section Opérations, Pointage dans RH & Formation (v5.0)
+- AppShell (tablet) : idem
+- BottomNav : 3 nouveaux items dans MORE_ITEMS (Dispatch, Pointage, Support)
+- MobileHeader : 3 nouveaux labels (dispatch, pointage, support, remuneration)
+
+---
+
+*Dernière mise à jour : 2026-04-12 — Sprint 9 : Dispatch + Pointage + Support — v7.0 — 14 fixes documentés*

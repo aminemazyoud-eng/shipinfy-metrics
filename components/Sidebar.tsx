@@ -8,6 +8,7 @@ import {
   Activity, BarChart3, Users, MapPin, XCircle,
   TrendingUp, Bell, Mail, Settings,
   UserCheck, GraduationCap, ChevronRight, Brain, DollarSign,
+  Truck, Clock, HeadphonesIcon,
 } from 'lucide-react'
 
 // ─── Types ─────────────────────────────────────────────────────────────────────
@@ -49,16 +50,19 @@ const SECTIONS: NavSection[] = [
     key: 'operations',
     label: 'Opérations',
     items: [
-      { href: '/alertes',  label: 'Alertes & Tickets', icon: Bell, disabled: false },
-      { href: '/rapports', label: 'Rapports',           icon: Mail, disabled: false },
+      { href: '/dispatch', label: 'Dispatch',          icon: Truck,           disabled: false },
+      { href: '/alertes',  label: 'Alertes & Tickets', icon: Bell,            disabled: false },
+      { href: '/rapports', label: 'Rapports',           icon: Mail,            disabled: false },
+      { href: '/support',  label: 'Support Client',     icon: HeadphonesIcon,  disabled: false },
     ],
   },
   {
     key: 'rh',
     label: 'RH & Formation',
     items: [
-      { href: '/onboarding', label: 'Onboarding', icon: UserCheck,     disabled: false },
-      { href: '/academy',    label: 'Academy',    icon: GraduationCap, disabled: false },
+      { href: '/pointage',   label: 'Pointage',   icon: Clock,        disabled: false },
+      { href: '/onboarding', label: 'Onboarding', icon: UserCheck,    disabled: false },
+      { href: '/academy',    label: 'Academy',    icon: GraduationCap,disabled: false },
     ],
   },
 ]
@@ -88,6 +92,7 @@ export default function Sidebar() {
   const [accordion, setAccordion] = useState<Record<string, boolean>>({
     analytics: true, performance: true, operations: true, rh: true,
   })
+
 
   useEffect(() => {
     try {
@@ -246,8 +251,8 @@ export default function Sidebar() {
       {expanded && (
         <div className="flex-shrink-0 p-2.5 border-t border-gray-100">
           <div className="px-3 py-2 bg-blue-50 rounded-xl">
-            <p className="text-[11px] font-black text-blue-700 leading-none">SHIPINFY v4.0</p>
-            <p className="text-[10px] text-blue-400 mt-1 leading-none">Sprint 8 — Rémunération</p>
+            <p className="text-[11px] font-black text-blue-700 leading-none">SHIPINFY v5.0</p>
+            <p className="text-[10px] text-blue-400 mt-1 leading-none">Sprint 9 — Dispatch + Pointage</p>
           </div>
         </div>
       )}

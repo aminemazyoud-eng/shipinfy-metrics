@@ -600,6 +600,24 @@ BEGIN
   END IF;
 END $$;
 
+-- ─── SPRINT 11 — N8N Config ─────────────────────────────────────────────────
+
+CREATE TABLE IF NOT EXISTS "N8NConfig" (
+    "id" TEXT NOT NULL,
+    "name" TEXT NOT NULL,
+    "webhookUrl" TEXT NOT NULL,
+    "eventType" TEXT NOT NULL,
+    "secret" TEXT,
+    "active" BOOLEAN NOT NULL DEFAULT true,
+    "lastTriggeredAt" TIMESTAMP(3),
+    "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "updatedAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    CONSTRAINT "N8NConfig_pkey" PRIMARY KEY ("id")
+);
+
+CREATE INDEX IF NOT EXISTS "N8NConfig_eventType_idx" ON "N8NConfig"("eventType");
+CREATE INDEX IF NOT EXISTS "N8NConfig_active_idx" ON "N8NConfig"("active");
+
 -- Seed demo tenant if none exist
 INSERT INTO "Tenant" ("id","name","slug","primaryColor","plan","active")
 SELECT 'tenant_shipinfy_demo','Shipinfy Demo','shipinfy-demo','#2563eb','pro',true

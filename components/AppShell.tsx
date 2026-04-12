@@ -151,7 +151,7 @@ function TabletSidebar({ open, onClose }: { open: boolean; onClose: () => void }
         <div className="p-3 border-t border-gray-100">
           <div className="px-3 py-2 bg-blue-50 rounded-xl">
             <p className="text-[11px] font-black text-blue-700">SHIPINFY v5.0</p>
-            <p className="text-[10px] text-blue-400 mt-0.5">Sprint 10 — Shifts & Planning</p>
+            <p className="text-[10px] text-blue-400 mt-0.5">Sprint 12 — Mobile Responsive</p>
           </div>
         </div>
       </aside>

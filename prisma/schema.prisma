@@ -460,3 +460,20 @@ model Session {
   @@index([token])
   @@index([userId])
 }
+
+// ─── SPRINT 11 — N8N + WHATSAPP ───────────────────────────────────────────────
+
+model N8NConfig {
+  id          String   @id @default(cuid())
+  name        String
+  webhookUrl  String
+  eventType   String   // "report_ready" | "alert_critical" | "driver_onboarded" | "shift_assigned" | "*"
+  secret      String?  // optional HMAC secret for signature verification
+  active      Boolean  @default(true)
+  lastTriggeredAt DateTime?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@index([eventType])
+  @@index([active])
+}

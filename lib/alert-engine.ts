@@ -13,6 +13,7 @@
  */
 
 import { prisma } from '@/lib/prisma'
+import { triggerN8N } from '@/lib/n8n-bridge'
 
 export type AlertMode  = 'standard' | 'express'
 export type AlertLevel = 1 | 2 | 3
@@ -74,6 +75,15 @@ export async function createDeliveryAlert(payload: AlertPayload): Promise<void> 
   await Promise.allSettled([
     payload.level >= 2 ? notifySlack(payload)  : Promise.resolve(),
     payload.level >= 3 ? escalateEmail(payload) : Promise.resolve(),
+    payload.level >= 3 ? triggerN8N('alert_critical', {
+      level:      payload.level,
+      type:       payload.type,
+      mode:       payload.mode,
+      message:    payload.message,
+      driverName: payload.driverName ?? null,
+      orderId:    payload.orderId    ?? null,
+      reportId:   payload.reportId   ?? null,
+    }) : Promise.resolve(),
   ])
 }
 

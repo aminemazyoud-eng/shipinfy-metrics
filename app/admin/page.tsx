@@ -145,7 +145,7 @@ function TenantRow({ tenant, onToggle, onDelete, tenantMap }: {
             </button>
           </div>
 
-          {showAdd && (
+          {showAddUser && (
             <form onSubmit={handleAddUser} className="bg-white rounded-xl p-3 mb-3 border border-gray-100 space-y-2">
               <div className="grid grid-cols-2 gap-2">
                 <input value={addForm.name} onChange={e => setAddForm(f => ({ ...f, name: e.target.value }))}

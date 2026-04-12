@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server'
 import { transporter } from '@/lib/mailer'
 import { buildEmailText, type EmailKpisData } from '@/lib/email-template'
 import { generateReportPDF } from '@/lib/pdf-report'
+import { triggerN8N } from '@/lib/n8n-bridge'
 
 export const runtime = 'nodejs'
 
@@ -130,6 +131,15 @@ export async function POST(request: Request) {
         },
       ],
     })
+
+    // Sprint 11 — trigger N8N automations (non-blocking)
+    triggerN8N('report_ready', {
+      reportId:    body.reportId,
+      filename:    `rapport-livraisons-${dateStr}.pdf`,
+      totalOrders: body.kpisData.totalOrders,
+      deliveryRate: body.kpisData.deliveryRate,
+      recipients:  emails,
+    }).catch(() => {})
 
     return NextResponse.json({ sent: true, emails, mode: body.mode ?? 'instant' })
   } catch (e) {

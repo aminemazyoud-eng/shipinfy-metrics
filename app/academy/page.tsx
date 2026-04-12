@@ -180,8 +180,8 @@ export default function AcademyPage() {
 
       {/* Course Detail Modal */}
       {selected && (
-        <div className="fixed inset-0 bg-black/40 z-50 flex items-center justify-center p-4">
-          <div className="bg-white w-full max-w-lg rounded-xl shadow-2xl overflow-hidden">
+        <div className="fixed inset-0 bg-black/40 z-50 flex items-end sm:items-center justify-center sm:p-4">
+          <div className="bg-white w-full sm:max-w-lg rounded-t-xl sm:rounded-xl shadow-2xl overflow-hidden">
             <div className="h-2" style={{ background: selected.color }} />
             <div className="p-5 border-b border-gray-100">
               <div className="flex items-center justify-between">

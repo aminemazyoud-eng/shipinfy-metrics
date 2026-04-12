@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
+import { triggerN8N } from '@/lib/n8n-bridge'
 
 export const runtime = 'nodejs'
 
@@ -45,7 +46,19 @@ export async function PATCH(req: Request, { params }: RouteCtx) {
       else if (validated < 5) driverStatus = 'formation'
       else driverStatus = 'valide'
 
-      await prisma.driver.update({ where: { id }, data: { status: driverStatus } })
+      const updatedDriver = await prisma.driver.update({ where: { id }, data: { status: driverStatus } })
+
+      // Sprint 11 — notify N8N when driver reaches "valide" (fully onboarded)
+      if (driverStatus === 'valide') {
+        triggerN8N('driver_onboarded', {
+          driverId:   id,
+          driverName: `${updatedDriver.firstName} ${updatedDriver.lastName}`,
+          phone:      updatedDriver.phone,
+          city:       updatedDriver.city ?? null,
+          status:     driverStatus,
+        }).catch(() => {})
+      }
+
       return NextResponse.json(step)
     }
     // Otherwise update driver fields

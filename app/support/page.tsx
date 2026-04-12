@@ -167,7 +167,7 @@ export default function SupportPage() {
               onClick={() => setStatusFilter(s.key)}
               className={`px-3 py-2 font-medium transition ${statusFilter === s.key ? 'bg-violet-600 text-white' : 'text-gray-600 hover:bg-gray-50'}`}
             >
-              {'label' in s ? s.label : s.key}
+              {s.label}
             </button>
           ))}
         </div>

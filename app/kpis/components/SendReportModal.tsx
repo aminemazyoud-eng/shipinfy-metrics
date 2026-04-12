@@ -124,9 +124,9 @@ export function SendReportModal({ open, onClose, reportId, filters, kpisData }: 
   }
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4"
+    <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/50 sm:p-4"
       onClick={e => { if (e.target === e.currentTarget) { reset(); onClose() } }}>
-      <div className="w-full max-w-lg rounded-2xl bg-white shadow-2xl overflow-hidden">
+      <div className="w-full sm:max-w-lg rounded-t-2xl sm:rounded-2xl bg-white shadow-2xl overflow-hidden">
 
         <div className="flex items-center justify-between border-b px-6 py-4">
           <div className="flex items-center gap-2">

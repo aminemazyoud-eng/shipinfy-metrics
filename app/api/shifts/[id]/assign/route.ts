@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server'
 import { assignDriver } from '@/lib/shift-engine'
 import { prisma } from '@/lib/prisma'
+import { triggerN8N } from '@/lib/n8n-bridge'
 
 export const runtime = 'nodejs'
 
@@ -34,6 +35,18 @@ export async function POST(req: Request, ctx: RouteCtx) {
       where:   { id },
       include: { assignments: { orderBy: { scoreIA: 'desc' } } },
     })
+
+    // Sprint 11 — notify N8N (non-blocking)
+    triggerN8N('shift_assigned', {
+      slotId:     id,
+      driverName,
+      scoreIA:    scoreIA ?? null,
+      zone:       slot?.zone ?? null,
+      date:       slot?.date ?? null,
+      startTime:  slot?.startTime ?? null,
+      endTime:    slot?.endTime ?? null,
+    }).catch(() => {})
+
     return NextResponse.json(slot)
   } catch (e) {
     return NextResponse.json({ error: String(e) }, { status: 500 })

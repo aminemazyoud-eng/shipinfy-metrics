@@ -425,6 +425,7 @@ export default function AlertesPage() {
           )}
 
           <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
+            <div className="overflow-x-auto">
             <table className="w-full text-sm">
               <thead className="bg-gray-50">
                 <tr>
@@ -463,14 +464,15 @@ export default function AlertesPage() {
                 ))}
               </tbody>
             </table>
+            </div>
           </div>
         </div>
       )}
 
       {/* ── MODAL: Create Ticket ──────────────────────────── */}
       {newTicket !== null && (
-        <div className="fixed inset-0 bg-black bg-opacity-40 z-50 flex items-center justify-center p-4">
-          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md p-6">
+        <div className="fixed inset-0 bg-black bg-opacity-40 z-50 flex items-end sm:items-center justify-center sm:p-4">
+          <div className="bg-white rounded-t-2xl sm:rounded-2xl shadow-2xl w-full sm:max-w-md p-6">
             <div className="flex items-center justify-between mb-4">
               <h3 className="font-bold text-gray-900">Créer un ticket</h3>
               <button onClick={() => setNewTicket(null)} className="text-gray-400 hover:text-gray-600"><X size={18} /></button>
@@ -503,8 +505,8 @@ export default function AlertesPage() {
 
       {/* ── MODAL: Ticket Detail ──────────────────────────── */}
       {activeTicket && (
-        <div className="fixed inset-0 bg-black bg-opacity-40 z-50 flex items-center justify-center p-4">
-          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-lg p-6 max-h-[90vh] flex flex-col">
+        <div className="fixed inset-0 bg-black bg-opacity-40 z-50 flex items-end sm:items-center justify-center sm:p-4">
+          <div className="bg-white rounded-t-2xl sm:rounded-2xl shadow-2xl w-full sm:max-w-lg p-6 max-h-[85vh] flex flex-col">
             <div className="flex items-start justify-between mb-4">
               <div>
                 <div className="flex items-center gap-2 mb-1">

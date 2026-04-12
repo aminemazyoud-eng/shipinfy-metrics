@@ -7,7 +7,7 @@ import type { LucideProps } from 'lucide-react'
 import {
   Activity, BarChart3, Users, MapPin, XCircle,
   TrendingUp, Bell, Mail, Settings,
-  UserCheck, GraduationCap, ChevronRight, Brain,
+  UserCheck, GraduationCap, ChevronRight, Brain, DollarSign,
 } from 'lucide-react'
 
 // ─── Types ─────────────────────────────────────────────────────────────────────
@@ -38,10 +38,11 @@ const SECTIONS: NavSection[] = [
     key: 'performance',
     label: 'Performance',
     items: [
-      { href: '/livreurs',  label: 'Livreurs',         icon: Users,  disabled: false },
-      { href: '/hubs',      label: 'Hubs',              icon: MapPin, disabled: false },
-      { href: '/retours',   label: 'Retours & NO_SHOW', icon: XCircle,disabled: false },
-      { href: '/score-ia',  label: 'Score IA',          icon: Brain,  disabled: false },
+      { href: '/livreurs',     label: 'Livreurs',         icon: Users,      disabled: false },
+      { href: '/remuneration', label: 'Rémunération',    icon: DollarSign, disabled: false },
+      { href: '/hubs',         label: 'Hubs',             icon: MapPin,     disabled: false },
+      { href: '/retours',      label: 'Retours & NO_SHOW',icon: XCircle,    disabled: false },
+      { href: '/score-ia',     label: 'Score IA',         icon: Brain,      disabled: false },
     ],
   },
   {
@@ -245,8 +246,8 @@ export default function Sidebar() {
       {expanded && (
         <div className="flex-shrink-0 p-2.5 border-t border-gray-100">
           <div className="px-3 py-2 bg-blue-50 rounded-xl">
-            <p className="text-[11px] font-black text-blue-700 leading-none">SHIPINFY v3.1</p>
-            <p className="text-[10px] text-blue-400 mt-1 leading-none">Sprint 6 — Academy + Guides</p>
+            <p className="text-[11px] font-black text-blue-700 leading-none">SHIPINFY v4.0</p>
+            <p className="text-[10px] text-blue-400 mt-1 leading-none">Sprint 8 — Rémunération</p>
           </div>
         </div>
       )}

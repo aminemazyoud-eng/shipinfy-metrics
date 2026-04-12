@@ -405,3 +405,41 @@ CREATE TABLE IF NOT EXISTS "SlackConfig" (
   CONSTRAINT "SlackConfig_pkey" PRIMARY KEY ("id")
 );
 
+-- ─── SPRINT 8 — RÉMUNÉRATION LIVREURS ────────────────────────────────────────
+
+CREATE TABLE IF NOT EXISTS "PayConfig" (
+  "id"          TEXT NOT NULL,
+  "mode"        TEXT NOT NULL DEFAULT 'standard',
+  "label"       TEXT NOT NULL DEFAULT 'Standard',
+  "baseRate"    DOUBLE PRECISION NOT NULL DEFAULT 15,
+  "bonusRate"   DOUBLE PRECISION NOT NULL DEFAULT 5,
+  "penaltyRate" DOUBLE PRECISION NOT NULL DEFAULT 5,
+  "active"      BOOLEAN NOT NULL DEFAULT true,
+  "createdAt"   TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  "updatedAt"   TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  CONSTRAINT "PayConfig_pkey" PRIMARY KEY ("id")
+);
+
+CREATE UNIQUE INDEX IF NOT EXISTS "PayConfig_mode_key" ON "PayConfig"("mode");
+
+CREATE TABLE IF NOT EXISTS "DriverPay" (
+  "id"           TEXT NOT NULL,
+  "reportId"     TEXT NOT NULL,
+  "driverName"   TEXT NOT NULL,
+  "mode"         TEXT NOT NULL DEFAULT 'standard',
+  "total"        INTEGER NOT NULL DEFAULT 0,
+  "deliveries"   INTEGER NOT NULL DEFAULT 0,
+  "onTime"       INTEGER NOT NULL DEFAULT 0,
+  "noShows"      INTEGER NOT NULL DEFAULT 0,
+  "grossPay"     DOUBLE PRECISION NOT NULL DEFAULT 0,
+  "bonus"        DOUBLE PRECISION NOT NULL DEFAULT 0,
+  "penalty"      DOUBLE PRECISION NOT NULL DEFAULT 0,
+  "netPay"       DOUBLE PRECISION NOT NULL DEFAULT 0,
+  "calculatedAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  CONSTRAINT "DriverPay_pkey" PRIMARY KEY ("id")
+);
+
+CREATE UNIQUE INDEX IF NOT EXISTS "DriverPay_reportId_driverName_mode_key" ON "DriverPay"("reportId","driverName","mode");
+CREATE INDEX IF NOT EXISTS "DriverPay_reportId_idx"   ON "DriverPay"("reportId");
+CREATE INDEX IF NOT EXISTS "DriverPay_driverName_idx" ON "DriverPay"("driverName");
+

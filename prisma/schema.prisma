@@ -302,3 +302,39 @@ model SlackConfig {
   createdAt  DateTime @default(now())
   updatedAt  DateTime @updatedAt
 }
+
+// ─── SPRINT 8 — RÉMUNÉRATION LIVREURS ────────────────────────────────────────
+
+model PayConfig {
+  id          String   @id @default(cuid())
+  mode        String   @default("standard") // "standard" | "express"
+  label       String   @default("Standard")
+  baseRate    Float    @default(15)  // MAD par livraison réussie
+  bonusRate   Float    @default(5)   // MAD bonus livraison dans les délais
+  penaltyRate Float    @default(5)   // MAD pénalité par NO_SHOW
+  active      Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@unique([mode])
+}
+
+model DriverPay {
+  id           String   @id @default(cuid())
+  reportId     String
+  driverName   String
+  mode         String   @default("standard")
+  total        Int      @default(0)  // total commandes assignées
+  deliveries   Int      @default(0)  // livraisons réussies
+  onTime       Int      @default(0)  // dans les délais
+  noShows      Int      @default(0)  // NO_SHOW
+  grossPay     Float    @default(0)  // deliveries × baseRate
+  bonus        Float    @default(0)  // onTime × bonusRate
+  penalty      Float    @default(0)  // noShows × penaltyRate
+  netPay       Float    @default(0)  // grossPay + bonus - penalty
+  calculatedAt DateTime @default(now())
+
+  @@unique([reportId, driverName, mode])
+  @@index([reportId])
+  @@index([driverName])
+}

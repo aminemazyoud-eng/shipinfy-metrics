@@ -6,7 +6,7 @@
 
 ---
 
-## VERSION ACTUELLE : v5.0 — Sprint 7 Alertes Prédictives + Slack
+## VERSION ACTUELLE : v6.0 — Sprint 8 Rémunération Livreurs
 
 ---
 
@@ -33,7 +33,8 @@
 | `/livreurs` | `app/livreurs/page.tsx` | Tableau livreurs |
 | `/hubs` | `app/hubs/page.tsx` | Tableau hubs |
 | `/retours` | `app/retours/page.tsx` | Gestion retours |
-| `/alertes` | `app/alertes/page.tsx` | Alertes + Tickets (**4 tabs** : alertes / tickets / règles / **⏱️ Retards temps réel** — Sprint 7) |
+| `/alertes`       | `app/alertes/page.tsx`       | Alertes + Tickets (**4 tabs** : alertes / tickets / règles / **⏱️ Retards temps réel** — Sprint 7) |
+| `/remuneration`  | `app/remuneration/page.tsx`  | **Rémunération Livreurs** : calcul automatique par course Standard/Express — Sprint 8 |
 | `/rapports` | `app/rapports/page.tsx` | Rapports planifiés |
 | `/onboarding` | `app/onboarding/page.tsx` | Kanban RH 5 colonnes (Sprint 3) |
 | `/academy` | `app/academy/page.tsx` | **2 onglets** : Formation Livreurs (6 modules) + Guides Shipinfy (8 guides) — Sprint 6 |
@@ -115,6 +116,14 @@ Auto-cleanup après 10 minutes. Valide uniquement en mode Docker standalone (pro
 | `POST /api/alerts/predict` | Déclencher manuellement prévision + check retards |
 | `GET/POST /api/slack/config` | Config webhook Slack (GET active, POST crée) |
 | `PUT /api/slack/config` | Tester le webhook Slack |
+
+### Rémunération Livreurs (Sprint 8)
+| Route | Rôle |
+|-------|------|
+| `GET /api/remuneration/config` | Récupère les configs tarifaires (crée défauts si vide) |
+| `POST /api/remuneration/config` | Upsert config par mode (standard/express) |
+| `POST /api/remuneration/calculate` | Calcule et persiste la rémunération par livreur pour un rapport |
+| `GET /api/remuneration?reportId=xxx` | Récupère les DriverPay déjà calculés pour un rapport |
 
 ---
 
@@ -309,4 +318,47 @@ Quand on ajoute une nouvelle page/feature :
 
 ---
 
-*Dernière mise à jour : 2026-04-12 — Sprint 7 : Alertes prédictives + Slack + Responsive mobile/tablet — v5.0 — 14 fixes documentés*
+---
+
+## 11. SPRINT 8 — RÉMUNÉRATION LIVREURS (2026-04-12)
+
+### Objectif
+Calculer automatiquement la rémunération par course pour Mode Standard et Mode Express.
+
+### Formule de calcul
+```
+grossPay = livraisons_réussies × baseRate
+bonus    = livraisons_on_time × bonusRate
+penalty  = noShows × penaltyRate
+netPay   = grossPay + bonus - penalty
+```
+- `DELIVERED` = livraison réussie (status exact dans DeliveryOrder)
+- `on_time` = DELIVERED ET `dateTimeWhenDelivered <= deliveryTimeEnd`
+- `NO_SHOW` = status = 'NO_SHOW'
+- Tarifs configurables dans PayConfig (mode = 'standard' | 'express')
+
+### Modèles DB ajoutés
+- `PayConfig` — config tarifaire par mode (baseRate, bonusRate, penaltyRate) avec `@@unique([mode])`
+- `DriverPay` — rémunération calculée par livreur/rapport/mode avec `@@unique([reportId, driverName, mode])`
+
+### Fichiers créés
+- `app/api/remuneration/config/route.ts` — GET (avec seed défauts) + POST (upsert)
+- `app/api/remuneration/calculate/route.ts` — POST calcul + upsert DriverPay en DB
+- `app/api/remuneration/route.ts` — GET liste DriverPay par reportId
+- `app/remuneration/page.tsx` — page complète avec sélecteur rapport/mode, panel config, tableau trié, totaux
+
+### Fichiers modifiés
+- `prisma/schema.prisma` — modèles PayConfig + DriverPay ajoutés
+- `prisma/init-tables.sql` — tables `PayConfig` + `DriverPay` ajoutées
+- `components/Sidebar.tsx` — Rémunération ajouté dans section Performance (après Livreurs), version → v4.0
+- `components/AppShell.tsx` — idem, version → v4.0
+- `components/BottomNav.tsx` — Rémunération ajouté dans MORE_ITEMS
+
+### ⚠️ Règles importantes
+- Tarifs par défaut : Standard = 15/5/5 MAD, Express = 25/10/10 MAD
+- Auto-seed des configs au 1er appel GET /api/remuneration/config
+- Le calcul est idempotent : relancer recalcule et upsert sans duplication
+
+---
+
+*Dernière mise à jour : 2026-04-12 — Sprint 8 : Rémunération Livreurs — v6.0 — 14 fixes documentés*

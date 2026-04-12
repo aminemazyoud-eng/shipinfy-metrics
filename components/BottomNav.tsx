@@ -5,7 +5,7 @@ import { usePathname } from 'next/navigation'
 import {
   Activity, BarChart3, Bell, Users, MoreHorizontal,
   MapPin, XCircle, BookOpen, GraduationCap, Brain,
-  FileText, UserCheck, Settings, TrendingUp, X,
+  FileText, UserCheck, Settings, TrendingUp, X, DollarSign,
 } from 'lucide-react'
 
 const MAIN_ITEMS = [
@@ -16,14 +16,15 @@ const MAIN_ITEMS = [
 ]
 
 const MORE_ITEMS = [
-  { href: '/previsions', label: 'Prévisions',       icon: TrendingUp  },
-  { href: '/hubs',       label: 'Hubs',              icon: MapPin      },
-  { href: '/retours',    label: 'Retours & NO_SHOW', icon: XCircle     },
-  { href: '/score-ia',   label: 'Score IA',          icon: Brain       },
-  { href: '/rapports',   label: 'Rapports',           icon: FileText    },
-  { href: '/onboarding', label: 'Onboarding',         icon: UserCheck   },
-  { href: '/academy',    label: 'Academy',            icon: GraduationCap },
-  { href: '/parametres', label: 'Paramètres',         icon: Settings    },
+  { href: '/previsions',   label: 'Prévisions',       icon: TrendingUp    },
+  { href: '/remuneration', label: 'Rémunération',     icon: DollarSign    },
+  { href: '/hubs',         label: 'Hubs',              icon: MapPin        },
+  { href: '/retours',      label: 'Retours & NO_SHOW', icon: XCircle       },
+  { href: '/score-ia',     label: 'Score IA',          icon: Brain         },
+  { href: '/rapports',     label: 'Rapports',           icon: FileText      },
+  { href: '/onboarding',   label: 'Onboarding',         icon: UserCheck     },
+  { href: '/academy',      label: 'Academy',            icon: GraduationCap },
+  { href: '/parametres',   label: 'Paramètres',         icon: Settings      },
 ]
 
 export default function BottomNav() {

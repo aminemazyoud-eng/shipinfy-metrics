@@ -1,3 +1,5 @@
+export const runtime = 'nodejs'
+
 import { NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { verifyPassword, createSession, buildSessionCookie, buildRoleCookie } from '@/lib/auth'
@@ -10,18 +12,38 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: 'Email et mot de passe requis' }, { status: 400 })
     }
 
+    const ip = req.headers.get('x-forwarded-for') ?? req.headers.get('x-real-ip') ?? null
+    const userAgent = req.headers.get('user-agent') ?? null
+
     const user = await prisma.user.findUnique({ where: { email: email.toLowerCase().trim() } })
 
     if (!user || !user.active) {
+      // Log failed attempt if user exists
+      if (user) {
+        prisma.$executeRaw`
+          INSERT INTO "LoginLog" ("id","userId","email","tenantId","ip","userAgent","status","createdAt")
+          VALUES (gen_random_uuid()::text, ${user.id}, ${user.email}, ${user.tenantId ?? null}, ${ip}, ${userAgent}, 'failed', NOW())
+        `.catch(() => {})
+      }
       return NextResponse.json({ error: 'Identifiants invalides' }, { status: 401 })
     }
 
     const valid = verifyPassword(password, user.password)
     if (!valid) {
+      prisma.$executeRaw`
+        INSERT INTO "LoginLog" ("id","userId","email","tenantId","ip","userAgent","status","createdAt")
+        VALUES (gen_random_uuid()::text, ${user.id}, ${user.email}, ${user.tenantId ?? null}, ${ip}, ${userAgent}, 'failed', NOW())
+      `.catch(() => {})
       return NextResponse.json({ error: 'Identifiants invalides' }, { status: 401 })
     }
 
     const token = await createSession(user.id)
+
+    // Log successful login (non-blocking)
+    prisma.$executeRaw`
+      INSERT INTO "LoginLog" ("id","userId","email","tenantId","ip","userAgent","status","createdAt")
+      VALUES (gen_random_uuid()::text, ${user.id}, ${user.email}, ${user.tenantId ?? null}, ${ip}, ${userAgent}, 'success', NOW())
+    `.catch(() => {})
 
     const response = NextResponse.json(
       { user: { id: user.id, email: user.email, name: user.name, role: user.role, tenantId: user.tenantId } },

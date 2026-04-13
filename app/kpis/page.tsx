@@ -94,12 +94,21 @@ interface KpisData {
   hubLocations: Array<{ name: string; lat: number; lng: number }>
 }
 
+type CompareMode = 'off' | 'week' | 'month'
+
+interface KpiBasic {
+  totalOrders: number; delivered: number; noShow: number; deliveryRate: number
+  onTimeRate: number; totalCOD: number; avgOrdersPerDay: number; avgCODPerOrder: number
+}
+
 export default function KpisPage() {
   const [activeReport, setActiveReport] = useState<Report | null>(null)
   const [filters, setFilters] = useState<FilterState>(DEFAULT_FILTERS)
   const [kpis, setKpis] = useState<KpisData | null>(null)
   const [loading, setLoading] = useState(false)
   const [modalOpen, setModalOpen] = useState(false)
+  const [compareMode, setCompareMode] = useState<CompareMode>('off')
+  const [prevKpis, setPrevKpis] = useState<KpiBasic | null>(null)
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
   useEffect(() => {
@@ -127,11 +136,30 @@ export default function KpisPage() {
     }
   }, [])
 
+  const fetchPrevKpis = useCallback(async (reportId: string, f: FilterState, mode: CompareMode) => {
+    if (mode === 'off') { setPrevKpis(null); return }
+    try {
+      const offset = mode === 'week' ? 7 : 30
+      const p = new URLSearchParams({ reportId, preset: f.preset, compare: 'true', reportOffset: String(offset) })
+      if (f.dateFrom) p.set('dateFrom', f.dateFrom)
+      if (f.dateTo)   p.set('dateTo',   f.dateTo)
+      if (f.selectedCreneaux.length > 0)  p.set('creneaux', f.selectedCreneaux.join(','))
+      if (f.selectedHubs.length > 0)      p.set('hubs',     f.selectedHubs.join(','))
+      if (f.selectedLivreurs.length > 0)  p.set('livreurs', f.selectedLivreurs.join(','))
+      const res = await fetch(`/api/dashboard/kpis?${p}`)
+      if (res.ok) setPrevKpis(await res.json() as KpiBasic)
+      else setPrevKpis(null)
+    } catch { setPrevKpis(null) }
+  }, [])
+
   useEffect(() => {
     if (!activeReport) { setKpis(null); return }
     if (debounceRef.current) clearTimeout(debounceRef.current)
-    debounceRef.current = setTimeout(() => fetchKpis(activeReport.id, filters), 300)
-  }, [activeReport, filters, fetchKpis])
+    debounceRef.current = setTimeout(() => {
+      fetchKpis(activeReport.id, filters)
+      fetchPrevKpis(activeReport.id, filters, compareMode)
+    }, 300)
+  }, [activeReport, filters, fetchKpis, fetchPrevKpis, compareMode])
 
   const hubs    = kpis?.byHub.map(h => h.hubName) ?? []
   const sprints = kpis?.byLivreur.map(l => l.name) ?? []
@@ -148,6 +176,17 @@ export default function KpisPage() {
             <div>
               <h1 className="text-lg lg:text-xl font-bold text-gray-900">KPIs & Métriques</h1>
               <p className="text-xs lg:text-sm text-gray-500 hidden md:block">Analyse des performances de livraison</p>
+            </div>
+          </div>
+          <div className="flex items-center gap-2 flex-wrap">
+            {/* Compare toggle */}
+            <div className="flex border border-gray-200 rounded-lg overflow-hidden text-xs">
+              {([['off','Désactivé'],['week','J−7'],['month','Mois préc.']] as [CompareMode,string][]).map(([k, label]) => (
+                <button key={k} onClick={() => setCompareMode(k)}
+                  className={`px-3 py-2 font-medium transition ${compareMode === k ? 'bg-blue-600 text-white' : 'text-gray-600 hover:bg-gray-50'}`}>
+                  {label}
+                </button>
+              ))}
             </div>
           </div>
           {activeReport && kpis && (
@@ -191,7 +230,7 @@ export default function KpisPage() {
               totalCOD:        kpis.totalCOD,
               avgOrdersPerDay: kpis.avgOrdersPerDay,
               avgCODPerOrder:  kpis.avgCODPerOrder,
-            }} />
+            }} previousData={prevKpis ?? undefined} />
 
             <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
               <ChartStatusPie data={kpis.statusDistribution} title="Distribution des statuts" />

@@ -1,10 +1,29 @@
 import { NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
+import { getSession } from '@/lib/auth'
 
 export const runtime = 'nodejs'
 
-export async function POST() {
+export async function POST(req: Request) {
   try {
+    // Fetch tenant coefficients (fallback to defaults if not available)
+    const session = await getSession(req)
+    let coeffDelivery = 0.4
+    let coeffAcademy  = 0.3
+    let coeffNoShow   = 0.3
+
+    if (session?.tenantId) {
+      const tenant = await prisma.tenant.findUnique({
+        where: { id: session.tenantId },
+        select: { scoreCoeffDelivery: true, scoreCoeffAcademy: true, scoreCoeffNoShow: true },
+      })
+      if (tenant) {
+        coeffDelivery = tenant.scoreCoeffDelivery ?? 0.4
+        coeffAcademy  = tenant.scoreCoeffAcademy  ?? 0.3
+        coeffNoShow   = tenant.scoreCoeffNoShow   ?? 0.3
+      }
+    }
+
     // Get the active report
     const report = await prisma.deliveryReport.findFirst({
       where: { isActive: true },
@@ -43,7 +62,7 @@ export async function POST() {
       const deliveryRate = stats.total > 0 ? (stats.delivered / stats.total) * 100 : 0
       const noShowRate   = stats.total > 0 ? (stats.noShow   / stats.total) * 100 : 0
       const academyScore = 0 // will be updated when Academy data is available
-      const score = deliveryRate * 0.4 + academyScore * 0.3 + (100 - noShowRate) * 0.3
+      const score = deliveryRate * coeffDelivery + academyScore * coeffAcademy + (100 - noShowRate) * coeffNoShow
 
       // Determine recommendation
       let recommendation: string | null = null

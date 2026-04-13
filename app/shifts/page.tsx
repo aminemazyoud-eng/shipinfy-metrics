@@ -379,7 +379,48 @@ function SlotCard({ slot, scores, onUpdated, onDelete }: {
   )
 }
 
+// ─── Conflict detection ───────────────────────────────────────────────────────
+
+function detectConflicts(slots: ShiftSlot[]): string[] {
+  // Find drivers assigned to 2+ slots that overlap on the same day/time
+  const conflicts: string[] = []
+  const byDriver = new Map<string, ShiftSlot[]>()
+  for (const slot of slots) {
+    for (const a of slot.assignments) {
+      if (!byDriver.has(a.driverName)) byDriver.set(a.driverName, [])
+      byDriver.get(a.driverName)!.push(slot)
+    }
+  }
+  for (const [driver, driverSlots] of byDriver.entries()) {
+    for (let i = 0; i < driverSlots.length; i++) {
+      for (let j = i + 1; j < driverSlots.length; j++) {
+        const a = driverSlots[i]
+        const b = driverSlots[j]
+        if (a.date.slice(0, 10) !== b.date.slice(0, 10)) continue
+        // Check time overlap
+        const aStart = a.startTime, aEnd = a.endTime
+        const bStart = b.startTime, bEnd = b.endTime
+        if (aStart < bEnd && bStart < aEnd) {
+          if (!conflicts.includes(driver)) conflicts.push(driver)
+        }
+      }
+    }
+  }
+  return conflicts
+}
+
+// ─── Calendar cell fill color ─────────────────────────────────────────────────
+
+function calSlotColor(assigned: number, min: number, max: number): string {
+  if (assigned >= max)  return 'bg-green-100 border-green-300 text-green-800'
+  if (assigned >= min)  return 'bg-blue-50 border-blue-200 text-blue-800'
+  if (assigned === 0)   return 'bg-red-50 border-red-200 text-red-700'
+  return 'bg-orange-50 border-orange-200 text-orange-800'
+}
+
 // ─── Tab: Planning ────────────────────────────────────────────────────────────
+
+type PlanView = 'list' | 'calendar'
 
 function PlanningTab() {
   const [weekStart, setWeekStart] = useState(() => getMondayOfWeek(new Date()))
@@ -388,6 +429,7 @@ function PlanningTab() {
   const [loading, setLoading]     = useState(false)
   const [createDate, setCreateDate] = useState<string | null>(null)
   const [zoneFilter, setZoneFilter] = useState('all')
+  const [planView, setPlanView]     = useState<PlanView>('calendar')
 
   const weekDays = Array.from({ length: 7 }, (_, i) => addDays(weekStart, i))
   const zones    = ['all', ...Array.from(new Set(slots.map(s => s.zone))).sort()]
@@ -435,9 +477,21 @@ function PlanningTab() {
   const totalAssigned = slots.reduce((s, slot) => s + slot.assignments.length, 0)
   const slotsOk       = slots.filter(s => s.assignments.length >= s.minDrivers).length
   const priorityCount = slots.reduce((s, slot) => s + slot.assignments.filter(a => a.priority).length, 0)
+  const conflicts     = detectConflicts(slots)
 
   return (
     <div className="space-y-4">
+      {/* Conflict alert */}
+      {conflicts.length > 0 && (
+        <div className="flex items-center gap-2 bg-red-50 border border-red-200 rounded-xl px-4 py-2">
+          <AlertTriangle size={15} className="text-red-500 flex-shrink-0" />
+          <span className="text-sm font-semibold text-red-700">
+            {conflicts.length} conflit{conflicts.length > 1 ? 's' : ''} détecté{conflicts.length > 1 ? 's' : ''} :
+          </span>
+          <span className="text-sm text-red-600">{conflicts.join(', ')}</span>
+        </div>
+      )}
+
       {/* Summary cards */}
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
         {[
@@ -453,7 +507,7 @@ function PlanningTab() {
         ))}
       </div>
 
-      {/* Week navigation + zone filter */}
+      {/* Week navigation + zone filter + view toggle */}
       <div className="flex flex-wrap items-center gap-3">
         <div className="flex items-center gap-2 bg-white rounded-xl border border-gray-200 px-3 py-2">
           <button onClick={() => setWeekStart(d => addDays(d, -7))} className="text-gray-400 hover:text-gray-700">
@@ -484,12 +538,91 @@ function PlanningTab() {
           </div>
         )}
 
-        <button onClick={load} className="ml-auto text-gray-400 hover:text-blue-600 transition-colors">
-          <RefreshCw size={15} className={loading ? 'animate-spin' : ''} />
-        </button>
+        <div className="ml-auto flex items-center gap-2">
+          {/* View toggle */}
+          <div className="flex border border-gray-200 rounded-lg overflow-hidden text-xs">
+            <button
+              onClick={() => setPlanView('calendar')}
+              className={`px-3 py-1.5 font-medium transition flex items-center gap-1 ${planView === 'calendar' ? 'bg-blue-600 text-white' : 'text-gray-600 hover:bg-gray-50'}`}
+            >
+              <Calendar size={12} /> Calendrier
+            </button>
+            <button
+              onClick={() => setPlanView('list')}
+              className={`px-3 py-1.5 font-medium transition flex items-center gap-1 ${planView === 'list' ? 'bg-blue-600 text-white' : 'text-gray-600 hover:bg-gray-50'}`}
+            >
+              <Users size={12} /> Liste
+            </button>
+          </div>
+          <button onClick={load} className="text-gray-400 hover:text-blue-600 transition-colors">
+            <RefreshCw size={15} className={loading ? 'animate-spin' : ''} />
+          </button>
+        </div>
       </div>
 
-      {/* Calendar grid */}
+      {/* Calendar view */}
+      {planView === 'calendar' && (
+        <div className="overflow-x-auto">
+          <div className="grid grid-cols-7 gap-1 min-w-[700px]">
+            {weekDays.map((day, i) => {
+              const daySlots = slotsForDay(day)
+              const isToday  = fmtDate(day) === fmtDate(new Date())
+              return (
+                <div key={i} className="flex flex-col gap-1">
+                  {/* Day header */}
+                  <div className={[
+                    'text-center py-2 rounded-xl text-xs font-bold',
+                    isToday ? 'bg-blue-600 text-white' : 'bg-gray-50 text-gray-500',
+                  ].join(' ')}>
+                    <div>{DAYS_FR[day.getDay()]}</div>
+                    <div className={isToday ? 'text-blue-100 text-[10px]' : 'text-gray-400 text-[10px]'}>{day.getDate()}/{day.getMonth()+1}</div>
+                  </div>
+                  {/* Compact calendar cells */}
+                  <div className="flex flex-col gap-1 min-h-[80px]">
+                    {daySlots.length === 0 ? (
+                      <button
+                        onClick={() => setCreateDate(fmtDate(day))}
+                        className="flex-1 min-h-[60px] border border-dashed border-gray-200 rounded-xl text-gray-300 hover:border-blue-400 hover:text-blue-400 hover:bg-blue-50 transition-colors text-[10px] flex flex-col items-center justify-center gap-0.5"
+                      >
+                        <Plus size={11} />
+                        <span>Ajouter</span>
+                      </button>
+                    ) : (
+                      <>
+                        {daySlots.map(slot => {
+                          const assigned = slot.assignments.length
+                          const cellColor = calSlotColor(assigned, slot.minDrivers, slot.maxDrivers)
+                          const hasConflict = slot.assignments.some(a => conflicts.includes(a.driverName))
+                          return (
+                            <div key={slot.id} className={`rounded-lg border px-2 py-1.5 text-[10px] ${cellColor} ${hasConflict ? 'ring-2 ring-red-400' : ''}`}>
+                              <div className="font-bold truncate">{slot.startTime}–{slot.endTime}</div>
+                              <div className="truncate text-[9px] opacity-75">{slot.zone}</div>
+                              <div className="flex items-center gap-1 mt-0.5">
+                                <Users size={8} />
+                                <span className="font-semibold">{assigned}/{slot.maxDrivers}</span>
+                                {hasConflict && <AlertTriangle size={8} className="text-red-500 ml-auto" />}
+                              </div>
+                            </div>
+                          )
+                        })}
+                        <button
+                          onClick={() => setCreateDate(fmtDate(day))}
+                          className="w-full py-1 border border-dashed border-gray-200 rounded-lg text-gray-300 hover:border-blue-400 hover:text-blue-400 hover:bg-blue-50 transition-colors text-[10px] flex items-center justify-center gap-0.5"
+                        >
+                          <Plus size={9} /> Créneau
+                        </button>
+                      </>
+                    )}
+                  </div>
+                </div>
+              )
+            })}
+          </div>
+        </div>
+      )}
+
+      {/* List view (original grid) */}
+      {planView === 'list' && (
       <div className="overflow-x-auto">
         <div className="grid grid-cols-7 gap-2 min-w-[700px]">
           {weekDays.map((day, i) => {
@@ -530,6 +663,7 @@ function PlanningTab() {
           })}
         </div>
       </div>
+      )}
 
       {createDate && (
         <CreateSlotModal

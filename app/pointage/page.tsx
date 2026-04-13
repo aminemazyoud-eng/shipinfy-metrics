@@ -1,6 +1,6 @@
 'use client'
 import { useState, useEffect, useCallback } from 'react'
-import { Clock, CheckCircle2, XCircle, UserCheck, Loader2, Plus, X } from 'lucide-react'
+import { Clock, CheckCircle2, XCircle, UserCheck, Loader2, Plus, X, Download } from 'lucide-react'
 
 interface Attendance {
   id: string; driverName: string; date: string; hub: string | null
@@ -36,6 +36,11 @@ function duration(checkIn: string | null, checkOut: string | null): string {
 
 function toDateInput(d: Date): string {
   return d.toISOString().slice(0, 10)
+}
+
+function currentMonth(): string {
+  const d = new Date()
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`
 }
 
 export default function PointagePage() {
@@ -112,12 +117,19 @@ export default function PointagePage() {
             Gestion des présences et horaires journaliers
           </p>
         </div>
-        <div className="flex gap-2 items-center">
+        <div className="flex gap-2 items-center flex-wrap">
           <input
             type="date" value={date}
             onChange={e => setDate(e.target.value)}
             className="border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-teal-400"
           />
+          <a
+            href={`/api/pointage/export?month=${currentMonth()}`}
+            download
+            className="flex items-center gap-1.5 px-3 py-2 bg-gray-100 text-gray-700 text-sm font-medium rounded-lg hover:bg-gray-200 min-h-[44px] border border-gray-200"
+          >
+            <Download size={15} /> Rapport mensuel CSV
+          </a>
           <button
             onClick={() => setShowForm(v => !v)}
             className="flex items-center gap-1.5 px-3 py-2 bg-teal-600 text-white text-sm font-medium rounded-lg hover:bg-teal-700 min-h-[44px]"

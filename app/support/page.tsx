@@ -2,7 +2,7 @@
 import { useState, useEffect, useCallback } from 'react'
 import {
   HeadphonesIcon, Plus, X, Loader2, AlertTriangle,
-  CheckCircle2, Clock, Filter,
+  CheckCircle2, Clock, Filter, Star,
 } from 'lucide-react'
 
 interface SupportTicket {
@@ -10,7 +10,78 @@ interface SupportTicket {
   status: string; subject: string; description: string
   clientName: string | null; clientPhone: string | null; orderRef: string | null
   assignedTo: string | null; resolvedAt: string | null
+  satisfactionScore: number | null; satisfactionComment: string | null
   createdAt: string; updatedAt: string
+}
+
+// ─── Satisfaction Stars ───────────────────────────────────────────────────────
+
+function SatisfactionStars({ score, interactive, onSelect }: {
+  score: number | null; interactive?: boolean; onSelect?: (s: number) => void
+}) {
+  const [hovered, setHovered] = useState(0)
+  return (
+    <div className="flex gap-0.5">
+      {[1, 2, 3, 4, 5].map(s => (
+        <button
+          key={s}
+          type="button"
+          disabled={!interactive}
+          onClick={() => onSelect?.(s)}
+          onMouseEnter={() => interactive ? setHovered(s) : undefined}
+          onMouseLeave={() => interactive ? setHovered(0) : undefined}
+          className={`${interactive ? 'cursor-pointer' : 'cursor-default'} transition-colors`}
+        >
+          <Star
+            size={14}
+            className={
+              s <= (hovered || score || 0)
+                ? 'fill-amber-400 text-amber-400'
+                : 'text-gray-300'
+            }
+          />
+        </button>
+      ))}
+    </div>
+  )
+}
+
+function SatisfactionForm({ ticketId, onDone }: { ticketId: string; onDone: () => void }) {
+  const [score, setScore]     = useState(0)
+  const [comment, setComment] = useState('')
+  const [saving, setSaving]   = useState(false)
+
+  const submit = async () => {
+    if (!score) return
+    setSaving(true)
+    await fetch(`/api/support/${ticketId}/satisfaction`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ score, comment: comment || undefined }),
+    })
+    setSaving(false)
+    onDone()
+  }
+
+  return (
+    <div className="mt-2 p-3 bg-amber-50 border border-amber-200 rounded-xl">
+      <p className="text-xs font-semibold text-amber-800 mb-2">Évaluer la résolution :</p>
+      <SatisfactionStars score={score} interactive onSelect={setScore} />
+      <input
+        value={comment}
+        onChange={e => setComment(e.target.value)}
+        placeholder="Commentaire optionnel…"
+        className="mt-2 w-full border border-amber-200 rounded-lg px-2 py-1.5 text-xs bg-white focus:outline-none focus:ring-1 focus:ring-amber-400"
+      />
+      <button
+        onClick={submit}
+        disabled={!score || saving}
+        className="mt-2 px-3 py-1.5 bg-amber-500 text-white text-xs font-semibold rounded-lg hover:bg-amber-600 disabled:opacity-50"
+      >
+        {saving ? 'Envoi…' : 'Envoyer'}
+      </button>
+    </div>
+  )
 }
 
 const CATEGORIES = [
@@ -51,6 +122,22 @@ function StatusBadge({ s }: { s: string }) {
 
 function fmtDate(iso: string) {
   return new Date(iso).toLocaleDateString('fr-MA', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' })
+}
+
+function slaInfo(ticket: SupportTicket): { label: string; color: string } | null {
+  if (ticket.status === 'resolu' || ticket.status === 'ferme') return null
+  const ageH = (Date.now() - new Date(ticket.createdAt).getTime()) / 3600000
+  if (ageH < 24)  return { label: 'SLA OK',        color: 'bg-green-100 text-green-700'  }
+  if (ageH < 48)  return { label: '⚠ SLA 24h',     color: 'bg-orange-100 text-orange-700' }
+  return             { label: '🚨 SLA dépassé',   color: 'bg-red-100 text-red-700'      }
+}
+
+function SlaBadge({ ticket }: { ticket: SupportTicket }) {
+  const info = slaInfo(ticket)
+  if (!info) return null
+  return (
+    <span className={`inline-flex px-2 py-0.5 rounded-full text-[10px] font-bold ${info.color}`}>{info.label}</span>
+  )
 }
 
 export default function SupportPage() {
@@ -115,10 +202,52 @@ export default function SupportPage() {
     await load()
   }
 
+  const [satisfactionOpen, setSatisfactionOpen] = useState<string | null>(null)
+
   const counts = {
     ouvert:   tickets.filter(t => t.status === 'ouvert').length,
     en_cours: tickets.filter(t => t.status === 'en_cours').length,
     resolu:   tickets.filter(t => t.status === 'resolu').length,
+  }
+
+  // SLA stats
+  const thisMonth = new Date().getMonth()
+  const thisYear  = new Date().getFullYear()
+
+  // Satisfaction moyenne ce mois
+  const resolvedThisMonthWithScore = tickets.filter(t => {
+    if (t.status !== 'resolu' || !t.resolvedAt || !t.satisfactionScore) return false
+    const d = new Date(t.resolvedAt)
+    return d.getMonth() === thisMonth && d.getFullYear() === thisYear
+  })
+  const avgSatisfaction = resolvedThisMonthWithScore.length > 0
+    ? Math.round(resolvedThisMonthWithScore.reduce((s, t) => s + (t.satisfactionScore ?? 0), 0) / resolvedThisMonthWithScore.length * 10) / 10
+    : null
+
+  const resolvedThisMonth = tickets.filter(t => {
+    if (t.status !== 'resolu' || !t.resolvedAt) return false
+    const d = new Date(t.resolvedAt)
+    return d.getMonth() === thisMonth && d.getFullYear() === thisYear
+  })
+  const resolvedWithTime = tickets.filter(t => t.status === 'resolu' && t.resolvedAt)
+  const avgResolutionH = resolvedWithTime.length > 0
+    ? Math.round(resolvedWithTime.reduce((sum, t) => {
+        return sum + (new Date(t.resolvedAt!).getTime() - new Date(t.createdAt).getTime()) / 3600000
+      }, 0) / resolvedWithTime.length * 10) / 10
+    : 0
+  const slaOk = resolvedWithTime.filter(t =>
+    (new Date(t.resolvedAt!).getTime() - new Date(t.createdAt).getTime()) / 3600000 < 24
+  ).length
+  const slaRate = resolvedWithTime.length > 0 ? Math.round((slaOk / resolvedWithTime.length) * 100) : 0
+
+  const resolveTicket = async (ticket: SupportTicket) => {
+    await fetch(`/api/support/${ticket.id}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ status: 'resolu', resolvedAt: new Date().toISOString() }),
+    })
+    setSelected(null)
+    await load()
   }
 
   return (
@@ -140,6 +269,38 @@ export default function SupportPage() {
           >
             <Plus size={15} /> Nouveau ticket
           </button>
+        </div>
+      </div>
+
+      {/* SLA Overview */}
+      <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
+        {[
+          { label: 'Tickets ouverts',          value: counts.ouvert,                       color: 'text-yellow-700', bg: 'bg-yellow-50 border-yellow-200' },
+          { label: 'Résolus ce mois',           value: resolvedThisMonth.length,            color: 'text-green-700',  bg: 'bg-green-50 border-green-200'   },
+          { label: 'Moy. résolution (h)',       value: avgResolutionH > 0 ? `${avgResolutionH}h` : '—', color: 'text-blue-700', bg: 'bg-blue-50 border-blue-200' },
+          { label: 'SLA respecté (< 24h)',      value: `${slaRate}%`,                       color: slaRate >= 80 ? 'text-green-700' : slaRate >= 50 ? 'text-orange-700' : 'text-red-700', bg: slaRate >= 80 ? 'bg-green-50 border-green-200' : slaRate >= 50 ? 'bg-orange-50 border-orange-200' : 'bg-red-50 border-red-200' },
+        ].map(c => (
+          <div key={c.label} className={`rounded-xl border p-3 lg:p-4 ${c.bg}`}>
+            <div className={`text-2xl font-bold ${c.color}`}>{c.value}</div>
+            <div className="text-xs text-gray-500">{c.label}</div>
+          </div>
+        ))}
+        {/* Satisfaction moyenne ce mois */}
+        <div className="rounded-xl border p-3 lg:p-4 bg-amber-50 border-amber-200">
+          <div className="flex items-center gap-1 mb-1">
+            {avgSatisfaction !== null ? (
+              <>
+                <span className="text-2xl font-bold text-amber-700">{avgSatisfaction}</span>
+                <Star size={16} className="fill-amber-400 text-amber-400 mb-0.5" />
+              </>
+            ) : (
+              <span className="text-2xl font-bold text-gray-400">—</span>
+            )}
+          </div>
+          <div className="text-xs text-gray-500">Satisfaction moyenne</div>
+          {resolvedThisMonthWithScore.length > 0 && (
+            <div className="text-[10px] text-amber-600 mt-0.5">{resolvedThisMonthWithScore.length} avis ce mois</div>
+          )}
         </div>
       </div>
 
@@ -281,6 +442,7 @@ export default function SupportPage() {
                     <span className="text-xs font-mono text-gray-400">{t.reference}</span>
                     <PriorityBadge p={t.priority} />
                     <StatusBadge s={t.status} />
+                    <SlaBadge ticket={t} />
                     <span className="text-xs text-gray-400 ml-auto">{fmtDate(t.createdAt)}</span>
                   </div>
                   <p className="text-sm font-medium text-gray-900 truncate">{t.subject}</p>
@@ -289,6 +451,32 @@ export default function SupportPage() {
                     {t.clientName && ` — ${t.clientName}`}
                     {t.orderRef   && ` — ${t.orderRef}`}
                   </p>
+                  {/* Satisfaction — résolu uniquement */}
+                  {t.status === 'resolu' && (
+                    <div className="mt-2" onClick={e => e.stopPropagation()}>
+                      {t.satisfactionScore ? (
+                        <div className="flex items-center gap-1.5">
+                          <SatisfactionStars score={t.satisfactionScore} />
+                          <span className="text-[10px] text-amber-600 font-medium">{t.satisfactionScore}/5</span>
+                          {t.satisfactionComment && (
+                            <span className="text-[10px] text-gray-400 truncate max-w-[160px]">"{t.satisfactionComment}"</span>
+                          )}
+                        </div>
+                      ) : satisfactionOpen === t.id ? (
+                        <SatisfactionForm
+                          ticketId={t.id}
+                          onDone={() => { setSatisfactionOpen(null); load() }}
+                        />
+                      ) : (
+                        <button
+                          onClick={() => setSatisfactionOpen(t.id)}
+                          className="text-[11px] px-2 py-1 border border-amber-300 text-amber-700 rounded-lg hover:bg-amber-50 transition-colors"
+                        >
+                          Demander avis
+                        </button>
+                      )}
+                    </div>
+                  )}
                 </div>
               </div>
             </div>

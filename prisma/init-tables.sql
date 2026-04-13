@@ -626,3 +626,59 @@ WHERE NOT EXISTS (SELECT 1 FROM "Tenant" WHERE "id" = 'tenant_shipinfy_demo');
 -- Super admin seeded via /api/auth/bootstrap on first run
 -- (password hashing requires Node.js crypto — cannot compute in SQL)
 
+-- Sprint 15: Score IA config + Alert stats + N8N logs
+ALTER TABLE "Tenant" ADD COLUMN IF NOT EXISTS "scoreCoeffDelivery" FLOAT DEFAULT 0.4;
+ALTER TABLE "Tenant" ADD COLUMN IF NOT EXISTS "scoreCoeffAcademy" FLOAT DEFAULT 0.3;
+ALTER TABLE "Tenant" ADD COLUMN IF NOT EXISTS "scoreCoeffNoShow" FLOAT DEFAULT 0.3;
+
+CREATE TABLE IF NOT EXISTS "N8NLog" (
+  "id" TEXT PRIMARY KEY DEFAULT gen_random_uuid()::text,
+  "configId" TEXT,
+  "eventType" TEXT NOT NULL,
+  "status" TEXT NOT NULL,
+  "responseCode" INT,
+  "payload" TEXT,
+  "error" TEXT,
+  "createdAt" TIMESTAMPTZ DEFAULT NOW()
+);
+CREATE INDEX IF NOT EXISTS "N8NLog_configId_idx" ON "N8NLog"("configId");
+CREATE INDEX IF NOT EXISTS "N8NLog_eventType_idx" ON "N8NLog"("eventType");
+CREATE INDEX IF NOT EXISTS "N8NLog_createdAt_idx" ON "N8NLog"("createdAt");
+
+-- Sprint 15: Support SLA
+ALTER TABLE "SupportTicket" ADD COLUMN IF NOT EXISTS "slaBreached" BOOLEAN DEFAULT false;
+
+-- ─── SPRINT 15b — Rémunération validation + Auth logs ─────────────────────────
+
+ALTER TABLE "DeliveryReport" ADD COLUMN IF NOT EXISTS "payValidated" BOOLEAN DEFAULT false;
+ALTER TABLE "DeliveryReport" ADD COLUMN IF NOT EXISTS "payValidatedAt" TIMESTAMPTZ;
+ALTER TABLE "DeliveryReport" ADD COLUMN IF NOT EXISTS "payValidatedBy" TEXT;
+
+CREATE TABLE IF NOT EXISTS "LoginLog" (
+  "id"        TEXT PRIMARY KEY DEFAULT gen_random_uuid()::text,
+  "userId"    TEXT NOT NULL,
+  "email"     TEXT NOT NULL,
+  "tenantId"  TEXT,
+  "ip"        TEXT,
+  "userAgent" TEXT,
+  "status"    TEXT NOT NULL DEFAULT 'success',
+  "createdAt" TIMESTAMPTZ DEFAULT NOW()
+);
+CREATE INDEX IF NOT EXISTS "LoginLog_userId_idx"    ON "LoginLog"("userId");
+CREATE INDEX IF NOT EXISTS "LoginLog_tenantId_idx"  ON "LoginLog"("tenantId");
+CREATE INDEX IF NOT EXISTS "LoginLog_createdAt_idx" ON "LoginLog"("createdAt");
+
+CREATE TABLE IF NOT EXISTS "PasswordReset" (
+  "id"        TEXT PRIMARY KEY DEFAULT gen_random_uuid()::text,
+  "userId"    TEXT NOT NULL,
+  "token"     TEXT UNIQUE NOT NULL,
+  "expiresAt" TIMESTAMPTZ NOT NULL,
+  "usedAt"    TIMESTAMPTZ,
+  "createdAt" TIMESTAMPTZ DEFAULT NOW()
+);
+CREATE INDEX IF NOT EXISTS "PasswordReset_token_idx" ON "PasswordReset"("token");
+
+-- ─── SPRINT 15c — Support satisfaction score ──────────────────────────────────
+ALTER TABLE "Ticket" ADD COLUMN IF NOT EXISTS "satisfactionScore" INT CHECK ("satisfactionScore" BETWEEN 1 AND 5);
+ALTER TABLE "Ticket" ADD COLUMN IF NOT EXISTS "satisfactionComment" TEXT;
+

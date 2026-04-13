@@ -4,8 +4,17 @@ import {
   Settings, Mail, Bell, Database, Shield, RefreshCw,
   CheckCircle, AlertTriangle, Save, Eye, EyeOff,
   Hash, Loader2, CheckCircle2, XCircle, Webhook,
-  Plus, Trash2, Play, ChevronDown, ChevronUp,
+  Plus, Trash2, Play, ChevronDown, ChevronUp, Lock,
 } from 'lucide-react'
+
+interface LoginLog {
+  id: string
+  email: string
+  ip: string | null
+  userAgent: string | null
+  status: string
+  createdAt: string
+}
 
 interface N8NConfig {
   id:              string
@@ -72,6 +81,13 @@ export default function ParametresPage() {
   const [threshCritical, setThreshCritical] = useState(60)
   const [threshGood,     setThreshGood]     = useState(80)
 
+  // Sprint 15 — Score IA coefficients
+  const [coeffDelivery, setCoeffDelivery] = useState(0.4)
+  const [coeffAcademy,  setCoeffAcademy]  = useState(0.3)
+  const [coeffNoShow,   setCoeffNoShow]   = useState(0.3)
+  const [coeffSaving,   setCoeffSaving]   = useState(false)
+  const [coeffSaved,    setCoeffSaved]    = useState(false)
+
   // Cron
   const [cronTime, setCronTime]   = useState('02:00')
   const [cronEnabled, setCronEnabled] = useState(true)
@@ -88,6 +104,11 @@ export default function ParametresPage() {
   const [n8nForm, setN8nForm]           = useState({ name: '', webhookUrl: '', eventType: 'report_ready', secret: '' })
   const [n8nSaving, setN8nSaving]       = useState(false)
   const [n8nTestMap, setN8nTestMap]     = useState<Record<string, 'idle'|'loading'|'ok'|'error'>>({})
+
+  // Sprint 15 — Login logs
+  const [loginLogs, setLoginLogs]           = useState<LoginLog[]>([])
+  const [loginLogsLoading, setLoginLogsLoading] = useState(false)
+  const [loginLogsLoaded, setLoginLogsLoaded]   = useState(false)
 
   // Sprint 7 — Slack config
   const [slackWebhook, setSlackWebhook] = useState('')
@@ -157,6 +178,35 @@ export default function ParametresPage() {
     }).catch(() => {})
   }, [])
 
+  // Sprint 15 — load tenant coefficients
+  useEffect(() => {
+    fetch('/api/settings/score-config').then(r => r.ok ? r.json() : null).then((d: { scoreCoeffDelivery?: number; scoreCoeffAcademy?: number; scoreCoeffNoShow?: number } | null) => {
+      if (!d) return
+      if (d.scoreCoeffDelivery !== undefined) setCoeffDelivery(d.scoreCoeffDelivery)
+      if (d.scoreCoeffAcademy  !== undefined) setCoeffAcademy(d.scoreCoeffAcademy)
+      if (d.scoreCoeffNoShow   !== undefined) setCoeffNoShow(d.scoreCoeffNoShow)
+    }).catch(() => {})
+  }, [])
+
+  async function saveCoefficients() {
+    setCoeffSaving(true)
+    try {
+      await fetch('/api/settings/score-config', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          scoreCoeffDelivery: coeffDelivery,
+          scoreCoeffAcademy:  coeffAcademy,
+          scoreCoeffNoShow:   coeffNoShow,
+        }),
+      })
+      setCoeffSaved(true)
+      setTimeout(() => setCoeffSaved(false), 3000)
+    } finally {
+      setCoeffSaving(false)
+    }
+  }
+
   async function saveSlack() {
     if (!slackWebhook) return
     setSlackSaving(true)
@@ -214,6 +264,21 @@ export default function ParametresPage() {
       setTestStatus('error')
     }
     setTimeout(() => setTestStatus('idle'), 4000)
+  }
+
+  async function loadLoginLogs() {
+    if (loginLogsLoading) return
+    setLoginLogsLoading(true)
+    try {
+      const res = await fetch('/api/auth/login-logs')
+      if (res.ok) {
+        const data = await res.json() as LoginLog[]
+        setLoginLogs(Array.isArray(data) ? data : [])
+        setLoginLogsLoaded(true)
+      }
+    } finally {
+      setLoginLogsLoading(false)
+    }
   }
 
   function handleSave() {
@@ -319,6 +384,73 @@ export default function ParametresPage() {
           </Field>
         </div>
       </Section>
+
+      {/* ── Score IA — Coefficients (Sprint 15) ────────────── */}
+      {(() => {
+        const total = Math.round((coeffDelivery + coeffAcademy + coeffNoShow) * 100) / 100
+        const isValid = Math.abs(total - 1.0) < 0.01
+        return (
+          <Section icon={Shield} title="Score IA — Coefficients">
+            <div className="space-y-4">
+              <div className={`rounded-lg p-3 text-xs font-medium ${isValid ? 'bg-green-50 text-green-700' : 'bg-red-50 text-red-700'}`}>
+                Somme des coefficients : <span className="font-bold font-mono">{total.toFixed(2)}</span>
+                {isValid ? ' ✓ Correct' : ' — La somme doit être égale à 1.0'}
+              </div>
+
+              <Field label="Taux de livraison" hint={`Coefficient actuel : ${coeffDelivery.toFixed(2)}`}>
+                <div className="flex items-center gap-3">
+                  <input
+                    type="range" min={0} max={1} step={0.05}
+                    value={coeffDelivery}
+                    onChange={e => setCoeffDelivery(Number(e.target.value))}
+                    className="flex-1 accent-blue-600"
+                  />
+                  <span className="w-12 text-sm font-mono font-bold text-blue-700 text-right">{coeffDelivery.toFixed(2)}</span>
+                </div>
+              </Field>
+
+              <Field label="Score Academy" hint={`Coefficient actuel : ${coeffAcademy.toFixed(2)}`}>
+                <div className="flex items-center gap-3">
+                  <input
+                    type="range" min={0} max={1} step={0.05}
+                    value={coeffAcademy}
+                    onChange={e => setCoeffAcademy(Number(e.target.value))}
+                    className="flex-1 accent-purple-600"
+                  />
+                  <span className="w-12 text-sm font-mono font-bold text-purple-700 text-right">{coeffAcademy.toFixed(2)}</span>
+                </div>
+              </Field>
+
+              <Field label="Taux NO_SHOW (inverse)" hint={`Coefficient actuel : ${coeffNoShow.toFixed(2)}`}>
+                <div className="flex items-center gap-3">
+                  <input
+                    type="range" min={0} max={1} step={0.05}
+                    value={coeffNoShow}
+                    onChange={e => setCoeffNoShow(Number(e.target.value))}
+                    className="flex-1 accent-orange-600"
+                  />
+                  <span className="w-12 text-sm font-mono font-bold text-orange-700 text-right">{coeffNoShow.toFixed(2)}</span>
+                </div>
+              </Field>
+
+              <div className="bg-gray-50 rounded-lg p-3 text-xs text-gray-600 font-mono">
+                score = livraison×{coeffDelivery.toFixed(2)} + academy×{coeffAcademy.toFixed(2)} + (100−noShow)×{coeffNoShow.toFixed(2)}
+              </div>
+
+              <div className="flex justify-end pt-1">
+                <button
+                  onClick={saveCoefficients}
+                  disabled={coeffSaving || !isValid}
+                  className="flex items-center gap-2 bg-blue-600 text-white px-4 py-2 rounded-lg text-sm font-medium hover:bg-blue-700 transition disabled:opacity-50 min-h-[40px]"
+                >
+                  {coeffSaving ? <Loader2 size={14} className="animate-spin" /> : coeffSaved ? <CheckCircle2 size={14} /> : <Save size={14} />}
+                  {coeffSaved ? 'Sauvegardé !' : 'Sauvegarder'}
+                </button>
+              </div>
+            </div>
+          </Section>
+        )
+      })()}
 
       {/* ── Tâches planifiées ─────────────────────────────── */}
       <Section icon={RefreshCw} title="Tâches planifiées (Cron)">
@@ -602,6 +734,78 @@ export default function ParametresPage() {
           <p className="text-xs text-gray-400">
             URL de retour N8N → Shipinfy : <code className="font-mono bg-gray-100 px-1 rounded">/api/webhooks/n8n</code>
           </p>
+        </div>
+      </Section>
+
+      {/* ── Sprint 15 — Sécurité — Historique des connexions ─────────────── */}
+      <Section icon={Lock} title="Sécurité — Historique des connexions">
+        <div className="space-y-3">
+          <p className="text-xs text-gray-500">
+            Les 20 dernières connexions à votre compte (succès et échecs).
+          </p>
+          {!loginLogsLoaded ? (
+            <button
+              onClick={loadLoginLogs}
+              disabled={loginLogsLoading}
+              className="flex items-center gap-2 border border-gray-200 px-4 py-2 rounded-lg text-sm text-gray-600 hover:bg-gray-50 transition disabled:opacity-50"
+            >
+              {loginLogsLoading ? <Loader2 size={14} className="animate-spin" /> : <RefreshCw size={14} />}
+              {loginLogsLoading ? 'Chargement…' : 'Charger l\'historique'}
+            </button>
+          ) : (
+            <>
+              <button
+                onClick={loadLoginLogs}
+                disabled={loginLogsLoading}
+                className="flex items-center gap-1.5 text-xs text-gray-400 hover:text-gray-600 transition"
+              >
+                {loginLogsLoading ? <Loader2 size={12} className="animate-spin" /> : <RefreshCw size={12} />}
+                Actualiser
+              </button>
+              {loginLogs.length === 0 ? (
+                <p className="text-sm text-gray-400 italic">Aucune connexion enregistrée.</p>
+              ) : (
+                <div className="overflow-x-auto">
+                  <table className="w-full text-xs">
+                    <thead>
+                      <tr className="border-b border-gray-100">
+                        <th className="text-left py-2 pr-4 font-medium text-gray-500">Date</th>
+                        <th className="text-left py-2 pr-4 font-medium text-gray-500">IP</th>
+                        <th className="text-left py-2 pr-4 font-medium text-gray-500">Navigateur</th>
+                        <th className="text-left py-2 font-medium text-gray-500">Statut</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-gray-50">
+                      {loginLogs.map(log => (
+                        <tr key={log.id} className="hover:bg-gray-50">
+                          <td className="py-2 pr-4 text-gray-600 whitespace-nowrap">
+                            {new Date(log.createdAt).toLocaleString('fr-FR', {
+                              day: '2-digit', month: '2-digit', year: 'numeric',
+                              hour: '2-digit', minute: '2-digit',
+                            })}
+                          </td>
+                          <td className="py-2 pr-4 font-mono text-gray-500">{log.ip ?? '—'}</td>
+                          <td className="py-2 pr-4 text-gray-400 max-w-[180px] truncate" title={log.userAgent ?? ''}>
+                            {log.userAgent ? log.userAgent.slice(0, 40) + (log.userAgent.length > 40 ? '…' : '') : '—'}
+                          </td>
+                          <td className="py-2">
+                            <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-semibold ${
+                              log.status === 'success'
+                                ? 'bg-green-50 text-green-700'
+                                : 'bg-red-50 text-red-700'
+                            }`}>
+                              {log.status === 'success' ? <CheckCircle2 size={10} /> : <XCircle size={10} />}
+                              {log.status === 'success' ? 'Succès' : 'Échec'}
+                            </span>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+            </>
+          )}
         </div>
       </Section>
 

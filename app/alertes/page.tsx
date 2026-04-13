@@ -206,6 +206,22 @@ export default function AlertesPage() {
   const resolved      = alerts.filter(a => a.status === 'resolved')
   const critical      = openAlerts.filter(a => a.severity === 'critical')
 
+  // Sprint 15 — Alert Stats (computed client-side from loaded data)
+  const now = new Date()
+  const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1)
+  const alertsThisMonth = alerts.filter(a => new Date(a.createdAt) >= startOfMonth)
+  const criticalThisMonth = alertsThisMonth.filter(a => a.severity === 'critical')
+  const resolvedThisMonth = alertsThisMonth.filter(a => a.status === 'resolved' && a.resolvedAt)
+  const resolutionTimes = resolvedThisMonth
+    .map(a => new Date(a.resolvedAt!).getTime() - new Date(a.createdAt).getTime())
+    .filter(t => t > 0)
+  const avgResolutionHours = resolutionTimes.length > 0
+    ? Math.round(resolutionTimes.reduce((s, t) => s + t, 0) / resolutionTimes.length / 3_600_000 * 10) / 10
+    : null
+  const resolutionRate = alertsThisMonth.length > 0
+    ? Math.round((resolvedThisMonth.length / alertsThisMonth.length) * 100)
+    : null
+
   const ticketsByStatus = {
     ouvert:   tickets.filter(t => t.status === 'ouvert'),
     en_cours: tickets.filter(t => t.status === 'en_cours'),
@@ -237,6 +253,55 @@ export default function AlertesPage() {
           >
             <Plus size={15} /> <span className="hidden sm:inline">Créer un ticket</span>
           </button>
+        </div>
+      </div>
+
+      {/* Sprint 15 — Statistiques ce mois */}
+      <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
+        <div className="flex items-center gap-2.5 px-5 py-3 border-b border-gray-100 bg-gray-50/60">
+          <TrendingUp size={14} className="text-gray-500" />
+          <h2 className="text-sm font-semibold text-gray-700">Statistiques — {now.toLocaleString('fr-FR', { month: 'long', year: 'numeric' })}</h2>
+        </div>
+        <div className="grid grid-cols-2 md:grid-cols-4 divide-x divide-y md:divide-y-0 divide-gray-100">
+          {[
+            {
+              label: 'Total alertes ce mois',
+              value: alertsThisMonth.length,
+              sub: `sur ${alerts.length} total`,
+              icon: <Bell size={16} className="text-blue-500" />,
+              color: 'text-blue-700',
+            },
+            {
+              label: 'Alertes critiques',
+              value: criticalThisMonth.length,
+              sub: 'niveau critique (severity)',
+              icon: <ShieldAlert size={16} className="text-red-500" />,
+              color: 'text-red-700',
+            },
+            {
+              label: 'Temps moyen résolution',
+              value: avgResolutionHours !== null ? `${avgResolutionHours}h` : '—',
+              sub: `sur ${resolvedThisMonth.length} résolues`,
+              icon: <Clock size={16} className="text-purple-500" />,
+              color: 'text-purple-700',
+            },
+            {
+              label: 'Taux de résolution',
+              value: resolutionRate !== null ? `${resolutionRate}%` : '—',
+              sub: `${resolvedThisMonth.length} / ${alertsThisMonth.length} alertes`,
+              icon: <CheckCircle2 size={16} className="text-green-500" />,
+              color: 'text-green-700',
+            },
+          ].map(stat => (
+            <div key={stat.label} className="flex flex-col gap-1 p-4">
+              <div className="flex items-center gap-2 text-xs text-gray-500 font-medium">
+                {stat.icon}
+                {stat.label}
+              </div>
+              <div className={`text-2xl font-bold ${stat.color}`}>{stat.value}</div>
+              <div className="text-[10px] text-gray-400">{stat.sub}</div>
+            </div>
+          ))}
         </div>
       </div>
 

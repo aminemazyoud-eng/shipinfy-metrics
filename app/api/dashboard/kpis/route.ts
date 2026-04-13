@@ -67,9 +67,34 @@ function livreurName(o: {
   return o.sprintName ?? 'Inconnu'
 }
 
+export const runtime = 'nodejs'
+
 export async function GET(request: Request) {
   try {
     const { searchParams } = new URL(request.url)
+
+    // ── Comparison mode: shift dates by reportOffset days into the past ──────
+    const isCompare    = searchParams.get('compare') === 'true'
+    const reportOffset = parseInt(searchParams.get('reportOffset') ?? '7', 10)
+    if (isCompare && (searchParams.has('dateFrom') || searchParams.has('dateTo'))) {
+      const shiftMs = reportOffset * 24 * 60 * 60 * 1000
+      const from = searchParams.get('dateFrom')
+      const to   = searchParams.get('dateTo')
+      if (from) searchParams.set('dateFrom', new Date(new Date(from).getTime() - shiftMs).toISOString().slice(0, 10))
+      if (to)   searchParams.set('dateTo',   new Date(new Date(to).getTime()   - shiftMs).toISOString().slice(0, 10))
+    } else if (isCompare) {
+      // shift preset window back by reportOffset days
+      const preset = searchParams.get('preset') ?? 'week'
+      const today  = new Date(); today.setHours(0, 0, 0, 0)
+      const shiftMs = reportOffset * 24 * 60 * 60 * 1000
+      let windowDays = preset === 'today' ? 1 : preset === 'yesterday' ? 1 : preset === 'week' ? 7 : 30
+      const dateTo   = new Date(today.getTime() - shiftMs)
+      const dateFrom = new Date(dateTo.getTime() - windowDays * 24 * 60 * 60 * 1000)
+      searchParams.set('preset', 'custom')
+      searchParams.set('dateFrom', dateFrom.toISOString().slice(0, 10))
+      searchParams.set('dateTo',   dateTo.toISOString().slice(0, 10))
+    }
+
     const selectedCreneaux = splitParam(searchParams.get('creneaux'))
     const where = buildWhere(searchParams)
 

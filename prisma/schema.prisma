@@ -371,6 +371,7 @@ model SupportTicket {
   orderRef    String?
   assignedTo  String?
   resolvedAt  DateTime?
+  slaBreached Boolean   @default(false)
   createdAt   DateTime  @default(now())
   updatedAt   DateTime  @updatedAt
 
@@ -418,16 +419,19 @@ model ShiftAssignment {
 // ─── SPRINT 9b — MULTI-TENANT + RÔLES + AUTH ─────────────────────────────────
 
 model Tenant {
-  id           String    @id @default(cuid())
-  name         String
-  slug         String    @unique
-  logoUrl      String?
-  primaryColor String    @default("#2563eb")
-  plan         String    @default("basic") // "basic" | "pro" | "enterprise"
-  active       Boolean   @default(true)
-  createdAt    DateTime  @default(now())
-  updatedAt    DateTime  @updatedAt
-  users        User[]
+  id                  String    @id @default(cuid())
+  name                String
+  slug                String    @unique
+  logoUrl             String?
+  primaryColor        String    @default("#2563eb")
+  plan                String    @default("basic") // "basic" | "pro" | "enterprise"
+  active              Boolean   @default(true)
+  scoreCoeffDelivery  Float     @default(0.4)
+  scoreCoeffAcademy   Float     @default(0.3)
+  scoreCoeffNoShow    Float     @default(0.3)
+  createdAt           DateTime  @default(now())
+  updatedAt           DateTime  @updatedAt
+  users               User[]
 
   @@index([slug])
   @@index([active])
@@ -476,4 +480,21 @@ model N8NConfig {
 
   @@index([eventType])
   @@index([active])
+}
+
+// ─── SPRINT 15 — N8N LOGS ─────────────────────────────────────────────────────
+
+model N8NLog {
+  id           String   @id @default(cuid())
+  configId     String?
+  eventType    String
+  status       String   // "success" | "error"
+  responseCode Int?
+  payload      String?  // stringified JSON, max 500 chars
+  error        String?
+  createdAt    DateTime @default(now())
+
+  @@index([configId])
+  @@index([eventType])
+  @@index([createdAt])
 }

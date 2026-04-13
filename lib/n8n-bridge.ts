@@ -49,8 +49,11 @@ export async function triggerN8N(
 
     await Promise.allSettled(
       configs.map(async (cfg: { id: string; name: string; webhookUrl: string; secret: string | null }) => {
+        const payloadStr = JSON.stringify(payload)
+        const payloadTruncated = payloadStr.length > 500 ? payloadStr.slice(0, 500) : payloadStr
+        let responseCode: number | undefined
         try {
-          const body    = JSON.stringify(payload)
+          const body    = payloadStr
           const headers: Record<string, string> = {
             'Content-Type': 'application/json',
           }
@@ -61,15 +64,38 @@ export async function triggerN8N(
             headers['X-Shipinfy-Signature'] = `sha256=${sig}`
           }
 
-          await fetch(cfg.webhookUrl, { method: 'POST', headers, body })
+          const res = await fetch(cfg.webhookUrl, { method: 'POST', headers, body })
+          responseCode = res.status
 
           // Update lastTriggeredAt — best-effort, don't await failure
           await prisma.n8NConfig.update({
             where: { id: cfg.id },
             data:  { lastTriggeredAt: new Date() },
           }).catch(() => {})
+
+          // Log success
+          await prisma.n8NLog.create({
+            data: {
+              configId:     cfg.id,
+              eventType:    eventType,
+              status:       'success',
+              responseCode: responseCode,
+              payload:      payloadTruncated,
+            },
+          }).catch(() => {})
         } catch (e) {
           console.error(`[N8NBridge] Failed to trigger ${cfg.name} (${cfg.webhookUrl}):`, e)
+          // Log error
+          await prisma.n8NLog.create({
+            data: {
+              configId:     cfg.id,
+              eventType:    eventType,
+              status:       'error',
+              responseCode: responseCode ?? null,
+              payload:      payloadTruncated,
+              error:        String(e).slice(0, 500),
+            },
+          }).catch(() => {})
         }
       }),
     )

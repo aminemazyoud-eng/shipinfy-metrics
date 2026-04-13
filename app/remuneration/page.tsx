@@ -3,6 +3,7 @@ import { useState, useEffect, useCallback } from 'react'
 import {
   DollarSign, Users, TrendingUp, TrendingDown,
   Calculator, Settings2, Loader2, CheckCircle2, ChevronDown, ChevronUp,
+  Download, CheckSquare,
 } from 'lucide-react'
 
 interface Report { id: string; filename: string; uploadedAt: string }
@@ -49,9 +50,22 @@ export default function RemunerationPage() {
   const [savingCfg, setSavingCfg]   = useState(false)
   const [savedCfg, setSavedCfg]     = useState(false)
 
+  // Validation
+  const [validating, setValidating]   = useState(false)
+  const [validated, setValidated]     = useState(false)
+  const [validatedBy, setValidatedBy] = useState('')
+  const [userRole, setUserRole]       = useState('')
+
   // Sort
   const [sortBy, setSortBy]   = useState<'netPay' | 'deliveries' | 'total'>('netPay')
   const [sortDir, setSortDir] = useState<'desc' | 'asc'>('desc')
+
+  // Load current user role
+  useEffect(() => {
+    fetch('/api/auth/me').then(r => r.json()).then((d: { role?: string }) => {
+      if (d?.role) setUserRole(d.role)
+    }).catch(() => {})
+  }, [])
 
   // Load reports
   useEffect(() => {
@@ -103,6 +117,13 @@ export default function RemunerationPage() {
           totals,
         })
       })
+    // Load validation status
+    fetch(`/api/remuneration/validate?reportId=${reportId}`)
+      .then(r => r.ok ? r.json() : null)
+      .then((d: { payValidated?: boolean; payValidatedBy?: string } | null) => {
+        if (d?.payValidated) { setValidated(true); setValidatedBy(d.payValidatedBy ?? '') }
+        else { setValidated(false); setValidatedBy('') }
+      }).catch(() => {})
   }, [reportId, mode, configs])
 
   const calculate = async () => {
@@ -136,6 +157,25 @@ export default function RemunerationPage() {
       if (res.ok) { setSavedCfg(true); await loadConfigs(); setTimeout(() => setSavedCfg(false), 2000) }
     } finally { setSavingCfg(false) }
   }
+
+  const approvePay = async () => {
+    if (!result?.reportId) return
+    setValidating(true)
+    try {
+      const res = await fetch('/api/remuneration/validate', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ reportId: result.reportId }),
+      })
+      if (res.ok) {
+        const d = await res.json()
+        setValidated(true)
+        setValidatedBy(d.validatedBy ?? '')
+      }
+    } finally { setValidating(false) }
+  }
+
+  const isManager = ['MANAGER', 'ADMIN', 'SUPER_ADMIN'].includes(userRole)
 
   const activeConfig = configs.find(c => c.mode === mode)
 
@@ -203,6 +243,17 @@ export default function RemunerationPage() {
           >
             <Settings2 size={14} /> Tarifs
           </button>
+
+          {/* Export CSV button */}
+          {result && (
+            <button
+              onClick={() => window.open('/api/remuneration/export?reportId=' + result.reportId)}
+              className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white text-sm font-medium rounded-lg hover:bg-blue-700 min-h-[44px]"
+            >
+              <Download size={15} />
+              <span>Export CSV</span>
+            </button>
+          )}
 
           {/* Calculate button */}
           <button
@@ -375,6 +426,40 @@ export default function RemunerationPage() {
               </table>
             </div>
           </div>
+          {/* Validation section */}
+          {isManager && (
+            <div className={`rounded-xl border p-4 flex flex-col md:flex-row items-start md:items-center justify-between gap-3 ${validated ? 'bg-green-50 border-green-200' : 'bg-gray-50 border-gray-200'}`}>
+              <div>
+                <h3 className="text-sm font-semibold text-gray-800 flex items-center gap-2">
+                  <CheckSquare size={15} className={validated ? 'text-green-600' : 'text-gray-500'} />
+                  Validation de la paie
+                </h3>
+                {validated ? (
+                  <p className="text-xs text-green-700 mt-0.5">
+                    Approuvé par <strong>{validatedBy}</strong>
+                  </p>
+                ) : (
+                  <p className="text-xs text-gray-500 mt-0.5">
+                    Approuvez la paie pour ce rapport après vérification
+                  </p>
+                )}
+              </div>
+              {!validated ? (
+                <button
+                  onClick={approvePay}
+                  disabled={validating}
+                  className="flex items-center gap-2 px-4 py-2 bg-green-600 text-white text-sm font-medium rounded-lg hover:bg-green-700 disabled:opacity-50 min-h-[40px]"
+                >
+                  {validating ? <Loader2 size={14} className="animate-spin" /> : <CheckCircle2 size={14} />}
+                  {validating ? 'Validation…' : 'Approuver la paie'}
+                </button>
+              ) : (
+                <span className="flex items-center gap-1.5 text-sm font-semibold text-green-700 bg-green-100 px-3 py-1.5 rounded-lg">
+                  <CheckCircle2 size={14} /> Paie approuvée
+                </span>
+              )}
+            </div>
+          )}
         </>
       )}
     </div>

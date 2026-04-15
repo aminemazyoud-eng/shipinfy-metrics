@@ -2,6 +2,7 @@
 import { useEffect, useState } from 'react'
 import { GraduationCap, BookOpen, CheckCircle, Play, FileText, Award, Users, BookMarked, AlertTriangle } from 'lucide-react'
 import { GuideContent } from './components/guides/GuideContent'
+import { useCurrentUser } from '@/hooks/useCurrentUser'
 
 interface Lesson {
   id: string
@@ -39,6 +40,7 @@ export default function AcademyPage() {
   const [courses, setCourses] = useState<Course[]>([])
   const [loading, setLoading] = useState(true)
   const [selected, setSelected] = useState<Course | null>(null)
+  const { user: currentUser } = useCurrentUser()
 
   useEffect(() => {
     fetch('/api/courses').then(r => r.json()).then(d => {
@@ -132,6 +134,8 @@ export default function AcademyPage() {
                 {courses.map(course => {
                   const certified    = course.progress.filter(p => p.certified).length
                   const participants = course.progress.length
+                  const isCompleted  = course.progress.some(p => p.certified || (p.score !== undefined && p.score >= 70))
+                  const userName     = currentUser?.name ?? 'Livreur'
                   return (
                     <div
                       key={course.id}
@@ -163,6 +167,18 @@ export default function AcademyPage() {
                             <div className="h-1.5 bg-gray-100 rounded-full overflow-hidden">
                               <div className="h-full rounded-full" style={{ width: `${Math.round((certified/participants)*100)}%`, background: course.color }} />
                             </div>
+                          </div>
+                        )}
+                        {isCompleted && (
+                          <div className="mt-3 pt-3 border-t border-gray-100" onClick={e => e.stopPropagation()}>
+                            <a
+                              href={`/api/academy/certificate?courseId=${course.id}&driverName=${encodeURIComponent(userName)}`}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="inline-flex items-center gap-1 text-xs px-3 py-1.5 bg-blue-50 border border-blue-200 text-blue-700 rounded-lg hover:bg-blue-100 transition font-medium"
+                            >
+                              📜 Certificat
+                            </a>
                           </div>
                         )}
                       </div>

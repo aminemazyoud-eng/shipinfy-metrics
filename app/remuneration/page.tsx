@@ -60,6 +60,11 @@ export default function RemunerationPage() {
   const [sortBy, setSortBy]   = useState<'netPay' | 'deliveries' | 'total'>('netPay')
   const [sortDir, setSortDir] = useState<'desc' | 'asc'>('desc')
 
+  // History modal
+  const [historyModal, setHistoryModal] = useState<{ name: string } | null>(null)
+  const [historyItems, setHistoryItems] = useState<any[]>([])
+  const [historyLoading, setHistoryLoading] = useState(false)
+
   // Load current user role
   useEffect(() => {
     fetch('/api/auth/me').then(r => r.json()).then((d: { role?: string }) => {
@@ -189,6 +194,20 @@ export default function RemunerationPage() {
   const toggleSort = (col: typeof sortBy) => {
     if (sortBy === col) setSortDir(d => d === 'desc' ? 'asc' : 'desc')
     else { setSortBy(col); setSortDir('desc') }
+  }
+
+  const openHistory = async (name: string) => {
+    setHistoryModal({ name })
+    setHistoryLoading(true)
+    try {
+      const res = await fetch(`/api/remuneration/history?driverName=${encodeURIComponent(name)}`)
+      if (res.ok) {
+        const d = await res.json()
+        setHistoryItems(d.history ?? [])
+      }
+    } finally {
+      setHistoryLoading(false)
+    }
   }
 
   const SortIcon = ({ col }: { col: typeof sortBy }) => {
@@ -382,6 +401,7 @@ export default function RemunerationPage() {
                       className="px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wide cursor-pointer hover:text-gray-700"
                       onClick={() => toggleSort('netPay')}
                     >NET <SortIcon col="netPay" /></th>
+                    <th className="px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wide"></th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-gray-100">
@@ -410,13 +430,21 @@ export default function RemunerationPage() {
                       <td className="px-3 py-3">
                         <NetBadge net={d.netPay} />
                       </td>
+                      <td className="px-3 py-3">
+                        <button
+                          onClick={() => openHistory(d.driverName)}
+                          className="text-xs px-2 py-1 border border-gray-200 rounded-lg text-gray-600 hover:bg-gray-50 whitespace-nowrap"
+                        >
+                          📋 Historique
+                        </button>
+                      </td>
                     </tr>
                   ))}
                 </tbody>
                 {/* Footer totals */}
                 <tfoot className="bg-gray-100 border-t-2 border-gray-200">
                   <tr>
-                    <td className="px-3 py-3 font-bold text-gray-900" colSpan={5}>Total</td>
+                    <td className="px-3 py-3 font-bold text-gray-900" colSpan={6}>Total</td>
                     <td className="px-3 py-3 font-bold text-gray-700">{fmt(result.totals.grossPay)}</td>
                     <td className="px-3 py-3 font-bold text-yellow-700">+{fmt(result.totals.bonus)}</td>
                     <td className="px-3 py-3 font-bold text-red-600">-{fmt(result.totals.penalty)}</td>
@@ -461,6 +489,59 @@ export default function RemunerationPage() {
             </div>
           )}
         </>
+      )}
+
+      {/* History modal */}
+      {historyModal && (
+        <div className="fixed inset-0 z-50 bg-black/50 flex items-center justify-center p-4">
+          <div className="bg-white rounded-2xl shadow-2xl max-w-2xl w-full max-h-[80vh] overflow-hidden flex flex-col">
+            <div className="flex items-center justify-between px-6 py-4 border-b border-gray-100">
+              <h3 className="font-bold text-gray-900">📋 Historique 6 mois — {historyModal.name}</h3>
+              <button onClick={() => setHistoryModal(null)} className="w-8 h-8 flex items-center justify-center rounded-full bg-gray-100 hover:bg-gray-200 text-gray-500">✕</button>
+            </div>
+            <div className="overflow-y-auto p-6">
+              {historyLoading ? (
+                <div className="text-center text-gray-400 py-8">Chargement…</div>
+              ) : historyItems.length === 0 ? (
+                <div className="text-center text-gray-400 py-8">Aucun historique trouvé</div>
+              ) : (
+                <table className="w-full text-sm">
+                  <thead>
+                    <tr className="text-left text-xs text-gray-500 border-b border-gray-100">
+                      <th className="pb-2 pr-3">Rapport</th>
+                      <th className="pb-2 pr-3 text-right">Total</th>
+                      <th className="pb-2 pr-3 text-right">Livrées</th>
+                      <th className="pb-2 pr-3 text-right">Taux</th>
+                      <th className="pb-2 pr-3 text-right">COD (MAD)</th>
+                      <th className="pb-2 text-right">Statut</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-gray-50">
+                    {historyItems.map((h: any) => (
+                      <tr key={h.reportId}>
+                        <td className="py-2 pr-3 text-gray-700 text-xs">{h.filename}</td>
+                        <td className="py-2 pr-3 text-right">{h.total}</td>
+                        <td className="py-2 pr-3 text-right text-green-700">{h.delivered}</td>
+                        <td className="py-2 pr-3 text-right">
+                          <span className={`font-semibold ${h.deliveryRate >= 80 ? 'text-green-700' : h.deliveryRate >= 60 ? 'text-orange-600' : 'text-red-600'}`}>
+                            {h.deliveryRate.toFixed(1)}%
+                          </span>
+                        </td>
+                        <td className="py-2 pr-3 text-right font-medium">{h.totalCOD.toLocaleString('fr-MA')}</td>
+                        <td className="py-2 text-right">
+                          {h.payValidated
+                            ? <span className="text-xs bg-green-100 text-green-700 px-2 py-0.5 rounded-full font-medium">✓ Approuvée</span>
+                            : <span className="text-xs bg-yellow-100 text-yellow-700 px-2 py-0.5 rounded-full font-medium">En attente</span>
+                          }
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              )}
+            </div>
+          </div>
+        </div>
       )}
     </div>
   )

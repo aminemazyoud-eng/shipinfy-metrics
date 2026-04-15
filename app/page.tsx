@@ -2,7 +2,7 @@
 import { useState, useEffect, useCallback, memo } from 'react'
 import {
   Activity, Package, Truck, CheckCircle, XCircle,
-  DollarSign, Users, RefreshCw, Wifi, WifiOff,
+  DollarSign, Users, RefreshCw, Wifi, WifiOff, TrendingUp,
 } from 'lucide-react'
 
 interface LiveDriver {
@@ -335,6 +335,58 @@ export default function RealtimePage() {
           </div>
         )}
 
+        {/* ── Prévisions J+1 ─────────────────────────────────────────────── */}
+        <PrevisionsMini />
+
+      </div>
+    </div>
+  )
+}
+
+// ── Section prévisions J+1 ────────────────────────────────────────────────────
+function PrevisionsMini() {
+  const [forecast, setForecast] = useState<Array<{date:string;vol:number;rate:number;risk:string}>>([])
+
+  useEffect(() => {
+    fetch('/api/previsions')
+      .then(r => r.ok ? r.json() : null)
+      .then(d => { if (d?.forecast) setForecast(d.forecast.slice(0, 3)) })
+      .catch(() => {})
+  }, [])
+
+  if (forecast.length === 0) return null
+
+  const RISK_COLOR: Record<string, string> = {
+    low:    'text-green-600 bg-green-50 border-green-200',
+    medium: 'text-orange-600 bg-orange-50 border-orange-200',
+    high:   'text-red-600 bg-red-50 border-red-200',
+  }
+  const RISK_LABEL: Record<string, string> = { low: 'Faible', medium: 'Moyen', high: 'Élevé' }
+  const DAY_LABELS = ['Dim', 'Lun', 'Mar', 'Mer', 'Jeu', 'Ven', 'Sam']
+
+  return (
+    <div className="rounded-xl border bg-white shadow-sm overflow-hidden">
+      <div className="flex items-center gap-2 p-4 border-b">
+        <TrendingUp className="h-5 w-5 text-blue-600" />
+        <h3 className="font-semibold text-gray-900">Prévisions J+1 · J+2 · J+3</h3>
+        <span className="ml-auto text-xs text-gray-400">Modèle ML interne</span>
+      </div>
+      <div className="grid grid-cols-3 divide-x divide-gray-100">
+        {forecast.map((f, i) => {
+          const dow = new Date(f.date).getDay()
+          const label = i === 0 ? 'Demain' : i === 1 ? 'Dans 2j' : 'Dans 3j'
+          const riskCls = RISK_COLOR[f.risk] ?? RISK_COLOR.low
+          return (
+            <div key={f.date} className="p-4">
+              <div className="text-xs font-semibold text-gray-500 mb-1">{label} · {DAY_LABELS[dow]}</div>
+              <div className="text-2xl font-black text-gray-900 mb-1">{f.vol} <span className="text-sm font-normal text-gray-400">cmd</span></div>
+              <div className="text-sm text-blue-600 font-semibold mb-2">{f.rate}% livraison prévue</div>
+              <span className={`inline-flex items-center gap-1 text-[11px] font-semibold px-2 py-0.5 rounded-full border ${riskCls}`}>
+                Risque {RISK_LABEL[f.risk]}
+              </span>
+            </div>
+          )
+        })}
       </div>
     </div>
   )

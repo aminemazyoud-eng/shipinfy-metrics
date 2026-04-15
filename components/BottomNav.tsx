@@ -57,13 +57,16 @@ export default function BottomNav() {
               key={item.href}
               href={item.href}
               className={[
-                'flex-1 flex flex-col items-center justify-center gap-0.5 min-h-[60px]',
-                'active:scale-95 transition-transform duration-100',
+                'flex-1 flex flex-col items-center justify-center gap-0.5 min-h-[60px] relative',
+                'active:scale-95 transition-all duration-100',
                 isActive ? 'text-blue-600' : 'text-gray-400',
               ].join(' ')}
             >
-              <item.icon size={20} />
-              <span className="text-[10px] font-medium leading-none">{item.label}</span>
+              <div className={`flex flex-col items-center gap-0.5 px-2 py-1 rounded-xl transition-all ${isActive ? 'bg-blue-50' : ''}`}>
+                <item.icon size={20} strokeWidth={isActive ? 2.5 : 2} />
+                <span className={`text-[10px] leading-none ${isActive ? 'font-bold' : 'font-medium'}`}>{item.label}</span>
+                {isActive && <span className="w-1.5 h-1.5 bg-blue-600 rounded-full mt-0.5" />}
+              </div>
             </Link>
           )
         })}

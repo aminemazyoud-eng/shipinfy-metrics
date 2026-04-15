@@ -1,5 +1,5 @@
 'use client'
-import { useState, useEffect, useCallback } from 'react'
+import React, { useState, useEffect, useCallback } from 'react'
 import { Users, Trophy, TrendingDown, TrendingUp, Search, Filter, BarChart3 } from 'lucide-react'
 
 interface Livreur {
@@ -54,6 +54,8 @@ export default function LivreursPage() {
   const [search, setSearch]   = useState('')
   const [sortBy, setSortBy]   = useState<'deliveryRate' | 'total' | 'totalCOD' | 'noShow'>('deliveryRate')
   const [view, setView]       = useState<'table' | 'cards'>('table')
+  const [expandedRow, setExpandedRow] = useState<string | null>(null)
+  const [historyData, setHistoryData] = useState<Record<string, any[]>>({})
 
   useEffect(() => {
     fetch('/api/dashboard/reports').then(r => r.json()).then((rs: Report[]) => {
@@ -75,6 +77,16 @@ export default function LivreursPage() {
   }, [reportId, preset])
 
   useEffect(() => { load() }, [load])
+
+  const loadHistory = useCallback(async (name: string) => {
+    if (historyData[name]) return
+    const encodedName = encodeURIComponent(name)
+    const res = await fetch(`/api/drivers/${encodedName}/history`)
+    if (res.ok) {
+      const d = await res.json()
+      setHistoryData(prev => ({ ...prev, [name]: d.months ?? [] }))
+    }
+  }, [historyData])
 
   const livreurs = data?.byLivreur ?? []
   const filtered = livreurs
@@ -231,20 +243,83 @@ export default function LivreursPage() {
               </thead>
               <tbody className="divide-y divide-gray-100">
                 {filtered.map((l, i) => (
-                  <tr key={l.name} className={l.rank <= 3 ? 'bg-yellow-50' : 'hover:bg-gray-50'}>
-                    <td className="px-3 py-3"><MedalIcon rank={l.rank} /></td>
-                    <td className="px-3 py-3">
-                      <div className="font-medium text-gray-900">{l.name}</div>
-                      <RateBar rate={l.deliveryRate} color={l.deliveryRate >= 80 ? '#16a34a' : l.deliveryRate >= 60 ? '#d97706' : '#dc2626'} />
-                    </td>
-                    <td className="px-3 py-3 text-gray-700">{l.total}</td>
-                    <td className="px-3 py-3 text-green-700 font-medium">{l.delivered}</td>
-                    <td className="px-3 py-3 text-red-600">{l.noShow}</td>
-                    <td className="px-3 py-3"><RateBadge rate={l.deliveryRate} /></td>
-                    <td className="px-3 py-3"><RateBadge rate={l.onTimeRate} /></td>
-                    <td className="px-3 py-3 text-gray-600">{fmtMin(l.avgDuration)}</td>
-                    <td className="px-3 py-3 font-medium text-gray-900">{l.totalCOD.toLocaleString('fr-MA')} MAD</td>
-                  </tr>
+                  <React.Fragment key={l.name}>
+                    <tr className={l.rank <= 3 ? 'bg-yellow-50' : 'hover:bg-gray-50'}>
+                      <td className="px-3 py-3"><MedalIcon rank={l.rank} /></td>
+                      <td className="px-3 py-3">
+                        <button
+                          className="flex items-center gap-2 text-left w-full hover:opacity-80 transition"
+                          onClick={() => {
+                            if (expandedRow === l.name) {
+                              setExpandedRow(null)
+                            } else {
+                              setExpandedRow(l.name)
+                              loadHistory(l.name)
+                            }
+                          }}
+                        >
+                          <div className="h-8 w-8 rounded-full bg-blue-500 flex items-center justify-center text-white font-bold text-xs flex-shrink-0">
+                            {l.name.split(' ').map((n: string) => n[0]).join('').slice(0, 2).toUpperCase()}
+                          </div>
+                          <div>
+                            <div className="font-medium text-gray-900 flex items-center gap-1">
+                              {l.name}
+                              <span className="text-gray-300 text-xs">{expandedRow === l.name ? '▲' : '▼'}</span>
+                            </div>
+                            <RateBar rate={l.deliveryRate} color={l.deliveryRate >= 80 ? '#16a34a' : l.deliveryRate >= 60 ? '#d97706' : '#dc2626'} />
+                          </div>
+                        </button>
+                      </td>
+                      <td className="px-3 py-3 text-gray-700">{l.total}</td>
+                      <td className="px-3 py-3 text-green-700 font-medium">{l.delivered}</td>
+                      <td className="px-3 py-3 text-red-600">{l.noShow}</td>
+                      <td className="px-3 py-3"><RateBadge rate={l.deliveryRate} /></td>
+                      <td className="px-3 py-3"><RateBadge rate={l.onTimeRate} /></td>
+                      <td className="px-3 py-3 text-gray-600">{fmtMin(l.avgDuration)}</td>
+                      <td className="px-3 py-3 font-medium text-gray-900">{l.totalCOD.toLocaleString('fr-MA')} MAD</td>
+                    </tr>
+                    {expandedRow === l.name && (
+                      <tr key={`${l.name}-history`} className="bg-blue-50">
+                        <td colSpan={9} className="px-4 py-4">
+                          <div className="text-sm font-semibold text-blue-800 mb-2">📈 Historique 6 mois — {l.name}</div>
+                          {!historyData[l.name] ? (
+                            <div className="text-xs text-gray-400">Chargement…</div>
+                          ) : historyData[l.name].length === 0 ? (
+                            <div className="text-xs text-gray-400">Aucun historique disponible</div>
+                          ) : (
+                            <div className="overflow-x-auto">
+                              <table className="text-xs w-full min-w-[500px]">
+                                <thead>
+                                  <tr className="text-gray-500 border-b border-blue-100">
+                                    <th className="text-left py-1 px-2">Mois</th>
+                                    <th className="text-right py-1 px-2">Total</th>
+                                    <th className="text-right py-1 px-2">Livrées</th>
+                                    <th className="text-right py-1 px-2">NO_SHOW</th>
+                                    <th className="text-right py-1 px-2">Taux</th>
+                                  </tr>
+                                </thead>
+                                <tbody>
+                                  {historyData[l.name].map((m: any) => (
+                                    <tr key={m.month} className="border-b border-blue-50">
+                                      <td className="py-1 px-2 text-gray-700">{m.month}</td>
+                                      <td className="py-1 px-2 text-right text-gray-700">{m.total}</td>
+                                      <td className="py-1 px-2 text-right text-green-700">{m.delivered}</td>
+                                      <td className="py-1 px-2 text-right text-red-600">{m.noShow}</td>
+                                      <td className="py-1 px-2 text-right">
+                                        <span className={`font-semibold ${m.deliveryRate >= 80 ? 'text-green-700' : m.deliveryRate >= 60 ? 'text-orange-600' : 'text-red-600'}`}>
+                                          {m.deliveryRate.toFixed(1)}%
+                                        </span>
+                                      </td>
+                                    </tr>
+                                  ))}
+                                </tbody>
+                              </table>
+                            </div>
+                          )}
+                        </td>
+                      </tr>
+                    )}
+                  </React.Fragment>
                 ))}
               </tbody>
             </table>

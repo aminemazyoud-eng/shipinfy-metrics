@@ -8,11 +8,14 @@ datasource db {
 }
 
 model DeliveryReport {
-  id         String          @id @default(cuid())
-  filename   String
-  uploadedAt DateTime        @default(now())
-  isActive   Boolean         @default(true)
-  orders     DeliveryOrder[]
+  id               String          @id @default(cuid())
+  filename         String
+  uploadedAt       DateTime        @default(now())
+  isActive         Boolean         @default(true)
+  payValidated     Boolean         @default(false)
+  payValidatedAt   DateTime?
+  payValidatedBy   String?
+  orders           DeliveryOrder[]
 }
 
 model ScheduledReport {
@@ -370,10 +373,12 @@ model SupportTicket {
   clientPhone String?
   orderRef    String?
   assignedTo  String?
-  resolvedAt  DateTime?
-  slaBreached Boolean   @default(false)
-  createdAt   DateTime  @default(now())
-  updatedAt   DateTime  @updatedAt
+  resolvedAt          DateTime?
+  slaBreached         Boolean   @default(false)
+  satisfactionScore   Int?
+  satisfactionComment String?
+  createdAt           DateTime  @default(now())
+  updatedAt           DateTime  @updatedAt
 
   @@index([status])
   @@index([priority])

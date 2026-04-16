@@ -178,6 +178,11 @@ body{background:#f8fafc;color:var(--text);font-family:-apple-system,BlinkMacSyst
 @media(max-width:800px){.canvas{padding:16px}.g3,.g3s{grid-template-columns:1fr}.g6{grid-template-columns:repeat(2,1fr)}.g5{grid-template-columns:repeat(2,1fr)}.g4{grid-template-columns:repeat(2,1fr)}.pitch-grid{grid-template-columns:1fr}.conn-grid{grid-template-columns:1fr}.sec-grid{grid-template-columns:1fr}.db-blk{width:100%}.pf-body{grid-template-columns:1fr}.pf-mid{display:none}.pf-stats{grid-template-columns:repeat(2,1fr)}.tabs .tab-btn span{display:none}}
 :fullscreen body{overflow:auto}
 :fullscreen .main-hdr{display:none}
+/* Responsive for tab-process new design */
+@media(max-width:900px){
+  #tab-process > div > div[style*="grid-template-columns:repeat(5"]{display:flex!important;flex-wrap:wrap}
+  #tab-process > div > div[style*="grid-template-columns:1fr 40px"]{display:flex!important;flex-direction:column}
+}
 </style>
 </head>
 <body>
@@ -214,137 +219,549 @@ body{background:#f8fafc;color:var(--text);font-family:-apple-system,BlinkMacSyst
      TAB 1 — FLUX OPÉRATIONNEL
      ═══════════════════════════════════════════════════════════════════════════ -->
 <div id="tab-process" class="tab-panel active">
-<div class="pf-page" id="pf-diagram">
+<div style="padding:24px 20px;max-width:1440px;margin:0 auto;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Arial,sans-serif">
 
-  <!-- LABEL BAR -->
-  <div class="pf-label-bar">
-    <div class="pf-lbi old">📋 Ancienne méthode : Excel + WhatsApp + Intuition</div>
-    <div class="pf-lba">→</div>
-    <div class="pf-lbi modern">🚀 Méthode moderne : Shipinfy Metrics</div>
+  <!-- PAGE TITLE -->
+  <div style="text-align:center;margin-bottom:28px">
+    <div style="display:inline-flex;align-items:center;gap:10px;background:#fff;border:1.5px solid #bfdbfe;border-radius:12px;padding:10px 22px;box-shadow:0 1px 4px rgba(37,99,235,.08)">
+      <span style="font-size:22px">🗺️</span>
+      <div style="text-align:left">
+        <div style="font-size:16px;font-weight:900;color:#0f172a">Architecture des Flux — Shipinfy Metrics</div>
+        <div style="font-size:11px;color:#64748b;margin-top:2px">17 modules · flux détaillés · interconnexions · Sprint 1→15</div>
+      </div>
+    </div>
   </div>
 
-  <!-- BODY -->
-  <div class="pf-body">
+  <!-- LEGEND -->
+  <div style="display:flex;flex-wrap:wrap;gap:8px;justify-content:center;margin-bottom:24px">
+    <span style="display:flex;align-items:center;gap:5px;font-size:10px;font-weight:700;background:#f0fdf4;border:1.5px solid #86efac;color:#16a34a;padding:4px 12px;border-radius:99px">● Zone Données</span>
+    <span style="display:flex;align-items:center;gap:5px;font-size:10px;font-weight:700;background:#eff6ff;border:1.5px solid #93c5fd;color:#2563eb;padding:4px 12px;border-radius:99px">● Zone Opérations</span>
+    <span style="display:flex;align-items:center;gap:5px;font-size:10px;font-weight:700;background:#f5f3ff;border:1.5px solid #c4b5fd;color:#7c3aed;padding:4px 12px;border-radius:99px">● Zone Analytics</span>
+    <span style="display:flex;align-items:center;gap:5px;font-size:10px;font-weight:700;background:#fff7ed;border:1.5px solid #fed7aa;color:#ea580c;padding:4px 12px;border-radius:99px">● Zone RH & Finance</span>
+    <span style="display:flex;align-items:center;gap:5px;font-size:10px;font-weight:700;background:#fef2f2;border:1.5px solid #fecaca;color:#dc2626;padding:4px 12px;border-radius:99px">● Zone Configuration</span>
+  </div>
 
-    <!-- LEFT: OLD WAY -->
-    <div class="pf-old">
-      <div class="chaos-grid">
-        <div class="chaos-card"><div class="cc-icon">📄</div><div class="cc-label">Commandes<br>saisies manuellement</div></div>
-        <div class="chaos-card"><div class="cc-icon">📱</div><div class="cc-label">Affectation<br>via WhatsApp</div></div>
-        <div class="chaos-card"><div class="cc-icon">📊</div><div class="cc-label">Suivi sur<br>fichier Excel</div></div>
-        <div class="chaos-card"><div class="cc-icon">🤷</div><div class="cc-label">Reporting<br>inexistant</div></div>
-        <div class="chaos-card"><div class="cc-icon">🔁</div><div class="cc-label">Retours non<br>tracés</div></div>
-        <div class="chaos-card"><div class="cc-icon">⚠️</div><div class="cc-label">Erreurs<br>d'affectation</div></div>
-        <div class="chaos-card"><div class="cc-icon">😤</div><div class="cc-label">Livreurs<br>non évalués</div></div>
-        <div class="chaos-card"><div class="cc-icon">💸</div><div class="cc-label">Rémunération<br>calculée à la main</div></div>
-      </div>
-      <div class="chaos-mess">⇅ ↗ ↙ ↕ ↘ ↖</div>
-      <div class="pain-box">
-        <div class="pb-title">⛔ Points de douleur</div>
-        <ul>
-          <li>Aucune visibilité temps réel sur les livraisons</li>
-          <li>Conflits d'affectation et doublons fréquents</li>
-          <li>Problèmes détectés trop tard pour corriger</li>
-          <li>KPIs calculés manuellement en fin de journée</li>
-          <li>Pas d'historique ni de traçabilité livreur</li>
-          <li>Support client sans tickets ni suivi</li>
-        </ul>
-      </div>
+  <!-- ─── ZONE 1: DONNÉES ─────────────────────────────────── -->
+  <div style="background:#f0fdf4;border:2px solid #86efac;border-radius:16px;padding:18px 20px;margin-bottom:16px">
+    <div style="font-size:11px;font-weight:800;color:#16a34a;text-transform:uppercase;letter-spacing:.1em;margin-bottom:14px;display:flex;align-items:center;gap:8px">
+      <span style="background:#16a34a;color:#fff;padding:2px 10px;border-radius:99px">ZONE 1</span> 📥 ENTRÉE DE DONNÉES
     </div>
-
-    <!-- MIDDLE ARROW -->
-    <div class="pf-mid">
-      <svg class="arrow-svg" viewBox="0 0 30 80" fill="none">
-        <path d="M15 6 L15 66" stroke="#2563eb" stroke-width="2.5" stroke-dasharray="5,3"/>
-        <polygon points="9,60 15,72 21,60" fill="#2563eb"/>
-      </svg>
-    </div>
-
-    <!-- RIGHT: MODERN WAY -->
-    <div class="pf-new">
-      <div class="pf-flow">
-        <div class="node-pill start">▶ Commande reçue</div>
-        <div class="fc-arrow"></div>
-        <div class="node-box">🗂 Dispatch — Affectation livreur</div>
-        <div class="fc-arrow"></div>
-        <div class="node-diamond">Livreur disponible ?</div>
-        <div class="branch-row">
-          <div class="branch">
-            <div class="branch-tag yes">✓ OUI</div>
-            <div class="fc-arrow"></div>
-            <div class="node-mini">📍 Pointage<br>Shift confirmé</div>
-            <div class="fc-arrow"></div>
-            <div class="node-mini">🚚 Livraison<br>en cours</div>
-          </div>
-          <div class="branch">
-            <div class="branch-tag no">✗ NON</div>
-            <div class="fc-arrow"></div>
-            <div class="node-mini">🔁 Réaffectation<br>automatique</div>
-            <div class="fc-arrow"></div>
-            <div class="node-mini">🔔 Alerte<br>coordinateur</div>
+    <div style="display:grid;grid-template-columns:1fr 40px 1fr 40px 1fr;gap:0;align-items:center">
+      <!-- Rapports module -->
+      <div style="background:#fff;border:1.5px solid #86efac;border-radius:12px;padding:14px">
+        <div style="display:flex;align-items:center;gap:8px;margin-bottom:10px">
+          <span style="font-size:20px">📋</span>
+          <div>
+            <div style="font-size:13px;font-weight:800;color:#0f172a">Rapports</div>
+            <div style="font-size:9px;background:#dcfce7;color:#16a34a;padding:1px 7px;border-radius:99px;font-weight:700;display:inline-block">MANAGER · ADMIN</div>
           </div>
         </div>
-        <div class="fc-arrow" style="margin-top:10px"></div>
-        <div class="node-box">🤖 Score IA — Évaluation livreur</div>
-        <div class="fc-arrow"></div>
-        <div class="node-diamond">Problème signalé ?</div>
-        <div class="branch-row">
-          <div class="branch">
-            <div class="branch-tag yes">✓ OUI</div>
-            <div class="fc-arrow"></div>
-            <div class="node-mini">🎫 Ticket<br>Support créé</div>
-          </div>
-          <div class="branch">
-            <div class="branch-tag no">✗ NON</div>
-            <div class="fc-arrow"></div>
-            <div class="node-mini">✅ Livraison<br>confirmée</div>
-          </div>
+        <div style="display:flex;flex-direction:column;gap:5px">
+          <div style="background:#f0fdf4;border-left:3px solid #16a34a;padding:5px 9px;border-radius:0 6px 6px 0;font-size:11px;color:#166534">① Import fichier CSV livraisons</div>
+          <div style="font-size:10px;color:#94a3b8;text-align:center">↓</div>
+          <div style="background:#f0fdf4;border-left:3px solid #16a34a;padding:5px 9px;border-radius:0 6px 6px 0;font-size:11px;color:#166534">② Parsing + validation colonnes</div>
+          <div style="font-size:10px;color:#94a3b8;text-align:center">↓</div>
+          <div style="background:#f0fdf4;border-left:3px solid #16a34a;padding:5px 9px;border-radius:0 6px 6px 0;font-size:11px;color:#166534">③ Extraction: commandes, livreurs, statuts</div>
+          <div style="font-size:10px;color:#94a3b8;text-align:center">↓</div>
+          <div style="background:#dcfce7;border:1.5px solid #86efac;border-radius:8px;padding:5px 9px;font-size:11px;font-weight:700;color:#166534;text-align:center">💾 Stockage Supabase PostgreSQL</div>
         </div>
-        <div class="fc-arrow" style="margin-top:10px"></div>
-        <div class="node-output">📊 Dashboard KPIs + Rémunération + N8N Slack</div>
-        <div class="fc-arrow"></div>
-        <div class="node-pill end">■ Fin du cycle</div>
+        <div style="margin-top:10px;padding-top:8px;border-top:1px solid #dcfce7;font-size:10px;color:#64748b">
+          <span style="font-weight:700;color:#166534">→ Alimente :</span> KPIs · Livreurs · Rémunération · Score IA · Retours
+        </div>
       </div>
-      <div class="pf-bottom">
-        <div class="info-card">
-          <div class="ic-title">⚡ Capacités clés</div>
-          <ul>
-            <li>Dispatch automatique multi-hub</li>
-            <li>Alertes prédictives (Slack)</li>
-            <li>Score IA par livreur</li>
-            <li>Rémunération calculée auto</li>
-            <li>Reporting temps réel</li>
-          </ul>
+      <!-- Arrow -->
+      <div style="text-align:center;color:#16a34a;font-size:22px;font-weight:700">→</div>
+      <!-- Supabase DB -->
+      <div style="background:linear-gradient(135deg,#f0fdf4,#eff6ff);border:2px solid #93c5fd;border-radius:12px;padding:16px;text-align:center">
+        <div style="font-size:28px;margin-bottom:6px">🗄️</div>
+        <div style="font-size:13px;font-weight:900;color:#2563eb">Supabase PostgreSQL</div>
+        <div style="font-size:10px;color:#64748b;margin-top:4px">Source unique de vérité</div>
+        <div style="display:flex;flex-wrap:wrap;gap:4px;justify-content:center;margin-top:10px">
+          <span style="font-size:9px;background:#dbeafe;color:#1d4ed8;padding:2px 6px;border-radius:5px;font-weight:700">DeliveryOrder</span>
+          <span style="font-size:9px;background:#dbeafe;color:#1d4ed8;padding:2px 6px;border-radius:5px;font-weight:700">Livreur</span>
+          <span style="font-size:9px;background:#dbeafe;color:#1d4ed8;padding:2px 6px;border-radius:5px;font-weight:700">ShiftSlot</span>
+          <span style="font-size:9px;background:#dbeafe;color:#1d4ed8;padding:2px 6px;border-radius:5px;font-weight:700">SupportTicket</span>
+          <span style="font-size:9px;background:#dbeafe;color:#1d4ed8;padding:2px 6px;border-radius:5px;font-weight:700">N8NLog</span>
+          <span style="font-size:9px;background:#dbeafe;color:#1d4ed8;padding:2px 6px;border-radius:5px;font-weight:700">LoginLog</span>
+          <span style="font-size:9px;background:#dbeafe;color:#1d4ed8;padding:2px 6px;border-radius:5px;font-weight:700">Session</span>
+          <span style="font-size:9px;background:#dbeafe;color:#1d4ed8;padding:2px 6px;border-radius:5px;font-weight:700">Tenant</span>
         </div>
-        <div class="info-card">
-          <div class="ic-title">👥 Qui en bénéficie</div>
-          <ul>
-            <li>Coordinateurs & Managers</li>
-            <li>Dispatchers</li>
-            <li>Support client</li>
-            <li>RH & Finance</li>
-            <li>Direction (KPIs exec)</li>
-          </ul>
+      </div>
+      <!-- Arrow -->
+      <div style="text-align:center;color:#2563eb;font-size:22px;font-weight:700">→</div>
+      <!-- Prisma ORM -->
+      <div style="background:#fff;border:1.5px solid #c4b5fd;border-radius:12px;padding:14px">
+        <div style="display:flex;align-items:center;gap:8px;margin-bottom:10px">
+          <span style="font-size:20px">⚙️</span>
+          <div>
+            <div style="font-size:13px;font-weight:800;color:#0f172a">Prisma ORM</div>
+            <div style="font-size:9px;background:#f5f3ff;color:#7c3aed;padding:1px 7px;border-radius:99px;font-weight:700;display:inline-block">COUCHE DONNÉES</div>
+          </div>
+        </div>
+        <div style="display:flex;flex-direction:column;gap:5px">
+          <div style="background:#f5f3ff;border-left:3px solid #7c3aed;padding:5px 9px;border-radius:0 6px 6px 0;font-size:11px;color:#5b21b6">① Schema typé TypeScript</div>
+          <div style="background:#f5f3ff;border-left:3px solid #7c3aed;padding:5px 9px;border-radius:0 6px 6px 0;font-size:11px;color:#5b21b6">② API routes Next.js App Router</div>
+          <div style="background:#f5f3ff;border-left:3px solid #7c3aed;padding:5px 9px;border-radius:0 6px 6px 0;font-size:11px;color:#5b21b6">③ Middleware Auth + RBAC 7 rôles</div>
+          <div style="background:#ede9fe;border:1.5px solid #c4b5fd;border-radius:8px;padding:5px 9px;font-size:11px;font-weight:700;color:#5b21b6;text-align:center">🔐 Session HttpOnly Cookie</div>
+        </div>
+        <div style="margin-top:10px;padding-top:8px;border-top:1px solid #ede9fe;font-size:10px;color:#64748b">
+          <span style="font-weight:700;color:#5b21b6">→ Alimente :</span> Tous les modules via API REST
         </div>
       </div>
     </div>
   </div>
 
-  <!-- STATS ROW -->
-  <div class="pf-stats">
-    <div class="pf-stat"><div class="sv blue">+35%</div><div class="sl">Taux de livraison</div></div>
-    <div class="pf-stat"><div class="sv green">−80%</div><div class="sl">Temps affectation</div></div>
-    <div class="pf-stat"><div class="sv orange">7 rôles</div><div class="sl">Accès granulaires</div></div>
-    <div class="pf-stat"><div class="sv red">0</div><div class="sl">Erreurs manuelles</div></div>
+  <!-- Arrow Down -->
+  <div style="text-align:center;margin:4px 0;color:#94a3b8;font-size:18px">↓ &nbsp;&nbsp; ↓ &nbsp;&nbsp; ↓</div>
+
+  <!-- ─── ZONE 2: OPÉRATIONS ─────────────────────────────── -->
+  <div style="background:#eff6ff;border:2px solid #93c5fd;border-radius:16px;padding:18px 20px;margin-bottom:16px">
+    <div style="font-size:11px;font-weight:800;color:#2563eb;text-transform:uppercase;letter-spacing:.1em;margin-bottom:14px;display:flex;align-items:center;gap:8px">
+      <span style="background:#2563eb;color:#fff;padding:2px 10px;border-radius:99px">ZONE 2</span> 🚚 OPÉRATIONS TERRAIN
+    </div>
+    <div style="display:grid;grid-template-columns:repeat(5,1fr);gap:12px">
+
+      <!-- DISPATCH -->
+      <div style="background:#fff;border:1.5px solid #93c5fd;border-radius:12px;padding:12px">
+        <div style="display:flex;align-items:center;gap:6px;margin-bottom:8px">
+          <span style="font-size:18px">🚛</span>
+          <div>
+            <div style="font-size:12px;font-weight:800;color:#0f172a">Dispatch</div>
+            <div style="font-size:9px;background:#dbeafe;color:#1d4ed8;padding:1px 6px;border-radius:99px;font-weight:700;display:inline-block">DISPATCHER</div>
+          </div>
+        </div>
+        <div style="display:flex;flex-direction:column;gap:4px;margin-bottom:8px">
+          <div style="font-size:10px;background:#eff6ff;border-left:2px solid #2563eb;padding:4px 7px;border-radius:0 5px 5px 0;color:#1e40af">① Commandes du rapport</div>
+          <div style="font-size:10px;color:#94a3b8;text-align:center">↓</div>
+          <div style="font-size:10px;background:#eff6ff;border-left:2px solid #2563eb;padding:4px 7px;border-radius:0 5px 5px 0;color:#1e40af">② Sélection livreur + hub</div>
+          <div style="font-size:10px;color:#94a3b8;text-align:center">↓</div>
+          <div style="font-size:10px;background:#eff6ff;border-left:2px solid #2563eb;padding:4px 7px;border-radius:0 5px 5px 0;color:#1e40af">③ Détection conflits zones</div>
+          <div style="font-size:10px;color:#94a3b8;text-align:center">↓</div>
+          <div style="font-size:10px;background:#dbeafe;border-radius:6px;padding:4px 7px;font-weight:700;color:#1d4ed8;text-align:center">✅ Affectation validée</div>
+        </div>
+        <div style="font-size:9px;color:#64748b;border-top:1px solid #dbeafe;padding-top:6px">→ <b>Shifts</b> · <b>Hubs</b> · <b>Alertes</b></div>
+      </div>
+
+      <!-- SHIFTS -->
+      <div style="background:#fff;border:1.5px solid #93c5fd;border-radius:12px;padding:12px">
+        <div style="display:flex;align-items:center;gap:6px;margin-bottom:8px">
+          <span style="font-size:18px">📅</span>
+          <div>
+            <div style="font-size:12px;font-weight:800;color:#0f172a">Shifts & Planning</div>
+            <div style="font-size:9px;background:#dbeafe;color:#1d4ed8;padding:1px 6px;border-radius:99px;font-weight:700;display:inline-block">COORDINATOR</div>
+          </div>
+        </div>
+        <div style="display:flex;flex-direction:column;gap:4px;margin-bottom:8px">
+          <div style="font-size:10px;background:#eff6ff;border-left:2px solid #2563eb;padding:4px 7px;border-radius:0 5px 5px 0;color:#1e40af">① Créer créneau (zone/date/cap.)</div>
+          <div style="font-size:10px;color:#94a3b8;text-align:center">↓</div>
+          <div style="font-size:10px;background:#eff6ff;border-left:2px solid #2563eb;padding:4px 7px;border-radius:0 5px 5px 0;color:#1e40af">② Affecter livreur au créneau</div>
+          <div style="font-size:10px;color:#94a3b8;text-align:center">↓</div>
+          <div style="font-size:10px;background:#eff6ff;border-left:2px solid #2563eb;padding:4px 7px;border-radius:0 5px 5px 0;color:#1e40af">③ Détection double affectation</div>
+          <div style="font-size:10px;color:#94a3b8;text-align:center">↓</div>
+          <div style="font-size:10px;background:#dbeafe;border-radius:6px;padding:4px 7px;font-weight:700;color:#1d4ed8;text-align:center">📱 Notif WhatsApp via N8N</div>
+        </div>
+        <div style="font-size:9px;color:#64748b;border-top:1px solid #dbeafe;padding-top:6px">→ <b>Pointage</b> · <b>N8N</b> · <b>Dispatch</b></div>
+      </div>
+
+      <!-- POINTAGE -->
+      <div style="background:#fff;border:1.5px solid #93c5fd;border-radius:12px;padding:12px">
+        <div style="display:flex;align-items:center;gap:6px;margin-bottom:8px">
+          <span style="font-size:18px">🕐</span>
+          <div>
+            <div style="font-size:12px;font-weight:800;color:#0f172a">Pointage</div>
+            <div style="font-size:9px;background:#dbeafe;color:#1d4ed8;padding:1px 6px;border-radius:99px;font-weight:700;display:inline-block">COORDINATOR</div>
+          </div>
+        </div>
+        <div style="display:flex;flex-direction:column;gap:4px;margin-bottom:8px">
+          <div style="font-size:10px;background:#eff6ff;border-left:2px solid #2563eb;padding:4px 7px;border-radius:0 5px 5px 0;color:#1e40af">① Check-in livreur (heure entrée)</div>
+          <div style="font-size:10px;color:#94a3b8;text-align:center">↓</div>
+          <div style="font-size:10px;background:#eff6ff;border-left:2px solid #2563eb;padding:4px 7px;border-radius:0 5px 5px 0;color:#1e40af">② Check-out (heure sortie)</div>
+          <div style="font-size:10px;color:#94a3b8;text-align:center">↓</div>
+          <div style="font-size:10px;background:#eff6ff;border-left:2px solid #2563eb;padding:4px 7px;border-radius:0 5px 5px 0;color:#1e40af">③ Calcul heures travaillées</div>
+          <div style="font-size:10px;color:#94a3b8;text-align:center">↓</div>
+          <div style="font-size:10px;background:#dbeafe;border-radius:6px;padding:4px 7px;font-weight:700;color:#1d4ed8;text-align:center">📊 Export CSV mensuel</div>
+        </div>
+        <div style="font-size:9px;color:#64748b;border-top:1px solid #dbeafe;padding-top:6px">→ <b>Rémunération</b> · <b>KPIs</b></div>
+      </div>
+
+      <!-- RETOURS -->
+      <div style="background:#fff;border:1.5px solid #93c5fd;border-radius:12px;padding:12px">
+        <div style="display:flex;align-items:center;gap:6px;margin-bottom:8px">
+          <span style="font-size:18px">↩️</span>
+          <div>
+            <div style="font-size:12px;font-weight:800;color:#0f172a">Retours & NO_SHOW</div>
+            <div style="font-size:9px;background:#dbeafe;color:#1d4ed8;padding:1px 6px;border-radius:99px;font-weight:700;display:inline-block">DISPATCHER</div>
+          </div>
+        </div>
+        <div style="display:flex;flex-direction:column;gap:4px;margin-bottom:8px">
+          <div style="font-size:10px;background:#eff6ff;border-left:2px solid #2563eb;padding:4px 7px;border-radius:0 5px 5px 0;color:#1e40af">① Commande marquée NO_SHOW</div>
+          <div style="font-size:10px;color:#94a3b8;text-align:center">↓</div>
+          <div style="font-size:10px;background:#eff6ff;border-left:2px solid #2563eb;padding:4px 7px;border-radius:0 5px 5px 0;color:#1e40af">② Raison + traçabilité</div>
+          <div style="font-size:10px;color:#94a3b8;text-align:center">↓</div>
+          <div style="font-size:10px;background:#eff6ff;border-left:2px solid #2563eb;padding:4px 7px;border-radius:0 5px 5px 0;color:#1e40af">③ Impact sur taux livreur</div>
+          <div style="font-size:10px;color:#94a3b8;text-align:center">↓</div>
+          <div style="font-size:10px;background:#dbeafe;border-radius:6px;padding:4px 7px;font-weight:700;color:#1d4ed8;text-align:center">⚠️ Alerte si seuil dépassé</div>
+        </div>
+        <div style="font-size:9px;color:#64748b;border-top:1px solid #dbeafe;padding-top:6px">→ <b>Score IA</b> · <b>Alertes</b> · <b>KPIs</b></div>
+      </div>
+
+      <!-- HUBS -->
+      <div style="background:#fff;border:1.5px solid #93c5fd;border-radius:12px;padding:12px">
+        <div style="display:flex;align-items:center;gap:6px;margin-bottom:8px">
+          <span style="font-size:18px">📍</span>
+          <div>
+            <div style="font-size:12px;font-weight:800;color:#0f172a">Hubs</div>
+            <div style="font-size:9px;background:#dbeafe;color:#1d4ed8;padding:1px 6px;border-radius:99px;font-weight:700;display:inline-block">MANAGER</div>
+          </div>
+        </div>
+        <div style="display:flex;flex-direction:column;gap:4px;margin-bottom:8px">
+          <div style="font-size:10px;background:#eff6ff;border-left:2px solid #2563eb;padding:4px 7px;border-radius:0 5px 5px 0;color:#1e40af">① Définir zones géographiques</div>
+          <div style="font-size:10px;color:#94a3b8;text-align:center">↓</div>
+          <div style="font-size:10px;background:#eff6ff;border-left:2px solid #2563eb;padding:4px 7px;border-radius:0 5px 5px 0;color:#1e40af">② Affecter livreurs au hub</div>
+          <div style="font-size:10px;color:#94a3b8;text-align:center">↓</div>
+          <div style="font-size:10px;background:#eff6ff;border-left:2px solid #2563eb;padding:4px 7px;border-radius:0 5px 5px 0;color:#1e40af">③ Suivi capacité par hub</div>
+          <div style="font-size:10px;color:#94a3b8;text-align:center">↓</div>
+          <div style="font-size:10px;background:#dbeafe;border-radius:6px;padding:4px 7px;font-weight:700;color:#1d4ed8;text-align:center">🗺️ KPIs par zone</div>
+        </div>
+        <div style="font-size:9px;color:#64748b;border-top:1px solid #dbeafe;padding-top:6px">→ <b>Dispatch</b> · <b>Livreurs</b> · <b>KPIs</b></div>
+      </div>
+
+    </div>
+  </div>
+
+  <!-- Arrow Down -->
+  <div style="text-align:center;margin:4px 0;color:#94a3b8;font-size:18px">↓ &nbsp;&nbsp; ↓ &nbsp;&nbsp; ↓</div>
+
+  <!-- ─── ZONE 3: ANALYTICS ──────────────────────────────── -->
+  <div style="background:#f5f3ff;border:2px solid #c4b5fd;border-radius:16px;padding:18px 20px;margin-bottom:16px">
+    <div style="font-size:11px;font-weight:800;color:#7c3aed;text-transform:uppercase;letter-spacing:.1em;margin-bottom:14px;display:flex;align-items:center;gap:8px">
+      <span style="background:#7c3aed;color:#fff;padding:2px 10px;border-radius:99px">ZONE 3</span> 📊 ANALYTICS & INTELLIGENCE
+    </div>
+    <div style="display:grid;grid-template-columns:repeat(5,1fr);gap:12px">
+
+      <!-- DASHBOARD -->
+      <div style="background:#fff;border:1.5px solid #c4b5fd;border-radius:12px;padding:12px">
+        <div style="display:flex;align-items:center;gap:6px;margin-bottom:8px">
+          <span style="font-size:18px">📊</span>
+          <div>
+            <div style="font-size:12px;font-weight:800;color:#0f172a">Dashboard</div>
+            <div style="font-size:9px;background:#ede9fe;color:#6d28d9;padding:1px 6px;border-radius:99px;font-weight:700;display:inline-block">TOUS RÔLES</div>
+          </div>
+        </div>
+        <div style="display:flex;flex-direction:column;gap:4px;margin-bottom:8px">
+          <div style="font-size:10px;background:#f5f3ff;border-left:2px solid #7c3aed;padding:4px 7px;border-radius:0 5px 5px 0;color:#5b21b6">① Agrégation KPIs temps réel</div>
+          <div style="font-size:10px;color:#94a3b8;text-align:center">↓</div>
+          <div style="font-size:10px;background:#f5f3ff;border-left:2px solid #7c3aed;padding:4px 7px;border-radius:0 5px 5px 0;color:#5b21b6">② Widget PrevisionsMini J+3</div>
+          <div style="font-size:10px;color:#94a3b8;text-align:center">↓</div>
+          <div style="font-size:10px;background:#f5f3ff;border-left:2px solid #7c3aed;padding:4px 7px;border-radius:0 5px 5px 0;color:#5b21b6">③ Alertes critiques du jour</div>
+          <div style="font-size:10px;color:#94a3b8;text-align:center">↓</div>
+          <div style="font-size:10px;background:#ede9fe;border-radius:6px;padding:4px 7px;font-weight:700;color:#6d28d9;text-align:center">🎯 Vue exécutive globale</div>
+        </div>
+        <div style="font-size:9px;color:#64748b;border-top:1px solid #ede9fe;padding-top:6px">← <b>KPIs</b> · <b>Alertes</b> · <b>Prévisions</b></div>
+      </div>
+
+      <!-- KPIs -->
+      <div style="background:#fff;border:1.5px solid #c4b5fd;border-radius:12px;padding:12px">
+        <div style="display:flex;align-items:center;gap:6px;margin-bottom:8px">
+          <span style="font-size:18px">📈</span>
+          <div>
+            <div style="font-size:12px;font-weight:800;color:#0f172a">KPIs</div>
+            <div style="font-size:9px;background:#ede9fe;color:#6d28d9;padding:1px 6px;border-radius:99px;font-weight:700;display:inline-block">MANAGER+</div>
+          </div>
+        </div>
+        <div style="display:flex;flex-direction:column;gap:4px;margin-bottom:8px">
+          <div style="font-size:10px;background:#f5f3ff;border-left:2px solid #7c3aed;padding:4px 7px;border-radius:0 5px 5px 0;color:#5b21b6">① Calcul taux livraison/NO_SHOW</div>
+          <div style="font-size:10px;color:#94a3b8;text-align:center">↓</div>
+          <div style="font-size:10px;background:#f5f3ff;border-left:2px solid #7c3aed;padding:4px 7px;border-radius:0 5px 5px 0;color:#5b21b6">② Comparatif J-7/Mois préc. ▲▼</div>
+          <div style="font-size:10px;color:#94a3b8;text-align:center">↓</div>
+          <div style="font-size:10px;background:#f5f3ff;border-left:2px solid #7c3aed;padding:4px 7px;border-radius:0 5px 5px 0;color:#5b21b6">③ KPIs par livreur/hub/période</div>
+          <div style="font-size:10px;color:#94a3b8;text-align:center">↓</div>
+          <div style="font-size:10px;background:#ede9fe;border-radius:6px;padding:4px 7px;font-weight:700;color:#6d28d9;text-align:center">📉 Indicateurs ▲▼ temps réel</div>
+        </div>
+        <div style="font-size:9px;color:#64748b;border-top:1px solid #ede9fe;padding-top:6px">← <b>Rapports</b> · → <b>Dashboard</b> · <b>Score IA</b></div>
+      </div>
+
+      <!-- ALERTES -->
+      <div style="background:#fff;border:1.5px solid #c4b5fd;border-radius:12px;padding:12px">
+        <div style="display:flex;align-items:center;gap:6px;margin-bottom:8px">
+          <span style="font-size:18px">🔔</span>
+          <div>
+            <div style="font-size:12px;font-weight:800;color:#0f172a">Alertes</div>
+            <div style="font-size:9px;background:#ede9fe;color:#6d28d9;padding:1px 6px;border-radius:99px;font-weight:700;display:inline-block">TOUS RÔLES</div>
+          </div>
+        </div>
+        <div style="display:flex;flex-direction:column;gap:4px;margin-bottom:8px">
+          <div style="font-size:10px;background:#f5f3ff;border-left:2px solid #7c3aed;padding:4px 7px;border-radius:0 5px 5px 0;color:#5b21b6">① Règles seuils configurables</div>
+          <div style="font-size:10px;color:#94a3b8;text-align:center">↓</div>
+          <div style="font-size:10px;background:#f5f3ff;border-left:2px solid #7c3aed;padding:4px 7px;border-radius:0 5px 5px 0;color:#5b21b6">② Détection anomalie auto</div>
+          <div style="font-size:10px;color:#94a3b8;text-align:center">↓</div>
+          <div style="font-size:10px;background:#f5f3ff;border-left:2px solid #7c3aed;padding:4px 7px;border-radius:0 5px 5px 0;color:#5b21b6">③ 4 cards stats + taux résolution</div>
+          <div style="font-size:10px;color:#94a3b8;text-align:center">↓</div>
+          <div style="font-size:10px;background:#ede9fe;border-radius:6px;padding:4px 7px;font-weight:700;color:#6d28d9;text-align:center">📣 Envoi Slack + N8N webhook</div>
+        </div>
+        <div style="font-size:9px;color:#64748b;border-top:1px solid #ede9fe;padding-top:6px">← <b>Retours</b> · <b>KPIs</b> · → <b>Support</b> · <b>N8N</b></div>
+      </div>
+
+      <!-- SCORE IA -->
+      <div style="background:#fff;border:1.5px solid #c4b5fd;border-radius:12px;padding:12px">
+        <div style="display:flex;align-items:center;gap:6px;margin-bottom:8px">
+          <span style="font-size:18px">🤖</span>
+          <div>
+            <div style="font-size:12px;font-weight:800;color:#0f172a">Score IA</div>
+            <div style="font-size:9px;background:#ede9fe;color:#6d28d9;padding:1px 6px;border-radius:99px;font-weight:700;display:inline-block">MANAGER+</div>
+          </div>
+        </div>
+        <div style="display:flex;flex-direction:column;gap:4px;margin-bottom:8px">
+          <div style="font-size:10px;background:#f5f3ff;border-left:2px solid #7c3aed;padding:4px 7px;border-radius:0 5px 5px 0;color:#5b21b6">① Taux livraison × coeff1</div>
+          <div style="font-size:10px;background:#f5f3ff;border-left:2px solid #7c3aed;padding:4px 7px;border-radius:0 5px 5px 0;color:#5b21b6">② Score academy × coeff2</div>
+          <div style="font-size:10px;background:#f5f3ff;border-left:2px solid #7c3aed;padding:4px 7px;border-radius:0 5px 5px 0;color:#5b21b6">③ (100−NO_SHOW) × coeff3</div>
+          <div style="font-size:10px;color:#94a3b8;text-align:center">↓</div>
+          <div style="font-size:10px;background:#ede9fe;border-radius:6px;padding:4px 7px;font-weight:700;color:#6d28d9;text-align:center">🏆 Score /100 par livreur</div>
+        </div>
+        <div style="font-size:9px;color:#64748b;border-top:1px solid #ede9fe;padding-top:6px">← <b>KPIs</b> · <b>Academy</b> · → <b>Livreurs</b> · <b>Dashboard</b></div>
+      </div>
+
+      <!-- PREVISIONS -->
+      <div style="background:#fff;border:1.5px solid #c4b5fd;border-radius:12px;padding:12px">
+        <div style="display:flex;align-items:center;gap:6px;margin-bottom:8px">
+          <span style="font-size:18px">🔮</span>
+          <div>
+            <div style="font-size:12px;font-weight:800;color:#0f172a">Prévisions</div>
+            <div style="font-size:9px;background:#ede9fe;color:#6d28d9;padding:1px 6px;border-radius:99px;font-weight:700;display:inline-block">MANAGER+</div>
+          </div>
+        </div>
+        <div style="display:flex;flex-direction:column;gap:4px;margin-bottom:8px">
+          <div style="font-size:10px;background:#f5f3ff;border-left:2px solid #7c3aed;padding:4px 7px;border-radius:0 5px 5px 0;color:#5b21b6">① Analyse historique commandes</div>
+          <div style="font-size:10px;color:#94a3b8;text-align:center">↓</div>
+          <div style="font-size:10px;background:#f5f3ff;border-left:2px solid #7c3aed;padding:4px 7px;border-radius:0 5px 5px 0;color:#5b21b6">② Tendances saisonnières</div>
+          <div style="font-size:10px;color:#94a3b8;text-align:center">↓</div>
+          <div style="font-size:10px;background:#f5f3ff;border-left:2px solid #7c3aed;padding:4px 7px;border-radius:0 5px 5px 0;color:#5b21b6">③ Prédiction risque J+1/J+3</div>
+          <div style="font-size:10px;color:#94a3b8;text-align:center">↓</div>
+          <div style="font-size:10px;background:#ede9fe;border-radius:6px;padding:4px 7px;font-weight:700;color:#6d28d9;text-align:center">📊 Widget Dashboard J+3</div>
+        </div>
+        <div style="font-size:9px;color:#64748b;border-top:1px solid #ede9fe;padding-top:6px">← <b>Rapports</b> · → <b>Dashboard</b> · <b>Alertes</b></div>
+      </div>
+
+    </div>
+  </div>
+
+  <!-- Arrow Down -->
+  <div style="text-align:center;margin:4px 0;color:#94a3b8;font-size:18px">↓ &nbsp;&nbsp; ↓ &nbsp;&nbsp; ↓</div>
+
+  <!-- ─── ZONE 4: RH & FINANCE ───────────────────────────── -->
+  <div style="background:#fff7ed;border:2px solid #fed7aa;border-radius:16px;padding:18px 20px;margin-bottom:16px">
+    <div style="font-size:11px;font-weight:800;color:#ea580c;text-transform:uppercase;letter-spacing:.1em;margin-bottom:14px;display:flex;align-items:center;gap:8px">
+      <span style="background:#ea580c;color:#fff;padding:2px 10px;border-radius:99px">ZONE 4</span> 👥 RH, FORMATION & FINANCE
+    </div>
+    <div style="display:grid;grid-template-columns:repeat(5,1fr);gap:12px">
+
+      <!-- LIVREURS -->
+      <div style="background:#fff;border:1.5px solid #fed7aa;border-radius:12px;padding:12px">
+        <div style="display:flex;align-items:center;gap:6px;margin-bottom:8px">
+          <span style="font-size:18px">🧑‍💼</span>
+          <div>
+            <div style="font-size:12px;font-weight:800;color:#0f172a">Livreurs</div>
+            <div style="font-size:9px;background:#ffedd5;color:#c2410c;padding:1px 6px;border-radius:99px;font-weight:700;display:inline-block">COORDINATOR+</div>
+          </div>
+        </div>
+        <div style="display:flex;flex-direction:column;gap:4px;margin-bottom:8px">
+          <div style="font-size:10px;background:#fff7ed;border-left:2px solid #ea580c;padding:4px 7px;border-radius:0 5px 5px 0;color:#9a3412">① Profil + avatar initiales</div>
+          <div style="font-size:10px;color:#94a3b8;text-align:center">↓</div>
+          <div style="font-size:10px;background:#fff7ed;border-left:2px solid #ea580c;padding:4px 7px;border-radius:0 5px 5px 0;color:#9a3412">② KPIs personnels + classement</div>
+          <div style="font-size:10px;color:#94a3b8;text-align:center">↓</div>
+          <div style="font-size:10px;background:#fff7ed;border-left:2px solid #ea580c;padding:4px 7px;border-radius:0 5px 5px 0;color:#9a3412">③ Historique 6 mois expandable</div>
+          <div style="font-size:10px;color:#94a3b8;text-align:center">↓</div>
+          <div style="font-size:10px;background:#ffedd5;border-radius:6px;padding:4px 7px;font-weight:700;color:#c2410c;text-align:center">🏆 Top/Bottom 3 détection</div>
+        </div>
+        <div style="font-size:9px;color:#64748b;border-top:1px solid #fed7aa;padding-top:6px">← <b>Rapports</b> · → <b>Score IA</b> · <b>Rémunération</b></div>
+      </div>
+
+      <!-- ONBOARDING -->
+      <div style="background:#fff;border:1.5px solid #fed7aa;border-radius:12px;padding:12px">
+        <div style="display:flex;align-items:center;gap:6px;margin-bottom:8px">
+          <span style="font-size:18px">🧩</span>
+          <div>
+            <div style="font-size:12px;font-weight:800;color:#0f172a">Onboarding</div>
+            <div style="font-size:9px;background:#ffedd5;color:#c2410c;padding:1px 6px;border-radius:99px;font-weight:700;display:inline-block">COORDINATOR+</div>
+          </div>
+        </div>
+        <div style="display:flex;flex-direction:column;gap:4px;margin-bottom:8px">
+          <div style="font-size:10px;background:#fff7ed;border-left:2px solid #ea580c;padding:4px 7px;border-radius:0 5px 5px 0;color:#9a3412">① Fiche nouveau livreur créée</div>
+          <div style="font-size:10px;color:#94a3b8;text-align:center">↓</div>
+          <div style="font-size:10px;background:#fff7ed;border-left:2px solid #ea580c;padding:4px 7px;border-radius:0 5px 5px 0;color:#9a3412">② Checklist documents requis</div>
+          <div style="font-size:10px;color:#94a3b8;text-align:center">↓</div>
+          <div style="font-size:10px;background:#fff7ed;border-left:2px solid #ea580c;padding:4px 7px;border-radius:0 5px 5px 0;color:#9a3412">③ Email de bienvenue auto</div>
+          <div style="font-size:10px;color:#94a3b8;text-align:center">↓</div>
+          <div style="font-size:10px;background:#ffedd5;border-radius:6px;padding:4px 7px;font-weight:700;color:#c2410c;text-align:center">✅ Livreur actif + Academy</div>
+        </div>
+        <div style="font-size:9px;color:#64748b;border-top:1px solid #fed7aa;padding-top:6px">→ <b>Livreurs</b> · <b>Academy</b> · <b>Shifts</b></div>
+      </div>
+
+      <!-- ACADEMY -->
+      <div style="background:#fff;border:1.5px solid #fed7aa;border-radius:12px;padding:12px">
+        <div style="display:flex;align-items:center;gap:6px;margin-bottom:8px">
+          <span style="font-size:18px">🎓</span>
+          <div>
+            <div style="font-size:12px;font-weight:800;color:#0f172a">Academy</div>
+            <div style="font-size:9px;background:#ffedd5;color:#c2410c;padding:1px 6px;border-radius:99px;font-weight:700;display:inline-block">TOUS RÔLES</div>
+          </div>
+        </div>
+        <div style="display:flex;flex-direction:column;gap:4px;margin-bottom:8px">
+          <div style="font-size:10px;background:#fff7ed;border-left:2px solid #ea580c;padding:4px 7px;border-radius:0 5px 5px 0;color:#9a3412">① Catalogue cours + vidéos</div>
+          <div style="font-size:10px;color:#94a3b8;text-align:center">↓</div>
+          <div style="font-size:10px;background:#fff7ed;border-left:2px solid #ea580c;padding:4px 7px;border-radius:0 5px 5px 0;color:#9a3412">② Quiz évaluation (QCM)</div>
+          <div style="font-size:10px;color:#94a3b8;text-align:center">↓</div>
+          <div style="font-size:10px;background:#fff7ed;border-left:2px solid #ea580c;padding:4px 7px;border-radius:0 5px 5px 0;color:#9a3412">③ Score ≥ 70% → Certifié</div>
+          <div style="font-size:10px;color:#94a3b8;text-align:center">↓</div>
+          <div style="font-size:10px;background:#ffedd5;border-radius:6px;padding:4px 7px;font-weight:700;color:#c2410c;text-align:center">📜 Certificat HTML généré</div>
+        </div>
+        <div style="font-size:9px;color:#64748b;border-top:1px solid #fed7aa;padding-top:6px">← <b>Onboarding</b> · → <b>Score IA</b> (coeff academy)</div>
+      </div>
+
+      <!-- SUPPORT -->
+      <div style="background:#fff;border:1.5px solid #fed7aa;border-radius:12px;padding:12px">
+        <div style="display:flex;align-items:center;gap:6px;margin-bottom:8px">
+          <span style="font-size:18px">🎫</span>
+          <div>
+            <div style="font-size:12px;font-weight:800;color:#0f172a">Support</div>
+            <div style="font-size:9px;background:#ffedd5;color:#c2410c;padding:1px 6px;border-radius:99px;font-weight:700;display:inline-block">SUPPORT+</div>
+          </div>
+        </div>
+        <div style="display:flex;flex-direction:column;gap:4px;margin-bottom:8px">
+          <div style="font-size:10px;background:#fff7ed;border-left:2px solid #ea580c;padding:4px 7px;border-radius:0 5px 5px 0;color:#9a3412">① Ticket créé (priorité/catégorie)</div>
+          <div style="font-size:10px;color:#94a3b8;text-align:center">↓</div>
+          <div style="font-size:10px;background:#fff7ed;border-left:2px solid #ea580c;padding:4px 7px;border-radius:0 5px 5px 0;color:#9a3412">② Assigné agent + SLA badge ⏱</div>
+          <div style="font-size:10px;color:#94a3b8;text-align:center">↓</div>
+          <div style="font-size:10px;background:#fff7ed;border-left:2px solid #ea580c;padding:4px 7px;border-radius:0 5px 5px 0;color:#9a3412">③ Résolu + slaBreached flag</div>
+          <div style="font-size:10px;color:#94a3b8;text-align:center">↓</div>
+          <div style="font-size:10px;background:#ffedd5;border-radius:6px;padding:4px 7px;font-weight:700;color:#c2410c;text-align:center">⭐ Score satisfaction 1-5</div>
+        </div>
+        <div style="font-size:9px;color:#64748b;border-top:1px solid #fed7aa;padding-top:6px">← <b>Alertes</b> · → <b>KPIs</b> · <b>Dashboard</b></div>
+      </div>
+
+      <!-- REMUNERATION -->
+      <div style="background:#fff;border:1.5px solid #fed7aa;border-radius:12px;padding:12px">
+        <div style="display:flex;align-items:center;gap:6px;margin-bottom:8px">
+          <span style="font-size:18px">💰</span>
+          <div>
+            <div style="font-size:12px;font-weight:800;color:#0f172a">Rémunération</div>
+            <div style="font-size:9px;background:#ffedd5;color:#c2410c;padding:1px 6px;border-radius:99px;font-weight:700;display:inline-block">MANAGER+</div>
+          </div>
+        </div>
+        <div style="display:flex;flex-direction:column;gap:4px;margin-bottom:8px">
+          <div style="font-size:10px;background:#fff7ed;border-left:2px solid #ea580c;padding:4px 7px;border-radius:0 5px 5px 0;color:#9a3412">① Calcul auto: livraisons × tarif</div>
+          <div style="font-size:10px;color:#94a3b8;text-align:center">↓</div>
+          <div style="font-size:10px;background:#fff7ed;border-left:2px solid #ea580c;padding:4px 7px;border-radius:0 5px 5px 0;color:#9a3412">② Validation manager requise</div>
+          <div style="font-size:10px;color:#94a3b8;text-align:center">↓</div>
+          <div style="font-size:10px;background:#fff7ed;border-left:2px solid #ea580c;padding:4px 7px;border-radius:0 5px 5px 0;color:#9a3412">③ Historique 6 mois / livreur</div>
+          <div style="font-size:10px;color:#94a3b8;text-align:center">↓</div>
+          <div style="font-size:10px;background:#ffedd5;border-radius:6px;padding:4px 7px;font-weight:700;color:#c2410c;text-align:center">📤 Export CSV paie ✓ Approuvée</div>
+        </div>
+        <div style="font-size:9px;color:#64748b;border-top:1px solid #fed7aa;padding-top:6px">← <b>Rapports</b> · <b>Pointage</b> · → <b>Finance</b></div>
+      </div>
+
+    </div>
+  </div>
+
+  <!-- Arrow Down -->
+  <div style="text-align:center;margin:4px 0;color:#94a3b8;font-size:18px">↓ &nbsp;&nbsp; ↓</div>
+
+  <!-- ─── ZONE 5: CONFIG & ADMIN ──────────────────────────── -->
+  <div style="background:#fef2f2;border:2px solid #fecaca;border-radius:16px;padding:18px 20px;margin-bottom:16px">
+    <div style="font-size:11px;font-weight:800;color:#dc2626;text-transform:uppercase;letter-spacing:.1em;margin-bottom:14px;display:flex;align-items:center;gap:8px">
+      <span style="background:#dc2626;color:#fff;padding:2px 10px;border-radius:99px">ZONE 5</span> ⚙️ CONFIGURATION & ADMINISTRATION
+    </div>
+    <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:14px">
+
+      <!-- N8N -->
+      <div style="background:#fff;border:1.5px solid #fecaca;border-radius:12px;padding:14px">
+        <div style="display:flex;align-items:center;gap:8px;margin-bottom:10px">
+          <span style="font-size:20px">⚡</span>
+          <div>
+            <div style="font-size:13px;font-weight:800;color:#0f172a">N8N Automations</div>
+            <div style="font-size:9px;background:#fee2e2;color:#b91c1c;padding:1px 7px;border-radius:99px;font-weight:700;display:inline-block">ADMIN+</div>
+          </div>
+        </div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:6px;margin-bottom:10px">
+          <div style="background:#fef2f2;border-radius:8px;padding:8px;font-size:10px;color:#991b1b;text-align:center">📣 Alertes → Slack</div>
+          <div style="background:#fef2f2;border-radius:8px;padding:8px;font-size:10px;color:#991b1b;text-align:center">📱 Shifts → WhatsApp</div>
+          <div style="background:#fef2f2;border-radius:8px;padding:8px;font-size:10px;color:#991b1b;text-align:center">🚀 Rapport → Webhook</div>
+          <div style="background:#fef2f2;border-radius:8px;padding:8px;font-size:10px;color:#991b1b;text-align:center">📊 Logs N8N tracés</div>
+        </div>
+        <div style="font-size:9px;color:#64748b">Connecté à: <b>Alertes</b> · <b>Shifts</b> · <b>Onboarding</b></div>
+      </div>
+
+      <!-- PARAMETRES -->
+      <div style="background:#fff;border:1.5px solid #fecaca;border-radius:12px;padding:14px">
+        <div style="display:flex;align-items:center;gap:8px;margin-bottom:10px">
+          <span style="font-size:20px">🔧</span>
+          <div>
+            <div style="font-size:13px;font-weight:800;color:#0f172a">Paramètres</div>
+            <div style="font-size:9px;background:#fee2e2;color:#b91c1c;padding:1px 7px;border-radius:99px;font-weight:700;display:inline-block">ADMIN+</div>
+          </div>
+        </div>
+        <div style="display:flex;flex-direction:column;gap:5px;margin-bottom:10px">
+          <div style="background:#fef2f2;border-left:2px solid #dc2626;padding:5px 8px;border-radius:0 6px 6px 0;font-size:10px;color:#991b1b">⚙️ SMTP email config</div>
+          <div style="background:#fef2f2;border-left:2px solid #dc2626;padding:5px 8px;border-radius:0 6px 6px 0;font-size:10px;color:#991b1b">📊 Score IA sliders coefficients</div>
+          <div style="background:#fef2f2;border-left:2px solid #dc2626;padding:5px 8px;border-radius:0 6px 6px 0;font-size:10px;color:#991b1b">🔔 Seuils alertes configurables</div>
+          <div style="background:#fef2f2;border-left:2px solid #dc2626;padding:5px 8px;border-radius:0 6px 6px 0;font-size:10px;color:#991b1b">🔑 Historique connexions LoginLog</div>
+        </div>
+        <div style="font-size:9px;color:#64748b">Contrôle: <b>Score IA</b> · <b>Alertes</b> · <b>Auth</b> · <b>N8N</b></div>
+      </div>
+
+      <!-- ADMIN -->
+      <div style="background:#fff;border:1.5px solid #fecaca;border-radius:12px;padding:14px">
+        <div style="display:flex;align-items:center;gap:8px;margin-bottom:10px">
+          <span style="font-size:20px">🛡️</span>
+          <div>
+            <div style="font-size:13px;font-weight:800;color:#0f172a">Super Admin</div>
+            <div style="font-size:9px;background:#fee2e2;color:#b91c1c;padding:1px 7px;border-radius:99px;font-weight:700;display:inline-block">SUPER_ADMIN</div>
+          </div>
+        </div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:6px;margin-bottom:10px">
+          <div style="background:#fef2f2;border-radius:8px;padding:8px;font-size:10px;color:#991b1b;text-align:center">🏢 Gestion tenants</div>
+          <div style="background:#fef2f2;border-radius:8px;padding:8px;font-size:10px;color:#991b1b;text-align:center">👤 Créer utilisateurs</div>
+          <div style="background:#fef2f2;border-radius:8px;padding:8px;font-size:10px;color:#991b1b;text-align:center">🔐 Assigner rôles</div>
+          <div style="background:#fef2f2;border-radius:8px;padding:8px;font-size:10px;color:#991b1b;text-align:center">📧 Email bienvenue auto</div>
+        </div>
+        <div style="font-size:9px;color:#64748b">RBAC: <b>VIEWER → SUPER_ADMIN</b> · 7 niveaux</div>
+      </div>
+
+    </div>
+  </div>
+
+  <!-- ─── INTERCONNEXION SUMMARY ──────────────────────────── -->
+  <div style="background:#fff;border:1.5px solid #e2e8f0;border-radius:16px;padding:18px 20px;margin-bottom:16px;box-shadow:0 1px 3px rgba(0,0,0,.05)">
+    <div style="font-size:13px;font-weight:900;color:#0f172a;margin-bottom:14px;display:flex;align-items:center;gap:8px">
+      🔗 Interconnexions clés entre modules
+    </div>
+    <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:10px">
+      <div style="background:#f8fafc;border-radius:10px;padding:10px 12px;border:1px solid #e2e8f0">
+        <div style="font-size:11px;font-weight:700;color:#0f172a;margin-bottom:6px">📋 Rapports → tout</div>
+        <div style="font-size:10px;color:#64748b;line-height:1.6">Source primaire → KPIs · Livreurs · Score IA · Rémunération · Alertes</div>
+      </div>
+      <div style="background:#f8fafc;border-radius:10px;padding:10px 12px;border:1px solid #e2e8f0">
+        <div style="font-size:11px;font-weight:700;color:#0f172a;margin-bottom:6px">🚛 Dispatch ↔ Shifts</div>
+        <div style="font-size:10px;color:#64748b;line-height:1.6">Dispatch lit les shifts disponibles · Shifts notifie via N8N · Pointage valide la présence</div>
+      </div>
+      <div style="background:#f8fafc;border-radius:10px;padding:10px 12px;border:1px solid #e2e8f0">
+        <div style="font-size:11px;font-weight:700;color:#0f172a;margin-bottom:6px">🤖 Score IA ← multi</div>
+        <div style="font-size:10px;color:#64748b;line-height:1.6">KPIs livraison + Academy score + NO_SHOW → Score unifié → Classement livreurs</div>
+      </div>
+      <div style="background:#f8fafc;border-radius:10px;padding:10px 12px;border:1px solid #e2e8f0">
+        <div style="font-size:11px;font-weight:700;color:#0f172a;margin-bottom:6px">⚡ N8N ← alertes/shifts</div>
+        <div style="font-size:10px;color:#64748b;line-height:1.6">Alertes critiques → Slack · Shift assigné → WhatsApp · Logs traçés en N8NLog</div>
+      </div>
+    </div>
   </div>
 
   <!-- SPRINT 15 BADGE -->
-  <div style="display:flex;align-items:center;justify-content:center;gap:10px;padding:10px 20px;background:#f0fdf4;border-top:1px solid #bbf7d0">
+  <div style="display:flex;align-items:center;justify-content:center;gap:10px;padding:10px 20px;background:#f0fdf4;border:1.5px solid #86efac;border-radius:12px">
     <span style="background:#16a34a;color:#fff;font-size:9px;font-weight:800;padding:3px 10px;border-radius:99px;letter-spacing:.08em">🏆 SPRINT 15</span>
-    <span style="font-size:11px;color:#15803d;font-weight:600">Mise à jour Avril 2026 — Score IA configurable · Export CSV · Historique 6 mois · Certificats · SLA · Shift N8N · Reset password · Login logs</span>
+    <span style="font-size:11px;color:#15803d;font-weight:600">Mise à jour Avril 2026 — Score IA configurable · Export CSV · Historique 6 mois · Certificats Academy · SLA Support · Shift N8N · Reset password · Login logs</span>
   </div>
 
-</div><!-- /pf-page -->
+</div>
 </div><!-- /tab-process -->
 
 <!-- ═══════════════════════════════════════════════════════════════════════════

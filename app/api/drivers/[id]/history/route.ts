@@ -4,14 +4,14 @@ import { getSession } from '@/lib/auth'
 
 export const runtime = 'nodejs'
 
-export async function GET(
-  req: NextRequest,
-  { params }: { params: { id: string } }
-) {
+type RouteCtx = { params: Promise<{ id: string }> }
+
+export async function GET(req: NextRequest, ctx: RouteCtx) {
   const session = await getSession(req)
   if (!session) return NextResponse.json({ error: 'Non autorisé' }, { status: 401 })
 
-  const driverName = decodeURIComponent(params.id)
+  const { id } = await ctx.params
+  const driverName = decodeURIComponent(id)
 
   // Get last 6 months of data
   const sixMonthsAgo = new Date()

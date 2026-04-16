@@ -6,7 +6,13 @@
 
 ---
 
-## VERSION ACTUELLE : v9.0 — Sprint 10 Shifts & Planning
+## VERSION ACTUELLE : v15.0 — Sprint 15 Upgrades (2026-04-16)
+
+> **Agents IA utilisés pour builder ce SaaS** :
+> - Claude Sonnet 4.6 (Claude Code) — agent principal, architecture + coordination
+> - Sub-agents background parallèles (Agent tool) — features isolées en parallèle
+> - 4 sub-agents Sprint 15 : (1) Livreurs avatars+history, (2) Academy cert+AlertRules, (3) Rémunération history+Support satisfaction, (4) Shifts N8N+shipinfy.html
+> - Chaque sub-agent reçoit un contexte précis (fichiers cibles + règles Prisma) et livre dans son propre worktree
 
 ---
 
@@ -43,6 +49,10 @@
 | `/academy` | `app/academy/page.tsx` | **2 onglets** : Formation Livreurs (6 modules) + Guides Shipinfy (8 guides) — Sprint 6 |
 | `/score-ia` | `app/score-ia/page.tsx` | Score IA fiabilité (Sprint 5) |
 | `/parametres` | `app/parametres/page.tsx` | Paramètres plateforme |
+| `/shifts` | `app/shifts/page.tsx` | **Shifts & Planning** : créneaux par zone/date, assignation livreurs, priorisation Score IA — Sprint 10 |
+| `/previsions` | `app/previsions/page.tsx` | **Prévisions** : forecasting livraisons, tendances J-7/M-1, graphiques — Sprint 7 |
+| `/admin` | `app/admin/page.tsx` | **Super Admin** : tenants, utilisateurs, 7 rôles RBAC, stats globales — Sprint 9b/14 |
+| `/login` | `app/login/page.tsx` | Page login email/password + forgot/reset password — Sprint 9b/15 |
 
 ---
 
@@ -139,6 +149,74 @@ Auto-cleanup après 10 minutes. Valide uniquement en mode Docker standalone (pro
 | `GET /api/support` | Liste tickets support (filtre status/priority) |
 | `POST /api/support` | Créer ticket (auto-génère référence SUP-XXXX) |
 | `PATCH /api/support/[id]` | Mettre à jour statut / priorité / assignedTo |
+
+### Shifts & Planning (Sprint 10)
+| Route | Rôle |
+|-------|------|
+| `GET/POST /api/shifts` | Liste créneaux (filtre zone/date/week) + créer slot |
+| `PATCH/DELETE /api/shifts/[id]` | Modifier/supprimer slot (async params F2) |
+| `POST/DELETE /api/shifts/[id]/assign` | Assigner / désassigner livreur (triggerN8N shift_assigned) |
+| `GET /api/shifts/available` | Slots disponibles pour un driverName selon son scoreIA |
+| `POST /api/shifts/rebalance` | Rééquilibrer zone/date (retire les scores les plus bas) |
+| `POST /api/shifts/copy-week` | Copier une semaine de slots vers une autre semaine — Sprint 15 |
+
+### N8N Automations (Sprint 11)
+| Route | Rôle |
+|-------|------|
+| `GET/POST /api/n8n/config` | CRUD config N8N (webhookUrl, events activés) |
+| `PATCH/DELETE /api/n8n/config/[id]` | Modifier/supprimer une config N8N |
+| `POST /api/n8n/test` | Tester l'envoi N8N vers un webhook |
+| `GET /api/n8n/logs` | Historique des envois N8N (N8NLog) — Sprint 15 |
+| `POST /api/webhooks/n8n` | Endpoint entrant : recevoir confirmations N8N |
+
+### Auth (Sprint 9b/13/15)
+| Route | Rôle |
+|-------|------|
+| `POST /api/auth/login` | Login → cookie httpOnly session (+ cookie rôle RBAC) |
+| `POST /api/auth/logout` | Logout → clear cookie + delete session DB |
+| `GET /api/auth/me` | Session courante + tenant + rôle |
+| `POST /api/auth/bootstrap` | Créer premier SUPER_ADMIN (one-shot) |
+| `POST /api/auth/forgot-password` | Envoyer email reset avec token 1h — Sprint 15 |
+| `POST /api/auth/reset-password` | Valider token + changer mot de passe — Sprint 15 |
+| `GET /api/auth/login-logs` | Historique connexions par user — Sprint 15 |
+
+### Admin (Sprint 9b/14)
+| Route | Rôle |
+|-------|------|
+| `GET/POST /api/admin/tenants` | CRUD tenants (SUPER_ADMIN) |
+| `PATCH/DELETE /api/admin/tenants/[id]` | Modifier/supprimer tenant |
+| `GET/POST /api/admin/tenants/[id]/users` | Users d'un tenant |
+| `GET/POST /api/admin/users` | Users global + envoi email de bienvenue avec creds |
+| `PATCH/DELETE /api/admin/users/[id]` | Modifier rôle/actif/nom + soft-deactivate — Sprint 14 |
+
+### Score IA Config + Paramètres (Sprint 15)
+| Route | Rôle |
+|-------|------|
+| `GET/POST /api/settings/score-config` | Coefficients Score IA configurables par tenant (sliders) |
+| `GET /api/dashboard/kpis` | ★ Sprint 15 : ajout comparatif J-7 + mois précédent (delta ▲▼) |
+
+### Rémunération Sprint 15
+| Route | Rôle |
+|-------|------|
+| `GET /api/remuneration/export` | Export CSV rémunération (par reportId) |
+| `POST /api/remuneration/validate` | Validation manager → approve workflow |
+| `GET /api/drivers/[id]/history` | Historique 6 mois de rémunération par livreur |
+
+### Support Sprint 15
+| Route | Rôle |
+|-------|------|
+| `POST /api/support/[id]/resolve` | Résoudre ticket + SLA elapsed |
+| `POST /api/support/[id]/satisfaction` | Enregistrer score satisfaction (1-5) + commentaire |
+
+### Pointage Sprint 15
+| Route | Rôle |
+|-------|------|
+| `GET /api/pointage/export` | Export rapport mensuel CSV |
+
+### Alertes Rules Sprint 15
+| Route | Rôle |
+|-------|------|
+| `GET/PATCH/DELETE /api/alerts/rules/[id]` | Modifier / supprimer une règle d'alerte précise |
 
 ---
 
@@ -500,4 +578,250 @@ score < 60  → fenêtre 12h (accès limité)
 
 ---
 
-*Dernière mise à jour : 2026-04-12 — Sprint 10 : Shifts & Planning — v9.0*
+---
+
+## 15. SPRINT 11 — N8N AUTOMATIONS (2026-04-12)
+
+### Architecture
+- **Bridge** : `lib/n8n-bridge.ts` — `triggerN8N(event, payload)` — appel POST vers webhook N8N configuré
+- **Modèle** : `N8NConfig` (webhookUrl, events JSON, active) + `N8NLog` (event, status, responseCode, Sprint 15)
+- **Events gérés** : `report_ready` | `alert_critical` | `shift_assigned` | `driver_onboarded`
+- **Injections** : send-report (report_ready), alert-engine (alert_critical), shifts/assign (shift_assigned), drivers onboarding (driver_onboarded)
+
+### Fichiers créés
+- `lib/n8n-bridge.ts` — triggerN8N + logN8N + formatPayloads
+- `app/api/n8n/config/route.ts` — GET/POST config
+- `app/api/n8n/config/[id]/route.ts` — PATCH/DELETE
+- `app/api/n8n/test/route.ts` — POST test webhook
+- `app/api/n8n/logs/route.ts` — GET logs (Sprint 15)
+- `app/api/webhooks/n8n/route.ts` — POST entrant N8N
+
+### Modèles DB ajoutés
+- `N8NConfig` — config webhook (webhookUrl, events, active, tenantId)
+- `N8NLog` — traçabilité envois (event, payload, status, responseCode, responseBody)
+
+### Fichiers modifiés
+- `app/parametres/page.tsx` — section "Automatisations N8N" avec liste configs, test, toggle actif
+- `lib/alert-engine.ts` — inject triggerN8N alert_critical
+- `app/api/dashboard/send-report/route.ts` — inject triggerN8N report_ready
+- `app/api/shifts/[id]/assign/route.ts` — inject triggerN8N shift_assigned
+- `app/api/drivers/[id]/route.ts` — inject triggerN8N driver_onboarded
+
+---
+
+## 16. SPRINT 12 — BOTTOM-SHEET MODALS MOBILE (2026-04-12)
+
+### Objectif
+UX mobile : remplacer les panels inline par des bottom-sheets slide-up sur écran < lg.
+
+### Features
+- Bottom-sheets sur : alertes (détail ticket), shifts (détail créneau), kpis (détail rapport), academy (détail module), onboarding (détail candidat)
+- `overflow-x-auto` sur table des règles d'alertes
+
+### Fichiers modifiés
+- `app/alertes/page.tsx` — bottom-sheet drawer
+- `app/shifts/page.tsx` — bottom-sheet créneau
+- `app/kpis/page.tsx` — bottom-sheet rapport
+- `app/academy/page.tsx` — bottom-sheet module
+- `app/onboarding/page.tsx` — bottom-sheet candidat
+
+---
+
+## 17. SPRINT 13 — AUTH GUARD + MIDDLEWARE (2026-04-12)
+
+### Architecture
+- **`proxy.ts`** (renommé depuis `middleware.ts` — convention Next.js 16) — Edge-compatible
+- **`ConditionalShell`** : wrapper layout qui injecte Sidebar/AppShell seulement si authentifié
+- **Guard** : toutes routes /api/* protégées (sauf /api/auth/*, /api/webhooks/*)
+- **Login page** : `/login` exclue de la sidebar et du ConditionalShell
+
+### Fichiers créés/modifiés
+- `proxy.ts` — guard middleware (remplace middleware.ts)
+- `app/login/page.tsx` — page login complète (email + password + feedback erreur)
+- `components/ConditionalShell.tsx` — wrapper conditionnel sidebar
+
+### ⚠️ Règle importante
+- Ne JAMAIS créer de `middleware.ts` — conflit avec la convention Next.js 16 → utiliser `proxy.ts`
+- `/login`, `/api/auth/*`, `/shipinfy.html` sont des routes publiques (exclues du guard)
+
+---
+
+## 18. SPRINT 14 — RBAC 7 RÔLES (2026-04-12/13)
+
+### Rôles (hiérarchie)
+```
+SUPER_ADMIN > ADMIN > MANAGER > COORDINATOR > DISPATCHER > VIEWER > SUPPORT
+```
+
+### Architecture
+- **`lib/permissions.ts`** : MODULE_ROUTES (map route→module), ROLE_MODULES (map rôle→modules autorisés), `canAccess(role, path)`, `getAllowedRoutes(role)`
+- **`hooks/useCurrentUser.ts`** : hook React — appel `/api/auth/me` avec cache 30s, retourne `{user, role, tenant}`
+- **Cookie rôle** : `shipinfy_role` httpOnly, utilisé côté Edge (proxy.ts) pour filtrer les routes
+- **Sidebar/AppShell/BottomNav** : items filtrés selon `useCurrentUser().role`
+
+### Modules par rôle (résumé)
+| Rôle | Modules accessibles |
+|------|-------------------|
+| SUPER_ADMIN | Tout (admin inclus) |
+| ADMIN | Tout sauf super-admin |
+| MANAGER | Dashboard, KPIs, Livreurs, Hubs, Retours, Rémunération, Alertes, Score IA, Rapport, Prévisions, Support, Onboarding, Academy, Shifts, Dispatch, Pointage, Paramètres |
+| COORDINATOR | Dashboard, KPIs, Livreurs, Alertes, Shifts, Dispatch, Pointage, Onboarding |
+| DISPATCHER | Dashboard, Dispatch, Shifts, Livreurs, Pointage |
+| SUPPORT | Support, Alertes, Dashboard |
+| VIEWER | Dashboard, KPIs, Score IA, Prévisions |
+
+### Fichiers créés/modifiés
+- `lib/permissions.ts` — MODULE_ROUTES + ROLE_MODULES + canAccess
+- `hooks/useCurrentUser.ts` — hook auth + rôle
+- `app/api/auth/login/route.ts` — set shipinfy_role cookie
+- `app/api/auth/logout/route.ts` — clear shipinfy_role cookie
+- `app/api/admin/users/[id]/route.ts` — PATCH (role/active/name) + DELETE (soft deactivate)
+- `app/admin/page.tsx` — légende 7 rôles + sélecteur inline rôle + toggle actif
+- `proxy.ts` — canAccess intégré (Edge-safe)
+- `components/Sidebar.tsx`, `AppShell.tsx`, `BottomNav.tsx` — filtrage nav par rôle
+
+### ⚠️ Règles importantes
+- `buildRoleCookie()` dans `lib/auth.ts` — génère le Set-Cookie header pour `shipinfy_role`
+- Edge runtime = pas d'import Prisma dans proxy.ts → cookie rôle seul suffit pour le guard
+- Soft-delete user : `active = false` (pas de DELETE physique)
+
+---
+
+## 19. SPRINT 15 — 10 UPGRADES TOUS MODULES (2026-04-16)
+
+### Features déployées
+
+#### 1. Score IA — Coefficients configurables
+- Sliders dans Paramètres → `GET/POST /api/settings/score-config`
+- Modèle `ScoreConfig` (deliveryWeight, academyWeight, attendanceWeight) `@@unique([tenantId])`
+- `lib/score-engine.ts` ou `calculate/route.ts` lit ScoreConfig depuis DB (défaut 0.4/0.3/0.3)
+
+#### 2. Alertes — 4 stats cards
+- Page `/alertes` : 4 cards en haut (total, critiques, en cours, résolues)
+- Ajout statistiques temps réel sur la vue alertes
+
+#### 3. N8N — Logs des envois
+- `N8NLog` model dans Prisma : event, status, responseCode, responseBody, createdAt
+- `GET /api/n8n/logs` — historique 50 derniers envois
+- Section dans Paramètres → onglet N8N Logs
+
+#### 4. Rémunération — Export CSV + Validation manager
+- `GET /api/remuneration/export?reportId=xxx` — CSV téléchargeable
+- `POST /api/remuneration/validate` — approve workflow (payValidated, payValidatedAt, payValidatedBy)
+- `GET /api/drivers/[id]/history` — historique 6 mois de rémunération par livreur
+- Modal historique dans page Livreurs (panneau expandable)
+- Champs Prisma ajoutés : `DriverPay.payValidated`, `payValidatedAt`, `payValidatedBy`
+
+#### 5. Reset Password
+- `POST /api/auth/forgot-password` — génère token 1h dans User.resetToken/resetTokenExpiry
+- `POST /api/auth/reset-password` — valide token + hash nouveau password + clear token
+- Page `/login` : lien "Mot de passe oublié" → flow email
+
+#### 6. Login Logs
+- Chaque login réussi crée un `LoginLog` (userId, ip, userAgent, createdAt)
+- `GET /api/auth/login-logs` — accessible dans Paramètres → onglet Sécurité
+
+#### 7. Shifts — Vue calendrier hebdo + conflits + copie semaine
+- Vue hebdomadaire (7 jours) dans page Shifts
+- Détection conflits (livreur assigné 2 slots au même créneau horaire)
+- `POST /api/shifts/copy-week` — duplique tous les slots d'une semaine source vers semaine cible
+
+#### 8. KPIs — Comparatif J-7 / mois précédent
+- `GET /api/dashboard/kpis` retourne `deltaWeek` et `deltaMonth` (% variation)
+- `KpiCards.tsx` : indicateurs ▲ vert / ▼ rouge sur chaque KPI card
+
+#### 9. Support — SLA + satisfaction + résolution
+- SLA badges : vert/orange/rouge selon ancienneté ticket et priorité
+- `POST /api/support/[id]/resolve` — résoudre ticket + calculer SLA elapsed
+- `POST /api/support/[id]/satisfaction` — enregistrer satisfaction 1-5 + commentaire
+- Champs Prisma : `SupportTicket.satisfactionScore Int?`, `satisfactionComment String?`
+- Page `/support` : vue statistiques (nb ouvert/résolu, temps moyen résolution)
+
+#### 10. Pointage — Export CSV mensuel
+- `GET /api/pointage/export?month=YYYY-MM` — CSV rapport mensuel
+- Bouton Export dans page Pointage
+
+#### 11. Livreurs — Avatars initiales + historique
+- Avatars colorés basés sur les initiales du nom livreur
+- Panneau expandable "Historique 6 mois" (livraisons, rémunération, score)
+- Appelle `GET /api/drivers/[id]/history`
+
+#### 12. Academy — Bouton certificat
+- Bouton "Télécharger certificat PDF" sur modules complétés
+- Génère un certificat simple côté client (ou API dédiée)
+
+#### 13. AlertRules — PATCH/DELETE individuelles
+- `GET/PATCH/DELETE /api/alerts/rules/[id]` — opérations sur une règle précise
+
+### Modèles DB ajoutés (Sprint 15)
+- `ScoreConfig` — coefficients Score IA par tenant
+- `N8NLog` — logs envois N8N
+- `LoginLog` — traçabilité connexions
+- Champs `User.resetToken`, `User.resetTokenExpiry`
+- Champs `SupportTicket.satisfactionScore`, `SupportTicket.satisfactionComment`
+- Champs `DriverPay.payValidated`, `DriverPay.payValidatedAt`, `DriverPay.payValidatedBy`
+
+### Commits Sprint 15 (dans l'ordre)
+| Commit | Contenu |
+|--------|---------|
+| `f428ac0` | 10 upgrades initiaux (Score config, KPIs delta, Export CSV, etc.) |
+| `729f59d` | Academy certificat + AlertRule PATCH API |
+| `d6cc3c7` | Livreurs avatars + panneau historique 6 mois |
+| `6152779` | Rémunération history modal + API historique |
+| `c1bf64b` | Shifts N8N déjà présent + shipinfy.html v5.1 Sprint 15 |
+| `1ba3f36` | Fix: params Promise Next.js 15/16 (drivers history + alerts rules) |
+| `b4d4379` | Fix schema Prisma (satisfactionScore/Comment + payValidated/*) |
+| `c11b6f1` | shipinfy.html flux opérationnel redesign (5 zones × 17 modules) |
+
+### ⚠️ Fix critique Sprint 15
+- **F15-params** : `app/api/drivers/[id]/history/route.ts` et `app/api/alerts/rules/[id]/route.ts` doivent utiliser `type RouteCtx = { params: Promise<{id: string}> }` + `await ctx.params`
+- **F15-schema** : `satisfactionScore`/`satisfactionComment` ajoutés à `SupportTicket` en Prisma AVANT build
+
+---
+
+## 20. ARCHITECTURE AGENTS IA — COMMENT CE SAAS A ÉTÉ BUILDÉ
+
+### Agent principal
+- **Claude Sonnet 4.6** dans Claude Code (session longue, accès filesystem + git + bash)
+- Coordonne l'architecture, lit les fichiers existants, lance les sub-agents
+
+### Sub-agents parallèles (Agent tool)
+Chaque sub-agent reçoit un prompt précis avec :
+- Fichiers cibles à lire/modifier
+- Règles Prisma (async params, schema.prisma)
+- Contraintes (ne pas supprimer features existantes)
+- Isolation par worktree Git
+
+#### Sprint 15 — 4 sub-agents lancés en parallèle
+| Agent ID | Mission | Résultat |
+|----------|---------|----------|
+| `a9fac18b` | Livreurs avatars + panneau historique + `/api/drivers/[id]/history` | ✅ commit d6cc3c7 |
+| `a3aebfe4` | Academy certificat button + `/api/alerts/rules/[id]` CRUD | ✅ commit 729f59d |
+| `aa53cb49` | Rémunération history modal + Support satisfaction stars | ✅ commit 6152779 |
+| `aed68357` | Shifts N8N + shipinfy.html update v5.1 | ✅ commit c1bf64b |
+
+### Workflow type d'une session
+1. Lire SHIPINFY_MEMORY.md
+2. Analyser les fichiers cibles (Read tool)
+3. Lancer sub-agents en parallèle (Agent tool, background)
+4. Pendant ce temps : corriger les erreurs TypeScript connues
+5. À la completion des agents : committer manuellement (git add + git commit)
+6. Vérifier le déploiement Dokploy (Chrome MCP)
+7. Corriger les erreurs de build (TypeScript, Prisma schema)
+8. Mettre à jour SHIPINFY_MEMORY.md
+
+---
+
+## 21. SIDEBAR — STRUCTURE COMPLÈTE MISE À JOUR (v15.0)
+
+**Sections** (dans l'ordre, filtrées par rôle RBAC) :
+1. **Analytiques** : Dashboard, KPIs & Métriques, Prévisions
+2. **Performance** : Score IA, Alertes & Tickets, Rémunération
+3. **Opérations** : Livreurs, Hubs, Retours, Dispatch, Support, Shifts & Planning
+4. **RH & Formation** : Onboarding, Academy, Pointage
+5. **Administration** : Super Admin (SUPER_ADMIN seulement)
+6. **Paramètres** : Paramètres
+
+---
+
+*Dernière mise à jour : 2026-04-16 — Sprint 15 : 10 upgrades + 4 sub-agents — v15.0*

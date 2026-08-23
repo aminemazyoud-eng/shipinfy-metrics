@@ -29,6 +29,7 @@ COPY --from=builder /app/prisma ./prisma
 COPY --from=builder /app/node_modules ./node_modules
 COPY --from=builder /app/package.json ./package.json
 COPY --from=builder /app/start.sh ./start.sh
+COPY --from=builder /app/run-init-sql.js ./run-init-sql.js
 RUN chmod +x start.sh
 USER nextjs
 EXPOSE 3001

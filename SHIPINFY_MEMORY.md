@@ -6,7 +6,7 @@
 
 ---
 
-## VERSION ACTUELLE : v16.0 — Sprint 16 Dual Mode + Dispatch IA + QR Pointage (2026-08-27)
+## VERSION ACTUELLE : v17.0 — Sprint 17 n8n Hub Notifications (2026-08-27)
 
 > **Agents IA utilisés pour builder ce SaaS** :
 > - Claude Sonnet 4.6 (Claude Code) — agent principal, architecture + coordination
@@ -818,7 +818,7 @@ Chaque sub-agent reçoit un prompt précis avec :
 **Sections** (dans l'ordre, filtrées par rôle RBAC) :
 1. **Analytiques** : Dashboard, KPIs & Métriques, Prévisions
 2. **Performance** : Score IA, Alertes & Tickets, Rémunération
-3. **Opérations** : Livreurs, Hubs, Retours, Dispatch, **Picking Express** (Sprint 16), Support, Shifts & Planning
+3. **Opérations** : Livreurs, Hubs, Retours, Dispatch, **Picking Express** (Sprint 16), Alertes, Rapports, **Notifications** (Sprint 17), Support, Shifts & Planning
 4. **RH & Formation** : Onboarding, Academy, Pointage
 5. **Administration** : Super Admin (SUPER_ADMIN seulement)
 6. **Paramètres** : Paramètres
@@ -886,4 +886,56 @@ Build : `npm run build` OK · `tsc --noEmit` clean. 4 sub-agents parallèles (Bl
 
 ---
 
-*Dernière mise à jour : 2026-08-27 — Sprint 16 : Dual Mode + Dispatch IA + QR Pointage + Picking + WhatsApp — v16.0*
+---
+
+## 23. SPRINT 17 — N8N HUB NOTIFICATIONS + MODULE /notifications (2026-08-27)
+
+### VERSION : v17.0
+Build `npm run build` OK · `tsc --noEmit` clean. Codé en session unique (workstreams couplés).
+
+### Objectif
+n8n devient le **moteur d'envoi unique** (email + Slack + WhatsApp futur). L'app fire des événements, n8n exécute et renvoie le résultat par canal. `shipinfy-metrics` garde **un tableau de bord unique** : la page `/notifications`.
+
+### Architecture
+- **`lib/notify.ts`** — point d'entrée unique `notify(input)`. Crée toujours 1 `NotificationLog`. Selon `NOTIFY_MODE` :
+  - `direct` (défaut, rétro-compatible) → l'app envoie : `sendEmail()` (lib/email) + POST `SlackConfig.webhookUrl`. Résultats par canal stockés dans `NotificationLog.results`.
+  - `n8n` → `triggerN8N(event, { notificationId, ...data, pdfBase64 })` puis status `sent_to_n8n`. n8n rappelle `POST /api/webhooks/n8n` avec `{ notificationId, channel, status, sentTo?, error? }` → `applyN8nResult()` met à jour la ligne.
+  - `notify()` ne throw JAMAIS.
+- **`/api/webhooks/n8n`** — accepte le callback par canal (+ signature HMAC `X-N8N-Signature` si `N8N_WEBHOOK_SECRET`). Payloads legacy toujours acceptés (juste loggés).
+
+### Wiring
+- `app/api/dashboard/send-report/route.ts` → `notify({ kind:'report', channels:['email','slack'], pdfBase64, emailAttachments })`. Mode direct : 502 si email échoue ; mode n8n : 202 `{ queued, notificationId }`.
+- `lib/cron.ts` `sendScheduledReport` → idem via `notify()` (le `nodemailer` mailer dédié a été **supprimé** de cron.ts). `EmailSendLog` conservé en plus.
+- `lib/alert-engine.ts` `createDeliveryAlert` → `DeliveryAlert` in-app inchangé ; **level ≥ 2** → `notify({ kind:'alert', channels:['slack'] })` ; **level 3 + `ALERT_EMAIL_TO`** → + email. Les fonctions `notifySlack`/`escalateEmail` locales sont supprimées (centralisées dans notify).
+
+### Modèle DB ajouté
+- **`NotificationLog`** : kind (report|alert), event, title, summary, recipients, channels (JSON), results (JSON `[{channel,status,sentTo?,error?,at}]`), status (pending|sent_to_n8n|delivered|partial|failed), mode (direct|n8n), pdfFilename, reportId, alertLevel, payloadJson (retry, sans PDF), tenantId. Idempotent dans `init-tables.sql`.
+
+### Module /notifications
+- Route `/notifications` (Opérations, après Rapports) — rôles ADMIN/MANAGER/COORDINATOR/SUPER_ADMIN. `permissions.ts` module `notifications: ['/notifications']`.
+- `GET /api/notifications?kind=&status=&days=&limit=` → items + stats (today, successRate, failed, reports, alerts).
+- `POST /api/notifications/[id]/retry` → renvoie via `notify()` depuis `payloadJson` (⚠️ un rapport renvoyé part **sans PDF** — payload stocké tronqué à 4000 chars).
+- Page : 2 onglets Rapports/Alertes, 4 stat cards, table (date, objet, badges canaux colorés, destinataires, statut, bouton Renvoyer si failed/partial).
+
+### Variables .env ajoutées
+- `NOTIFY_MODE` (`direct` | `n8n`, défaut `direct`)
+- `ALERT_EMAIL_TO` (destinataires alertes level 3, séparés par virgule)
+- `N8N_WEBHOOK_SECRET` (HMAC callbacks n8n — optionnel)
+
+### Docs
+- **`docs/n8n-workflows.md`** : activation mode n8n, payload reçu, format callback, 2 workflows prêts (« Rapports » + « Alertes »), URL webhook = `http://n8n:5678/webhook/...` (nom service Docker, PAS localhost).
+
+### Commit
+| Commit | Contenu |
+|--------|---------|
+| `e145a52` | Sprint 17 — n8n hub + /notifications |
+
+### ⚠️ Fixes / points d'attention Sprint 17
+- **F17-notify-safe** : `notify()` ne doit jamais throw — toute erreur canal est capturée dans `results`.
+- **F17-retry-nopdf** : le retry d'un rapport ne rejoue pas le PDF (non stocké). Pour un vrai renvoi complet → relancer depuis `/rapports` ou `/kpis`.
+- **F17-cron-mailer** : `lib/cron.ts` n'a plus de transporter nodemailer propre — tout passe par `lib/notify` → `lib/email`. Si SMTP casse, le cron le voit via `NotificationLog.status`.
+- Mode `n8n` : sans config N8N active, `notify()` log `sent_to_n8n` mais rien ne part (triggerN8N warn "no active config"). Toujours vérifier `/parametres` → Automatisations N8N.
+
+---
+
+*Dernière mise à jour : 2026-08-27 — Sprint 17 : n8n Hub Notifications + module /notifications — v17.0*

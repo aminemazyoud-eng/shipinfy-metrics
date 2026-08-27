@@ -1,6 +1,6 @@
 'use client'
 import { useState, useEffect, useCallback } from 'react'
-import { Truck, CheckCircle2, XCircle, Clock, BarChart3, ChevronDown, ChevronUp } from 'lucide-react'
+import { Truck, CheckCircle2, XCircle, Clock, BarChart3, ChevronDown, ChevronUp, Sparkles, Layers, Gauge } from 'lucide-react'
 
 interface Report { id: string; filename: string }
 
@@ -20,6 +20,18 @@ interface DispatchData {
   hubs: string[]
   totals: { total: number; DELIVERED: number; NO_SHOW: number; READY_PICKUP: number; OTHER: number }
 }
+
+interface AssignmentRow { orderId: string | null; driverName: string; score: number; reason: string }
+interface AssignResponse { assignments: AssignmentRow[]; note?: string }
+
+interface DriverStatusCard {
+  driverName: string; currentOrders: number; lastDeliveryEta: number
+  distanceToStore: number; scoreIA: number
+}
+interface DriversStatusResponse { drivers: DriverStatusCard[]; generatedAt: string }
+
+interface BundleRow { orderIds: string[]; zone: string; estimatedSaving: number; refs: string[] }
+interface BundlesResponse { bundles: BundleRow[] }
 
 const STATUS_STYLE: Record<string, string> = {
   DELIVERED:     'bg-green-100 text-green-800',
@@ -52,6 +64,13 @@ export default function DispatchPage() {
   const [loading, setLoading]   = useState(false)
   const [expanded, setExpanded] = useState<Set<string>>(new Set())
 
+  // ─── BLOC 3 — Smart Dispatch (advisory) ──────────────────────────────────
+  const [assign, setAssign] = useState<AssignResponse | null>(null)
+  const [assignLoading, setAssignLoading] = useState(false)
+  const [driversStatus, setDriversStatus] = useState<DriverStatusCard[] | null>(null)
+  const [bundles, setBundles] = useState<BundleRow[] | null>(null)
+  const [openBundle, setOpenBundle] = useState<Set<number>>(new Set())
+
   useEffect(() => {
     fetch('/api/dashboard/reports').then(r => r.json()).then((rs: unknown) => {
       if (!Array.isArray(rs)) return
@@ -76,6 +95,55 @@ export default function DispatchPage() {
     setExpanded(prev => { const n = new Set(prev); n.has(name) ? n.delete(name) : n.add(name); return n })
 
   const done = (data?.totals.DELIVERED ?? 0) + (data?.totals.NO_SHOW ?? 0)
+
+  // Nb de commandes non terminées (à répartir)
+  const unassigned = (data?.totals.READY_PICKUP ?? 0) + (data?.totals.OTHER ?? 0)
+
+  // Charger statut livreurs + bundles quand le rapport change
+  useEffect(() => {
+    if (!reportId) { setDriversStatus(null); setBundles(null); setAssign(null); return }
+    let cancelled = false
+    fetch(`/api/dispatch/drivers-status?reportId=${reportId}`)
+      .then(r => r.ok ? r.json() : null)
+      .then((d: DriversStatusResponse | null) => { if (!cancelled && d) setDriversStatus(d.drivers) })
+      .catch(() => {})
+    fetch(`/api/dispatch/bundles?reportId=${reportId}`)
+      .then(r => r.ok ? r.json() : null)
+      .then((d: BundlesResponse | null) => { if (!cancelled && d) setBundles(d.bundles) })
+      .catch(() => {})
+    setAssign(null)
+    setOpenBundle(new Set())
+    return () => { cancelled = true }
+  }, [reportId])
+
+  const runAssign = useCallback(async () => {
+    if (!reportId) return
+    setAssignLoading(true)
+    try {
+      const res = await fetch('/api/dispatch/assign', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ reportId, orderCount: unassigned || undefined }),
+      })
+      if (res.ok) setAssign(await res.json())
+    } finally { setAssignLoading(false) }
+  }, [reportId, unassigned])
+
+  // Agrégat par livreur des assignations conseillées
+  const assignByDriver = (() => {
+    if (!assign) return []
+    const m = new Map<string, { count: number; score: number; reason: string }>()
+    for (const a of assign.assignments) {
+      const cur = m.get(a.driverName)
+      if (cur) { cur.count++ }
+      else m.set(a.driverName, { count: 1, score: a.score, reason: a.reason })
+    }
+    return Array.from(m.entries()).map(([driverName, v]) => ({ driverName, ...v }))
+      .sort((a, b) => b.count - a.count)
+  })()
+
+  const toggleBundle = (i: number) =>
+    setOpenBundle(prev => { const n = new Set(prev); n.has(i) ? n.delete(i) : n.add(i); return n })
 
   return (
     <div className="flex flex-col gap-4 lg:gap-6 p-3 md:p-4 lg:p-6 max-w-7xl mx-auto">
@@ -208,6 +276,141 @@ export default function DispatchPage() {
             )
           })}
         </div>
+      )}
+
+      {/* ═══ BLOC 3 — SMART DISPATCH (conseillé, non persisté) ═══════════════ */}
+      {reportId && (
+        <>
+          {/* Section A — Smart Assignment */}
+          <div className="bg-white rounded-xl border border-gray-200 p-4">
+            <div className="flex items-center justify-between flex-wrap gap-2 mb-3">
+              <h2 className="text-sm lg:text-base font-bold text-gray-900 flex items-center gap-2">
+                <Sparkles className="h-4 w-4 text-indigo-600" /> Assignation intelligente
+              </h2>
+              <div className="flex gap-2">
+                <button
+                  onClick={runAssign}
+                  disabled={assignLoading}
+                  className="px-3 py-1.5 rounded-lg bg-indigo-600 text-white text-xs font-medium hover:bg-indigo-700 disabled:opacity-50"
+                >
+                  {assignLoading ? '…' : 'Assigner automatiquement'}
+                </button>
+                <button
+                  onClick={runAssign}
+                  disabled={assignLoading}
+                  className="px-3 py-1.5 rounded-lg border border-indigo-200 text-indigo-700 text-xs font-medium hover:bg-indigo-50 disabled:opacity-50"
+                >
+                  Équilibrer la charge
+                </button>
+              </div>
+            </div>
+            <p className="text-[11px] text-gray-400 mb-3">
+              {unassigned} commande(s) non terminée(s) à répartir · assignation conseillée, non enregistrée en base
+            </p>
+            {assign && assignByDriver.length > 0 ? (
+              <div className="overflow-x-auto">
+                <table className="w-full text-xs">
+                  <thead>
+                    <tr className="text-left text-gray-400 border-b border-gray-100">
+                      <th className="py-1.5 pr-3 font-medium">Livreur</th>
+                      <th className="py-1.5 pr-3 font-medium">Nb assigné</th>
+                      <th className="py-1.5 pr-3 font-medium">Score</th>
+                      <th className="py-1.5 font-medium">Raison</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {assignByDriver.map(r => (
+                      <tr key={r.driverName} className="border-b border-gray-50">
+                        <td className="py-1.5 pr-3 font-medium text-gray-800">{r.driverName}</td>
+                        <td className="py-1.5 pr-3 text-gray-700">{r.count}</td>
+                        <td className="py-1.5 pr-3 text-gray-500">{r.score >= 9999 ? 'Saturé' : r.score.toFixed(2)}</td>
+                        <td className="py-1.5 text-gray-400">{r.reason}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+                {assign.note && <p className="text-[10px] text-gray-400 mt-2 italic">{assign.note}</p>}
+              </div>
+            ) : (
+              <p className="text-xs text-gray-400">
+                {assign ? 'Aucune assignation proposée.' : 'Cliquez pour générer une proposition de répartition.'}
+              </p>
+            )}
+          </div>
+
+          {/* Section B — Statut livreurs temps réel */}
+          <div className="bg-white rounded-xl border border-gray-200 p-4">
+            <h2 className="text-sm lg:text-base font-bold text-gray-900 flex items-center gap-2 mb-3">
+              <Gauge className="h-4 w-4 text-indigo-600" /> Statut livreurs temps réel
+            </h2>
+            {driversStatus && driversStatus.length > 0 ? (
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+                {driversStatus.map(d => {
+                  const badge = d.currentOrders === 0
+                    ? { txt: 'LIBRE', cls: 'bg-green-100 text-green-800' }
+                    : d.currentOrders === 1
+                    ? { txt: 'EN LIVRAISON', cls: 'bg-orange-100 text-orange-800' }
+                    : { txt: 'SATURÉ', cls: 'bg-red-100 text-red-800' }
+                  const barPct = Math.min(100, (d.currentOrders / 2) * 100)
+                  const barColor = d.currentOrders === 0 ? '#16a34a' : d.currentOrders === 1 ? '#d97706' : '#dc2626'
+                  return (
+                    <div key={d.driverName} className="border border-gray-200 rounded-lg p-3">
+                      <div className="flex items-center justify-between gap-2 mb-2">
+                        <span className="font-medium text-sm text-gray-900 truncate">{d.driverName}</span>
+                        <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${badge.cls}`}>{badge.txt}</span>
+                      </div>
+                      <div className="flex items-center gap-2 mb-1.5">
+                        <div className="flex-1 h-2 bg-gray-100 rounded-full overflow-hidden">
+                          <div className="h-full rounded-full" style={{ width: `${barPct}%`, background: barColor }} />
+                        </div>
+                        <span className="text-[10px] text-gray-500">{d.currentOrders}/2</span>
+                      </div>
+                      <div className="flex justify-between text-[10px] text-gray-400">
+                        <span>ETA {d.lastDeliveryEta}min</span>
+                        <span>Score IA {d.scoreIA.toFixed(0)}</span>
+                      </div>
+                    </div>
+                  )
+                })}
+              </div>
+            ) : (
+              <p className="text-xs text-gray-400">Aucun livreur sur ce rapport.</p>
+            )}
+          </div>
+
+          {/* Section C — Smart Bundling */}
+          <div className="bg-white rounded-xl border border-gray-200 p-4">
+            <h2 className="text-sm lg:text-base font-bold text-gray-900 flex items-center gap-2 mb-3">
+              <Layers className="h-4 w-4 text-indigo-600" /> Regroupement intelligent (bundling)
+            </h2>
+            {bundles && bundles.length > 0 ? (
+              <div className="space-y-2">
+                {bundles.map((b, i) => (
+                  <div key={i} className="border border-gray-200 rounded-lg">
+                    <button
+                      onClick={() => toggleBundle(i)}
+                      className="w-full flex items-center gap-3 px-3 py-2 text-left hover:bg-gray-50"
+                    >
+                      <span className="font-medium text-sm text-gray-800">{b.zone}</span>
+                      <span className="text-xs text-gray-400">{b.orderIds.length} commandes</span>
+                      <span className="ml-auto text-xs text-green-700 font-medium">≈ {b.estimatedSaving} min économisées</span>
+                      {openBundle.has(i) ? <ChevronUp size={14} className="text-gray-400" /> : <ChevronDown size={14} className="text-gray-400" />}
+                    </button>
+                    {openBundle.has(i) && (
+                      <div className="border-t border-gray-100 px-3 py-2 flex flex-wrap gap-1.5">
+                        {b.refs.map((r, j) => (
+                          <span key={j} className="font-mono text-[10px] bg-gray-100 text-gray-600 px-1.5 py-0.5 rounded">{r}</span>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <p className="text-xs text-gray-400">Aucun regroupement détecté (moins de 2 commandes par zone).</p>
+            )}
+          </div>
+        </>
       )}
     </div>
   )

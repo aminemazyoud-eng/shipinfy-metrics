@@ -682,3 +682,60 @@ CREATE INDEX IF NOT EXISTS "PasswordReset_token_idx" ON "PasswordReset"("token")
 ALTER TABLE "Ticket" ADD COLUMN IF NOT EXISTS "satisfactionScore" INT CHECK ("satisfactionScore" BETWEEN 1 AND 5);
 ALTER TABLE "Ticket" ADD COLUMN IF NOT EXISTS "satisfactionComment" TEXT;
 
+-- ═══ SPRINT 16 — DUAL MODE + DISPATCH IA + QR POINTAGE ═══════════════════════
+
+-- Driver : rôle LIVREUR/PICKER (phone déjà présent)
+ALTER TABLE "Driver" ADD COLUMN IF NOT EXISTS "role" TEXT NOT NULL DEFAULT 'LIVREUR';
+
+-- DriverAttendance : rôle + audit QR
+ALTER TABLE "DriverAttendance" ADD COLUMN IF NOT EXISTS "role" TEXT NOT NULL DEFAULT 'LIVREUR';
+ALTER TABLE "DriverAttendance" ADD COLUMN IF NOT EXISTS "qrScanId" TEXT;
+ALTER TABLE "DriverAttendance" ADD COLUMN IF NOT EXISTS "scannedBy" TEXT;
+
+-- Express mode : reports + orders
+CREATE TABLE IF NOT EXISTS "ExpressReport" (
+  "id"         TEXT NOT NULL PRIMARY KEY,
+  "filename"   TEXT NOT NULL,
+  "uploadedAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  "totalRows"  INTEGER NOT NULL DEFAULT 0,
+  "storeType"  TEXT,
+  "tenantId"   TEXT
+);
+CREATE INDEX IF NOT EXISTS "ExpressReport_tenantId_idx" ON "ExpressReport"("tenantId");
+
+CREATE TABLE IF NOT EXISTS "ExpressOrder" (
+  "id"              TEXT NOT NULL PRIMARY KEY,
+  "reportId"        TEXT NOT NULL,
+  "orderId"         TEXT NOT NULL,
+  "driverName"      TEXT NOT NULL,
+  "pickerId"        TEXT,
+  "hubName"         TEXT,
+  "zone"            TEXT,
+  "status"          TEXT NOT NULL,
+  "pickingStatus"   TEXT NOT NULL DEFAULT 'a_picker',
+  "pickingStartAt"  TIMESTAMP(3),
+  "pickingEndAt"    TIMESTAMP(3),
+  "deliveryStartAt" TIMESTAMP(3),
+  "deliveryEndAt"   TIMESTAMP(3),
+  "slaTarget"       INTEGER NOT NULL DEFAULT 45,
+  "slaRespected"    BOOLEAN,
+  "customerAddress" TEXT,
+  "storeType"       TEXT,
+  "createdAt"       TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  "tenantId"        TEXT
+);
+CREATE INDEX IF NOT EXISTS "ExpressOrder_reportId_idx"   ON "ExpressOrder"("reportId");
+CREATE INDEX IF NOT EXISTS "ExpressOrder_driverName_idx" ON "ExpressOrder"("driverName");
+CREATE INDEX IF NOT EXISTS "ExpressOrder_pickerId_idx"   ON "ExpressOrder"("pickerId");
+CREATE INDEX IF NOT EXISTS "ExpressOrder_tenantId_idx"   ON "ExpressOrder"("tenantId");
+
+DO $$
+BEGIN
+  IF NOT EXISTS (
+    SELECT 1 FROM pg_constraint WHERE conname = 'ExpressOrder_reportId_fkey'
+  ) THEN
+    ALTER TABLE "ExpressOrder" ADD CONSTRAINT "ExpressOrder_reportId_fkey"
+      FOREIGN KEY ("reportId") REFERENCES "ExpressReport"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+  END IF;
+END $$;
+

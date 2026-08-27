@@ -70,6 +70,25 @@ export default function ScoreIAPage() {
     setCalc(false)
   }
 
+  const calculateFromActiveReport = async () => {
+    setCalc(true)
+    try {
+      let reportId: string | undefined
+      try {
+        const reports = await fetch('/api/dashboard/reports').then(r => r.json())
+        if (Array.isArray(reports) && reports.length > 0) reportId = reports[0].id
+      } catch {}
+      const res = await fetch('/api/score-ia/calculate', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ reportId }),
+      })
+      const data = await res.json()
+      if (data.calculated > 0) await load()
+    } catch {}
+    setCalc(false)
+  }
+
   const filtered = scores
     .filter(s => {
       if (search) {
@@ -108,14 +127,24 @@ export default function ScoreIAPage() {
               </p>
             </div>
           </div>
-          <button
-            onClick={calculate}
-            disabled={calculating}
-            className="flex items-center gap-2 bg-purple-600 text-white px-3 lg:px-4 py-2 rounded-lg text-sm font-medium hover:bg-purple-700 disabled:opacity-50 transition-colors min-h-[44px]"
-          >
-            <RefreshCw size={14} className={calculating ? 'animate-spin' : ''} />
-            <span className="hidden sm:inline">{calculating ? 'Calcul...' : 'Recalculer'}</span>
-          </button>
+          <div className="flex items-center gap-2">
+            <button
+              onClick={calculateFromActiveReport}
+              disabled={calculating}
+              className="flex items-center gap-2 border border-purple-300 text-purple-700 px-3 lg:px-4 py-2 rounded-lg text-sm font-medium hover:bg-purple-50 disabled:opacity-50 transition-colors min-h-[44px]"
+            >
+              <RefreshCw size={14} className={calculating ? 'animate-spin' : ''} />
+              <span className="hidden sm:inline">Recalculer depuis rapport actif</span>
+            </button>
+            <button
+              onClick={calculate}
+              disabled={calculating}
+              className="flex items-center gap-2 bg-purple-600 text-white px-3 lg:px-4 py-2 rounded-lg text-sm font-medium hover:bg-purple-700 disabled:opacity-50 transition-colors min-h-[44px]"
+            >
+              <RefreshCw size={14} className={calculating ? 'animate-spin' : ''} />
+              <span className="hidden sm:inline">{calculating ? 'Calcul...' : 'Recalculer'}</span>
+            </button>
+          </div>
         </div>
 
         {/* Stats bar */}

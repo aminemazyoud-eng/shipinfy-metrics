@@ -13,6 +13,7 @@ interface Props {
   activeReport: Report | null
   onUploadSuccess: (report: Report) => void
   onDeleteSuccess: () => void
+  mode?: 'standard' | 'express'
 }
 
 type Phase = 'idle' | 'uploading' | 'processing' | 'done'
@@ -20,7 +21,57 @@ type Phase = 'idle' | 'uploading' | 'processing' | 'done'
 const MAX_FILE_SIZE_MB = 100
 const POLL_INTERVAL_MS = 1500
 
-export function UploadZone({ activeReport, onUploadSuccess, onDeleteSuccess }: Props) {
+const STANDARD_HEADERS = [
+  'externalReference',
+  'shipperReference',
+  'carrierReference',
+  'pickupTimeStart',
+  'deliveryTimeStart',
+  'deliveryTimeEnd',
+  'dateTimeWhenOrderSent',
+  'dateTimeWhenAssigned',
+  'dateTimeWhenInTransport',
+  'dateTimeWhenStartDelivery',
+  'dateTimeWhenDelivrered',
+  'dateTimeWhenNoShow',
+  'dateTimeLastUpdate',
+  'shippingWorkflowStatus',
+  'paymentOnDeliveryAmount',
+  'destinationContactDetails.firstname',
+  'destinationContactDetails.lastname',
+  'destinationCity.code',
+  'destinationShippingAddress.longitude',
+  'destinationShippingAddress.lattitude',
+  'originHub.name',
+  'originHub.code',
+  'originHub.city.name',
+  'originHub.address.longitude',
+  'originHub.address.lattitude',
+  'sprint.name',
+  'sprint.businessUser.firstName',
+  'sprint.businessUser.lastName',
+  'sprintGeoLocationLongitude',
+  'sprintGeoLocationLattitude',
+]
+
+const EXPRESS_HEADERS = [
+  'order_id',
+  'driver_name',
+  'picker_id',
+  'hub',
+  'zone',
+  'status',
+  'picking_start',
+  'picking_end',
+  'delivery_start',
+  'delivery_end',
+  'sla_minutes',
+  'sla_ok',
+  'address',
+  'store_type',
+]
+
+export function UploadZone({ activeReport, onUploadSuccess, onDeleteSuccess, mode = 'standard' }: Props) {
   const [phase,      setPhase]      = useState<Phase>('idle')
   const [deleting,   setDeleting]   = useState(false)
   const [dragOver,   setDragOver]   = useState(false)
@@ -47,7 +98,11 @@ export function UploadZone({ activeReport, onUploadSuccess, onDeleteSuccess }: P
     stopPoll()
     pollRef.current = setInterval(async () => {
       try {
-        const res  = await fetch(`/api/dashboard/upload/status/${reportId}`)
+        const res  = await fetch(
+          mode === 'express'
+            ? `/api/express/upload/status/${reportId}`
+            : `/api/dashboard/upload/status/${reportId}`
+        )
         const data = await res.json() as { total: number; inserted: number; done: boolean; error?: string }
 
         setProgress({ inserted: data.inserted, total: data.total || totalRows })
@@ -74,7 +129,7 @@ export function UploadZone({ activeReport, onUploadSuccess, onDeleteSuccess }: P
         // Réseau instable — on continue
       }
     }, POLL_INTERVAL_MS)
-  }, [stopPoll, onUploadSuccess])
+  }, [stopPoll, onUploadSuccess, mode])
 
   // ── Envoi du fichier via XHR (avec progression) ───────────────────────────
   const handleFile = useCallback((file: File) => {
@@ -150,67 +205,38 @@ export function UploadZone({ activeReport, onUploadSuccess, onDeleteSuccess }: P
 
     // 5 minutes max — permet l'envoi de gros fichiers sur connexions lentes
     xhr.timeout = 300_000
-    xhr.open('POST', '/api/dashboard/upload')
+    xhr.open('POST', mode === 'express' ? '/api/express/upload' : '/api/dashboard/upload')
     xhr.send(fd)
-  }, [startPolling])
+  }, [startPolling, mode])
 
   // ── Suppression du rapport actif ─────────────────────────────────────────
   const handleDelete = useCallback(async () => {
     if (!activeReport) return
     setDeleting(true)
     try {
-      await fetch(`/api/dashboard/report/${activeReport.id}`, { method: 'DELETE' })
+      await (mode === 'express'
+        ? fetch(`/api/express/reports?reportId=${activeReport.id}`, { method: 'DELETE' })
+        : fetch(`/api/dashboard/report/${activeReport.id}`, { method: 'DELETE' }))
       setPhase('idle')
       onDeleteSuccess()
     } finally {
       setDeleting(false)
     }
-  }, [activeReport, onDeleteSuccess])
+  }, [activeReport, onDeleteSuccess, mode])
 
   // ── Téléchargement du template CSV vide ──────────────────────────────────
   const downloadTemplateMd = useCallback(() => {
     // CSV avec juste les en-têtes — le client remplit les données
-    const headers = [
-      'externalReference',
-      'shipperReference',
-      'carrierReference',
-      'pickupTimeStart',
-      'deliveryTimeStart',
-      'deliveryTimeEnd',
-      'dateTimeWhenOrderSent',
-      'dateTimeWhenAssigned',
-      'dateTimeWhenInTransport',
-      'dateTimeWhenStartDelivery',
-      'dateTimeWhenDelivrered',
-      'dateTimeWhenNoShow',
-      'dateTimeLastUpdate',
-      'shippingWorkflowStatus',
-      'paymentOnDeliveryAmount',
-      'destinationContactDetails.firstname',
-      'destinationContactDetails.lastname',
-      'destinationCity.code',
-      'destinationShippingAddress.longitude',
-      'destinationShippingAddress.lattitude',
-      'originHub.name',
-      'originHub.code',
-      'originHub.city.name',
-      'originHub.address.longitude',
-      'originHub.address.lattitude',
-      'sprint.name',
-      'sprint.businessUser.firstName',
-      'sprint.businessUser.lastName',
-      'sprintGeoLocationLongitude',
-      'sprintGeoLocationLattitude',
-    ]
+    const headers = mode === 'express' ? EXPRESS_HEADERS : STANDARD_HEADERS
     const csv  = headers.join(',') + '\n'
     const blob = new Blob([csv], { type: 'text/csv;charset=utf-8' })
     const url  = URL.createObjectURL(blob)
     const a    = document.createElement('a')
     a.href     = url
-    a.download = 'template-import-shipinfy.csv'
+    a.download = mode === 'express' ? 'template-express-shipinfy.csv' : 'template-import-shipinfy.csv'
     a.click()
     URL.revokeObjectURL(url)
-  }, [])
+  }, [mode])
 
   // ── Bandeau rapport actif ─────────────────────────────────────────────────
   if (activeReport) {

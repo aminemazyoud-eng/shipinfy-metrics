@@ -24,11 +24,28 @@ export async function POST(req: Request) {
       }
     }
 
-    // Get the active report
-    const report = await prisma.deliveryReport.findFirst({
-      where: { isActive: true },
-      orderBy: { uploadedAt: 'desc' },
-    })
+    // Optional body { reportId } → use that report instead of the active one
+    let bodyReportId: string | undefined
+    try {
+      const body = await req.json() as { reportId?: string } | null
+      bodyReportId = body?.reportId || undefined
+    } catch {
+      bodyReportId = undefined
+    }
+
+    let report: { id: string } | null
+    if (bodyReportId) {
+      report = await prisma.deliveryReport.findUnique({
+        where: { id: bodyReportId },
+        select: { id: true },
+      })
+    } else {
+      report = await prisma.deliveryReport.findFirst({
+        where: { isActive: true },
+        orderBy: { uploadedAt: 'desc' },
+        select: { id: true },
+      })
+    }
     if (!report) {
       return NextResponse.json({ error: 'No active report found' }, { status: 404 })
     }

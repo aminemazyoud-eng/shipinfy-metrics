@@ -20,9 +20,10 @@
 | Composant | Valeur |
 |-----------|--------|
 | Framework | Next.js 16.2 App Router (`output: 'standalone'`) |
-| DB | PostgreSQL via Supabase + Prisma 5 |
-| Hébergement | Dokploy v0.28.8 — Docker sur VPS `187.124.43.5:3000` |
-| Reverse proxy | Traefik (timeout ~60s → raison du fix upload client-side) |
+| DB | PostgreSQL via Supabase — projet **`aedhvfcdbylicuihatzn`** (region `aws-1-eu-north-1`, transaction pooler port 6543 `?pgbouncer=true`) + Prisma 5 |
+| Hébergement | **Dokploy v0.30.2 — Docker Swarm mono-nœud sur VPS Contabo `vmi3526687.contaboserver.net` (`169.58.223.111`)** — migration depuis l'ancien `187.124.43.5:3000` (Sprint 16, 2026-08-27) |
+| App Dokploy | projet **`shipinfy-metrics-prod`** → service **`shipinfy-metrics`** (appName interne `shipinfy-metrics-prod-hfilk7`), source Git public `github.com/aminemazyoud-eng/shipinfy-metrics` branche `main`, build **Dockerfile**, port **3001**, domaine `metrics.mediflows.shop` + Let's Encrypt |
+| Reverse proxy | Traefik (timeout ~60s → raison du fix upload client-side) — config dynamique `/etc/dokploy/traefik/dynamic/shipinfy-metrics-prod-hfilk7.yml` |
 | PDF | pdfkit + Helvetica (PAS de support emoji → carrés colorés) |
 | Email | nodemailer + SMTP |
 | Cron | node-cron dans `instrumentation.ts` + `lib/cron.ts` |
@@ -867,6 +868,15 @@ Build : `npm run build` OK · `tsc --noEmit` clean. 4 sub-agents parallèles (Bl
 | `aa49e8d` | Bloc 2 — Dual Mode KPI Standard/Express |
 | `d2f3f58` | Bloc 3 — Dispatch IA |
 | `545c899` | Bloc 4+5 — QR pointage + Picking Express + Shifts WhatsApp |
+
+### Déploiement Sprint 16 — migration serveur (2026-08-27)
+- Ancien VPS Dokploy `187.124.43.5:3000` (v0.28.8) → **nouveau VPS Contabo `169.58.223.111` / `vmi3526687.contaboserver.net` Dokploy v0.30.2**.
+- L'app avait été migrée ~3 jours avant mais **l'application Dokploy avait été supprimée** (conteneur orphelin `app-shipinfy-metrics-prod` + fichier Traefik + image encore actifs, sans moyen de rebuild).
+- **Recréation** : projet `shipinfy-metrics-prod` → service Application `shipinfy-metrics` (Git public + Dockerfile + port 3001 + domaine + Let's Encrypt). Env récupérées via `docker service inspect app-shipinfy-metrics-prod` (SSH root après "Reset credentials" Contabo).
+- **Cutover** : deploy nouveau conteneur → ajout domaine (génère `dynamic/shipinfy-metrics-prod-hfilk7.yml`) → `rm dynamic/app-shipinfy-metrics-prod.yml` + `docker service rm app-shipinfy-metrics-prod`.
+- ⚠️ **SMTP non configuré en prod** (pas de `SMTP_HOST/USER/PASS`) → `[instrumentation] Email non fonctionnel: Missing credentials` (warning attendu, pas de crash — Bloc 1). À compléter dans Dokploy → Environment pour activer les rapports email.
+- ⚠️ **Pas de Git provider connecté** → pas d'auto-deploy sur push. Redeploy manuel via Dokploy, ou ajouter la Webhook URL (Deployments tab) dans GitHub repo Settings → Webhooks.
+- Variables prod actuelles : `DATABASE_URL` (Supabase `aedhvfcdbylicuihatzn` 6543 pgbouncer), `NEXTAUTH_URL`, `NODE_ENV=production`, `PORT=3001`, `QR_SECRET`, `SMTP_PROVIDER=smtp`, `SMTP_PORT=587`, `SMTP_FROM`, `SMTP_TEST_TO`, `SHIFT_REMINDER_MINUTES=30`.
 
 ### ⚠️ Fixes critiques Sprint 16
 - **F16-blacklist** : `lib/qr-blacklist.ts` = Map mémoire — valide UNIQUEMENT en Docker standalone mono-process. Multi-replica → Redis requis.

@@ -61,22 +61,21 @@
     },
     {
       "parameters": {
-        "sendTo": "={{ $json.recipientsStr }}",
+        "fromEmail": "Shipinfy Metrics <noreply@shipinfy.com>",
+        "toEmail": "={{ $json.recipientsStr }}",
         "subject": "={{ $json.title }}",
-        "emailType": "text",
-        "message": "={{ $json.summary }}",
+        "emailFormat": "text",
+        "text": "={{ $json.summary }}",
         "options": {
-          "attachmentsUi": {
-            "attachmentsBinary": [ { "property": "pdf" } ]
-          }
+          "attachments": "pdf"
         }
       },
       "id": "gmail",
-      "name": "Gmail — envoyer",
-      "type": "n8n-nodes-base.gmail",
+      "name": "Email — envoyer",
+      "type": "n8n-nodes-base.emailSend",
       "typeVersion": 2.1,
       "position": [700, 120],
-      "notes": "TODO: sélectionner ta credential Gmail OAuth2. Si SMTP: remplace ce node par 'Send Email'.",
+      "notes": "TODO: créer la credential SMTP. Gmail: host smtp.gmail.com, port 465, SSL/TLS ON, user = ton email, password = mot de passe d'application Gmail (16 car.). fromEmail à ajuster.",
       "credentials": {}
     },
     {
@@ -134,9 +133,9 @@
         { "node": "Slack demandé ?", "type": "main", "index": 0 }
       ]]
     },
-    "Email demandé ?": { "main": [[ { "node": "Gmail — envoyer", "type": "main", "index": 0 } ], []] },
+    "Email demandé ?": { "main": [[ { "node": "Email — envoyer", "type": "main", "index": 0 } ], []] },
     "Slack demandé ?": { "main": [[ { "node": "Slack — poster", "type": "main", "index": 0 } ], []] },
-    "Gmail — envoyer": { "main": [[ { "node": "Callback email", "type": "main", "index": 0 } ]] },
+    "Email — envoyer": { "main": [[ { "node": "Callback email", "type": "main", "index": 0 } ]] },
     "Slack — poster": { "main": [[ { "node": "Callback slack", "type": "main", "index": 0 } ]] }
   },
   "pinData": {},

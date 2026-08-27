@@ -7,8 +7,10 @@ renvoie le résultat de chaque canal à l'app.
 ## ⚡ Démarrage rapide (import)
 
 1. n8n → **Workflows → Import from File** → charger `docs/n8n/shipinfy-notifications.workflow.json`
-2. Ouvrir le node **Gmail — envoyer** → sélectionner (ou créer) ta credential *Gmail OAuth2*
-   *(alternative SMTP : remplacer par un node « Send Email »)*
+2. Ouvrir le node **Email — envoyer** → *Credential → Create New* → **SMTP** :
+   - Host `smtp.gmail.com` · Port `465` · SSL/TLS **ON**
+   - User = ton email Gmail · Password = **mot de passe d'application Gmail** (16 car., Google Account → Sécurité → Mots de passe des applications)
+   - Ajuste `fromEmail` dans le node si besoin
 3. Ouvrir le node **Slack — poster** → renseigner l'URL *Incoming Webhook* Slack
    *(ou passer en OAuth + choisir le channel)*
 4. **Activer** le workflow (toggle en haut à droite)

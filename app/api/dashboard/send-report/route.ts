@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server'
-import { transporter } from '@/lib/mailer'
+import { sendEmail } from '@/lib/email'
 import { buildEmailText, type EmailKpisData } from '@/lib/email-template'
 import { generateReportPDF } from '@/lib/pdf-report'
 import { triggerN8N } from '@/lib/n8n-bridge'
@@ -118,9 +118,8 @@ export async function POST(request: Request) {
       .toLocaleDateString('fr-FR', { day: '2-digit', month: '2-digit', year: 'numeric' })
       .replace(/\//g, '-')
 
-    await transporter.sendMail({
-      from:    process.env.SMTP_FROM ?? process.env.SMTP_USER,
-      to:      emails.join(', '),
+    const result = await sendEmail({
+      to:      emails,
       subject,
       text:    textContent,
       attachments: [
@@ -131,6 +130,13 @@ export async function POST(request: Request) {
         },
       ],
     })
+
+    if (!result.ok) {
+      return NextResponse.json(
+        { error: 'Envoi email échoué', detail: result.error },
+        { status: 502 }
+      )
+    }
 
     // Sprint 11 — trigger N8N automations (non-blocking)
     triggerN8N('report_ready', {

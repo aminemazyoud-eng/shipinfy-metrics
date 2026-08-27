@@ -96,13 +96,19 @@ async function notifySlack(payload: AlertPayload): Promise<void> {
     const emoji = payload.level === 3 ? '🔴 [CRITIQUE]' : '🟠 [ALERTE]'
     const mode  = payload.mode === 'express' ? 'Express <60min' : 'Tournée Standard'
 
-    await fetch(config.webhookUrl, {
+    const res = await fetch(config.webhookUrl, {
       method:  'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         text: `${emoji} *Shipinfy — ${mode}*\n${payload.message}${payload.driverName ? `\n> Livreur : ${payload.driverName}` : ''}`,
       }),
+      signal: AbortSignal.timeout(8000),
     })
+
+    if (!res.ok) {
+      const body = await res.text().catch(() => '')
+      console.error('[AlertEngine] Slack non-2xx:', res.status, body.slice(0, 500))
+    }
   } catch (e) {
     console.error('[AlertEngine] notifySlack error:', e)
   }

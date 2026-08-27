@@ -12,5 +12,14 @@ export async function register() {
   if (process.env.NEXT_RUNTIME === 'nodejs') {
     const { startCronScheduler } = await import('./lib/cron')
     startCronScheduler()
+
+    // Sprint 16 BLOC 1 — vérification SMTP non-bloquante
+    import('./lib/email')
+      .then(m => m.verifySmtpConnection())
+      .then(r => {
+        if (!r.ok) console.warn('[instrumentation] Email non fonctionnel:', r.provider, r.error)
+        else console.log('[instrumentation] Email OK:', r.provider)
+      })
+      .catch(() => {})
   }
 }

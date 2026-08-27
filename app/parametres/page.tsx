@@ -27,6 +27,16 @@ interface N8NConfig {
   createdAt:       string
 }
 
+interface N8NLogRow {
+  id:           string
+  configId:     string | null
+  eventType:    string
+  status:       string
+  responseCode: number | null
+  error:        string | null
+  createdAt:    string
+}
+
 // ─── Section wrapper ───────────────────────────────────────────────────────────
 function Section({ icon: Icon, title, children }: {
   icon: React.ComponentType<{ size?: number; className?: string }>
@@ -110,6 +120,68 @@ export default function ParametresPage() {
   const [loginLogsLoading, setLoginLogsLoading] = useState(false)
   const [loginLogsLoaded, setLoginLogsLoaded]   = useState(false)
 
+  // Sprint 16 BLOC 1 — Diagnostic Automatisations
+  const [diagN8n,   setDiagN8n]   = useState<{ state: 'idle'|'loading'|'ok'|'error'; msg?: string }>({ state: 'idle' })
+  const [diagSlack, setDiagSlack] = useState<{ state: 'idle'|'loading'|'ok'|'error'; msg?: string }>({ state: 'idle' })
+  const [diagMail,  setDiagMail]  = useState<{ state: 'idle'|'loading'|'ok'|'error'; msg?: string }>({ state: 'idle' })
+  const [diagLogs,  setDiagLogs]  = useState<N8NLogRow[]>([])
+  const [diagLogsLoading, setDiagLogsLoading] = useState(false)
+
+  async function loadDiagLogs() {
+    setDiagLogsLoading(true)
+    try {
+      const res = await fetch('/api/n8n/logs')
+      if (res.ok) {
+        const data = await res.json() as N8NLogRow[]
+        setDiagLogs(Array.isArray(data) ? data.slice(0, 5) : [])
+      }
+    } catch { /* noop */ }
+    finally { setDiagLogsLoading(false) }
+  }
+
+  async function runDiagN8n() {
+    setDiagN8n({ state: 'loading' })
+    try {
+      const res = await fetch('/api/n8n/test', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ eventType: 'report_ready' }),
+      })
+      const d = await res.json() as { ok?: boolean; error?: string; eventType?: string }
+      setDiagN8n(d.ok
+        ? { state: 'ok', msg: `Événement ${d.eventType ?? 'report_ready'} envoyé aux configs actives` }
+        : { state: 'error', msg: d.error ?? 'Échec envoi N8N' })
+    } catch (e) {
+      setDiagN8n({ state: 'error', msg: String(e) })
+    }
+    loadDiagLogs()
+  }
+
+  async function runDiagSlack() {
+    setDiagSlack({ state: 'loading' })
+    try {
+      const res = await fetch('/api/debug/slack-test', { method: 'POST' })
+      const d = await res.json() as { success?: boolean; responseCode?: number; responseBody?: string; error?: string }
+      setDiagSlack(d.success
+        ? { state: 'ok', msg: `HTTP ${d.responseCode} — ${d.responseBody || 'ok'}` }
+        : { state: 'error', msg: d.error ?? `HTTP ${d.responseCode ?? '—'} — ${d.responseBody ?? 'échec'}` })
+    } catch (e) {
+      setDiagSlack({ state: 'error', msg: String(e) })
+    }
+  }
+
+  async function runDiagMail() {
+    setDiagMail({ state: 'loading' })
+    try {
+      const res = await fetch('/api/debug/email-test')
+      const d = await res.json() as { success?: boolean; provider?: string; error?: string }
+      setDiagMail(d.success
+        ? { state: 'ok', msg: `Provider ${d.provider ?? '—'} — email envoyé` }
+        : { state: 'error', msg: `Provider ${d.provider ?? '—'} — ${d.error ?? 'échec'}` })
+    } catch (e) {
+      setDiagMail({ state: 'error', msg: String(e) })
+    }
+  }
+
   // Sprint 7 — Slack config
   const [slackWebhook, setSlackWebhook] = useState('')
   const [slackChannel, setSlackChannel] = useState('#alertes-livraison')
@@ -169,6 +241,8 @@ export default function ParametresPage() {
     }
     setTimeout(() => setN8nTestMap(prev => ({ ...prev, [id]: 'idle' })), 4000)
   }
+
+  useEffect(() => { loadDiagLogs() }, [])
 
   useEffect(() => {
     fetch('/api/slack/config').then(r => r.json()).then((d: { webhookUrl?: string; channel?: string; active?: boolean }) => {
@@ -734,6 +808,97 @@ export default function ParametresPage() {
           <p className="text-xs text-gray-400">
             URL de retour N8N → Shipinfy : <code className="font-mono bg-gray-100 px-1 rounded">/api/webhooks/n8n</code>
           </p>
+        </div>
+      </Section>
+
+      {/* ── Sprint 16 BLOC 1 — Diagnostic Automatisations ────────────────── */}
+      <Section icon={Play} title="Diagnostic — Automatisations">
+        <div className="space-y-4">
+          <p className="text-xs text-gray-500">
+            Teste en direct les canaux N8N, Slack et Email, puis affiche les derniers envois N8N.
+          </p>
+
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+            {([
+              { key: 'n8n',   label: 'Tester N8N maintenant', run: runDiagN8n,   st: diagN8n   },
+              { key: 'slack', label: 'Tester Slack',          run: runDiagSlack, st: diagSlack },
+              { key: 'mail',  label: 'Tester Email',          run: runDiagMail,  st: diagMail  },
+            ] as const).map(item => (
+              <div key={item.key} className="border border-gray-200 rounded-xl p-3 space-y-2">
+                <button
+                  onClick={item.run}
+                  disabled={item.st.state === 'loading'}
+                  className="w-full flex items-center justify-center gap-2 bg-blue-600 text-white px-3 py-2 rounded-lg text-sm font-medium hover:bg-blue-700 disabled:opacity-50 transition"
+                >
+                  {item.st.state === 'loading'
+                    ? <Loader2 size={14} className="animate-spin" />
+                    : item.st.state === 'ok'
+                      ? <CheckCircle2 size={14} />
+                      : item.st.state === 'error'
+                        ? <XCircle size={14} />
+                        : <Play size={14} />}
+                  {item.label}
+                </button>
+                {item.st.state !== 'idle' && item.st.state !== 'loading' && (
+                  <p className={`text-[11px] break-words ${item.st.state === 'ok' ? 'text-green-600' : 'text-red-600'}`}>
+                    {item.st.msg}
+                  </p>
+                )}
+              </div>
+            ))}
+          </div>
+
+          <div className="border-t border-gray-100 pt-4">
+            <div className="flex items-center justify-between mb-2">
+              <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide">5 derniers envois N8N</p>
+              <button
+                onClick={loadDiagLogs}
+                disabled={diagLogsLoading}
+                className="flex items-center gap-1.5 text-xs text-gray-400 hover:text-gray-600 transition"
+              >
+                {diagLogsLoading ? <Loader2 size={12} className="animate-spin" /> : <RefreshCw size={12} />}
+                Actualiser
+              </button>
+            </div>
+            {diagLogs.length === 0 ? (
+              <p className="text-sm text-gray-400 italic">Aucun envoi N8N enregistré.</p>
+            ) : (
+              <div className="overflow-x-auto">
+                <table className="w-full text-xs">
+                  <thead>
+                    <tr className="border-b border-gray-100">
+                      <th className="text-left py-2 pr-4 font-medium text-gray-500">Statut</th>
+                      <th className="text-left py-2 pr-4 font-medium text-gray-500">Code</th>
+                      <th className="text-left py-2 pr-4 font-medium text-gray-500">Événement</th>
+                      <th className="text-left py-2 font-medium text-gray-500">Date</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-gray-50">
+                    {diagLogs.map(log => (
+                      <tr key={log.id} className="hover:bg-gray-50">
+                        <td className="py-2 pr-4">
+                          <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-semibold ${
+                            log.status === 'success' ? 'bg-green-50 text-green-700' : 'bg-red-50 text-red-700'
+                          }`}>
+                            {log.status === 'success' ? <CheckCircle2 size={10} /> : <XCircle size={10} />}
+                            {log.status === 'success' ? 'Succès' : 'Erreur'}
+                          </span>
+                        </td>
+                        <td className="py-2 pr-4 font-mono text-gray-500">{log.responseCode ?? '—'}</td>
+                        <td className="py-2 pr-4 font-mono text-gray-600">{log.eventType}</td>
+                        <td className="py-2 text-gray-600 whitespace-nowrap">
+                          {new Date(log.createdAt).toLocaleString('fr-FR', {
+                            day: '2-digit', month: '2-digit', year: 'numeric',
+                            hour: '2-digit', minute: '2-digit',
+                          })}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </div>
         </div>
       </Section>
 

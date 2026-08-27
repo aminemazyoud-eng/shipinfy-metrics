@@ -39,7 +39,10 @@ export async function triggerN8N(
         ],
       },
     })
-    if (configs.length === 0) return
+    if (configs.length === 0) {
+      console.warn('[N8N] no active config for event', eventType)
+      return
+    }
 
     const payload: N8NPayload = {
       eventType,
@@ -64,8 +67,18 @@ export async function triggerN8N(
             headers['X-Shipinfy-Signature'] = `sha256=${sig}`
           }
 
-          const res = await fetch(cfg.webhookUrl, { method: 'POST', headers, body })
+          const res = await fetch(cfg.webhookUrl, {
+            method: 'POST',
+            headers,
+            body,
+            signal: AbortSignal.timeout(10000),
+          })
           responseCode = res.status
+
+          if (!res.ok) {
+            const bodyText = await res.text().catch(() => '')
+            console.warn('[N8NBridge] non-2xx', cfg.name, res.status, bodyText.slice(0, 500))
+          }
 
           // Update lastTriggeredAt — best-effort, don't await failure
           await prisma.n8NConfig.update({

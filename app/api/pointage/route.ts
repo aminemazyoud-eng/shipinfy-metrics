@@ -38,7 +38,7 @@ export async function POST(req: NextRequest) {
     const body = await req.json() as {
       driverName: string; date: string
       hub?: string; checkIn?: string; checkOut?: string
-      status?: string; notes?: string
+      status?: string; notes?: string; role?: string
     }
 
     if (!body.driverName || !body.date) {
@@ -56,6 +56,7 @@ export async function POST(req: NextRequest) {
         checkIn:    body.checkIn  ? new Date(body.checkIn)  : null,
         checkOut:   body.checkOut ? new Date(body.checkOut) : null,
         status:     body.status  ?? 'present',
+        role:       body.role === 'PICKER' ? 'PICKER' : 'LIVREUR',
         notes:      body.notes   ?? null,
       },
       update: {
@@ -63,6 +64,7 @@ export async function POST(req: NextRequest) {
         checkIn:  body.checkIn  ? new Date(body.checkIn)  : undefined,
         checkOut: body.checkOut ? new Date(body.checkOut) : undefined,
         status:   body.status  ?? undefined,
+        role:     body.role === 'PICKER' ? 'PICKER' : body.role === 'LIVREUR' ? 'LIVREUR' : undefined,
         notes:    body.notes   ?? undefined,
       },
     })

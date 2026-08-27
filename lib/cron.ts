@@ -251,6 +251,72 @@ export function startCronScheduler() {
     }
   }, { timezone: 'Africa/Casablanca' })
 
+  // Sprint 16 — Rappel WhatsApp shift non ouvert toutes les 15 min
+  cron.schedule('*/15 * * * *', async () => {
+    try {
+      const mins = parseInt(process.env.SHIFT_REMINDER_MINUTES ?? '30')
+      const now  = new Date()
+
+      const todayMidnightUTC = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate()))
+      const tomorrowMidnightUTC = new Date(todayMidnightUTC.getTime() + 86400000)
+
+      const assignments = await db.shiftAssignment.findMany({
+        where: { slot: { date: { gte: todayMidnightUTC, lt: tomorrowMidnightUTC } } },
+        include: { slot: true },
+      })
+
+      // Livreurs déjà pointés aujourd'hui (checkIn non null)
+      const attendance = await db.driverAttendance.findMany({
+        where: { date: { gte: todayMidnightUTC, lt: tomorrowMidnightUTC }, checkIn: { not: null } },
+        select: { driverName: true },
+      })
+      const checkedIn = new Set(attendance.map(a => a.driverName))
+
+      // Cible : slot commence dans les prochaines `mins` minutes ET pas de check-in
+      const due = assignments.filter(a => {
+        if (checkedIn.has(a.driverName)) return false
+        const [h, m] = (a.slot.startTime ?? '00:00').split(':').map(Number)
+        const start = new Date(a.slot.date)
+        start.setHours(h || 0, m || 0, 0, 0)
+        const diffMin = (start.getTime() - now.getTime()) / 60000
+        return diffMin > 0 && diffMin <= mins
+      })
+
+      if (due.length === 0) return
+
+      const { sendWhatsApp } = await import('@/lib/whatsapp')
+      const drivers = await db.driver.findMany({ select: { firstName: true, lastName: true, phone: true } })
+      const phoneMap = new Map(drivers.map(d => [`${d.firstName} ${d.lastName}`.trim(), d.phone]))
+
+      const seen = new Set<string>()
+      for (const a of due) {
+        if (seen.has(a.driverName)) continue
+        seen.add(a.driverName)
+
+        const startTime = a.slot.startTime
+        const phone = phoneMap.get(a.driverName)
+        if (phone) {
+          await sendWhatsApp(phone, `⚠️ Rappel : votre shift commence à ${startTime}. Pointez-vous sur l'appli.`)
+            .catch(e => console.error('[cron] shift reminder whatsapp:', e))
+        }
+
+        await db.deliveryAlert.create({
+          data: {
+            driverName: a.driverName,
+            mode:    'standard',
+            level:   1,
+            type:    'predictive',
+            message: `Shift non ouvert — ${a.driverName} commence à ${startTime}`,
+            channel: 'inapp',
+          },
+        }).catch(e => console.error('[cron] shift reminder alert:', e))
+      }
+      console.log(`[cron] Rappels shift envoyés: ${seen.size}`)
+    } catch (e) {
+      console.error('[cron] shift reminder job:', e)
+    }
+  }, { timezone: 'Africa/Casablanca' })
+
   console.log('[cron] Scheduler actif (rapports + alertes + score IA + prédictif).')
 }
 

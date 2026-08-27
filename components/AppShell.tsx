@@ -7,7 +7,7 @@ import {
   Activity, BarChart3, Users, MapPin, XCircle,
   TrendingUp, Bell, Mail, Settings, UserCheck,
   GraduationCap, Brain, X, ChevronRight, DollarSign,
-  Truck, Clock, HeadphonesIcon, Shield, Calendar,
+  Truck, Clock, HeadphonesIcon, Shield, Calendar, Package,
 } from 'lucide-react'
 import type { LucideProps } from 'lucide-react'
 import MobileHeader from '@/components/MobileHeader'
@@ -42,6 +42,7 @@ const SECTIONS: NavSection[] = [
     key: 'operations', label: 'Opérations',
     items: [
       { href: '/dispatch', label: 'Dispatch',          icon: Truck          },
+      { href: '/picking',  label: 'Picking Express',   icon: Package        },
       { href: '/shifts',   label: 'Shifts & Planning', icon: Calendar       },
       { href: '/alertes',  label: 'Alertes & Tickets', icon: Bell           },
       { href: '/rapports', label: 'Rapports',           icon: Mail           },

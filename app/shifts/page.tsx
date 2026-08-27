@@ -3,7 +3,7 @@ import { useState, useEffect, useCallback } from 'react'
 import {
   Calendar, Plus, Users, ChevronLeft, ChevronRight,
   Crown, Shield, X, Check, AlertTriangle, Clock,
-  MapPin, Trash2, Settings, RefreshCw, Star,
+  MapPin, Trash2, Settings, RefreshCw, Star, MessageCircle, Loader2,
 } from 'lucide-react'
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -430,6 +430,9 @@ function PlanningTab() {
   const [createDate, setCreateDate] = useState<string | null>(null)
   const [zoneFilter, setZoneFilter] = useState('all')
   const [planView, setPlanView]     = useState<PlanView>('calendar')
+  const [showWhatsApp, setShowWhatsApp] = useState(false)
+  const [waSending, setWaSending]       = useState(false)
+  const [waResult, setWaResult]         = useState<string | null>(null)
 
   const weekDays = Array.from({ length: 7 }, (_, i) => addDays(weekStart, i))
   const zones    = ['all', ...Array.from(new Set(slots.map(s => s.zone))).sort()]
@@ -478,6 +481,23 @@ function PlanningTab() {
   const slotsOk       = slots.filter(s => s.assignments.length >= s.minDrivers).length
   const priorityCount = slots.reduce((s, slot) => s + slot.assignments.filter(a => a.priority).length, 0)
   const conflicts     = detectConflicts(slots)
+
+  const driversInWeek = Array.from(new Set(slots.flatMap(s => s.assignments.map(a => a.driverName))))
+
+  const sendWhatsApp = async () => {
+    setWaSending(true); setWaResult(null)
+    try {
+      const res = await fetch('/api/shifts/notify-whatsapp', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ week: fmtDate(weekStart) }),
+      })
+      const data = await res.json()
+      if (!res.ok) { setWaResult(data.error ?? 'Erreur'); return }
+      setWaResult(`${data.sent} planning(s) envoyé(s), ${data.failed} erreur(s)`)
+    } catch {
+      setWaResult('Erreur réseau')
+    } finally { setWaSending(false) }
+  }
 
   return (
     <div className="space-y-4">
@@ -539,6 +559,12 @@ function PlanningTab() {
         )}
 
         <div className="ml-auto flex items-center gap-2">
+          <button
+            onClick={() => { setWaResult(null); setShowWhatsApp(true) }}
+            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold bg-green-50 text-green-700 border border-green-200 hover:bg-green-100 transition-colors"
+          >
+            <MessageCircle size={13} /> Envoyer plannings WhatsApp
+          </button>
           {/* View toggle */}
           <div className="flex border border-gray-200 rounded-lg overflow-hidden text-xs">
             <button
@@ -671,6 +697,51 @@ function PlanningTab() {
           onClose={() => setCreateDate(null)}
           onCreated={handleSlotCreated}
         />
+      )}
+
+      {showWhatsApp && (
+        <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/40 backdrop-blur-sm sm:p-4">
+          <div className="bg-white rounded-t-2xl sm:rounded-2xl shadow-2xl w-full sm:max-w-md">
+            <div className="flex items-center justify-between px-5 py-4 border-b border-gray-100">
+              <span className="text-sm font-bold text-gray-800 flex items-center gap-2">
+                <MessageCircle size={15} className="text-green-600" /> Envoyer les plannings WhatsApp
+              </span>
+              <button onClick={() => setShowWhatsApp(false)} className="w-8 h-8 flex items-center justify-center rounded-full bg-gray-100 hover:bg-gray-200">
+                <X size={14} className="text-gray-500" />
+              </button>
+            </div>
+            <div className="p-5 space-y-3">
+              <p className="text-sm text-gray-600">
+                Semaine du <strong>{weekDays[0].getDate()} {MONTHS_FR[weekDays[0].getMonth()]}</strong> au{' '}
+                <strong>{weekDays[6].getDate()} {MONTHS_FR[weekDays[6].getMonth()]}</strong>
+              </p>
+              <p className="text-sm text-gray-600">
+                <strong>{driversInWeek.length}</strong> livreur(s) concerné(s) par le planning actuel.
+              </p>
+              {waResult && (
+                <div className="px-3 py-2 rounded-lg text-sm font-medium bg-blue-50 text-blue-700 border border-blue-200">
+                  {waResult}
+                </div>
+              )}
+              <div className="flex gap-2 pt-1">
+                <button
+                  onClick={() => setShowWhatsApp(false)}
+                  className="flex-1 py-2 rounded-lg border border-gray-200 text-sm text-gray-600 hover:bg-gray-50"
+                >
+                  Fermer
+                </button>
+                <button
+                  onClick={sendWhatsApp}
+                  disabled={waSending || driversInWeek.length === 0}
+                  className="flex-1 py-2 rounded-lg bg-green-600 text-white text-sm font-semibold hover:bg-green-700 disabled:opacity-60 flex items-center justify-center gap-2"
+                >
+                  {waSending && <Loader2 size={14} className="animate-spin" />}
+                  Confirmer l&apos;envoi
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
       )}
     </div>
   )

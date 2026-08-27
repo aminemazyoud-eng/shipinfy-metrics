@@ -14,6 +14,7 @@ const ROUTE_LABELS: Record<string, string> = {
   '/alertes':      'Alertes & Tickets',
   '/rapports':     'Rapports',
   '/dispatch':     'Dispatch',
+  '/picking':      'Picking Express',
   '/pointage':     'Pointage',
   '/support':      'Support Client',
   '/onboarding':   'Onboarding',

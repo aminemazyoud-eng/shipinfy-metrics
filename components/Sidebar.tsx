@@ -8,7 +8,7 @@ import {
   Activity, BarChart3, Users, MapPin, XCircle,
   TrendingUp, Bell, Mail, Settings,
   UserCheck, GraduationCap, ChevronRight, Brain, DollarSign,
-  Truck, Clock, HeadphonesIcon, Shield, Calendar,
+  Truck, Clock, HeadphonesIcon, Shield, Calendar, Package,
 } from 'lucide-react'
 import { useCurrentUser } from '@/hooks/useCurrentUser'
 import { getAllowedRoutes } from '@/lib/permissions'
@@ -53,6 +53,7 @@ const SECTIONS: NavSection[] = [
     label: 'Opérations',
     items: [
       { href: '/dispatch', label: 'Dispatch',          icon: Truck,           disabled: false },
+      { href: '/picking',  label: 'Picking Express',   icon: Package,         disabled: false },
       { href: '/shifts',   label: 'Shifts & Planning', icon: Calendar,        disabled: false },
       { href: '/alertes',  label: 'Alertes & Tickets', icon: Bell,            disabled: false },
       { href: '/rapports', label: 'Rapports',           icon: Mail,            disabled: false },

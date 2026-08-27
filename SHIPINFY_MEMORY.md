@@ -6,7 +6,7 @@
 
 ---
 
-## VERSION ACTUELLE : v15.0 — Sprint 15 Upgrades (2026-04-16)
+## VERSION ACTUELLE : v16.0 — Sprint 16 Dual Mode + Dispatch IA + QR Pointage (2026-08-27)
 
 > **Agents IA utilisés pour builder ce SaaS** :
 > - Claude Sonnet 4.6 (Claude Code) — agent principal, architecture + coordination
@@ -817,11 +817,63 @@ Chaque sub-agent reçoit un prompt précis avec :
 **Sections** (dans l'ordre, filtrées par rôle RBAC) :
 1. **Analytiques** : Dashboard, KPIs & Métriques, Prévisions
 2. **Performance** : Score IA, Alertes & Tickets, Rémunération
-3. **Opérations** : Livreurs, Hubs, Retours, Dispatch, Support, Shifts & Planning
+3. **Opérations** : Livreurs, Hubs, Retours, Dispatch, **Picking Express** (Sprint 16), Support, Shifts & Planning
 4. **RH & Formation** : Onboarding, Academy, Pointage
 5. **Administration** : Super Admin (SUPER_ADMIN seulement)
 6. **Paramètres** : Paramètres
 
 ---
 
-*Dernière mise à jour : 2026-04-16 — Sprint 15 : 10 upgrades + 4 sub-agents — v15.0*
+## 22. SPRINT 16 — DUAL MODE + DISPATCH IA + QR POINTAGE (2026-08-27)
+
+### VERSION : v16.0
+Build : `npm run build` OK · `tsc --noEmit` clean. 4 sub-agents parallèles (Bloc 1 / Bloc 2 / Bloc 3 / Bloc 4+5), foundation DB commitée d'abord par l'agent principal.
+
+### Features déployées
+1. **Fix SMTP** — `lib/email.ts` : abstraction `sendEmail()` avec fallback. Si `SMTP_PROVIDER=resend` → API REST `https://api.resend.com/emails` (Bearer `RESEND_API_KEY`, pièces jointes base64) ; sinon nodemailer SMTP (réutilise `lib/mailer.ts`). Ne throw jamais. `send-report` bascule dessus → 502 si échec. Test connexion au démarrage dans `instrumentation.ts` (non bloquant). ⚠️ Si le VPS bloque le port SMTP sortant → passer `SMTP_PROVIDER=resend`.
+2. **Fix Slack** — `lib/alert-engine.ts` `notifySlack()` : `AbortSignal.timeout(8000)` + log `console.error` du body non-2xx. Route test `POST /api/debug/slack-test` (guard ADMIN) retourne `responseCode` + `responseBody` + `webhookHost`. ⚠️ Slack attend `{ "text": "..." }` ; webhook doit être `https://hooks.slack.com/services/T.../B.../...`.
+3. **Fix N8N** — `lib/n8n-bridge.ts` : `AbortSignal.timeout(10000)` + `console.warn` non-2xx + warn si aucune `N8NConfig.active`. ⚠️ Cause fréquente : `webhookUrl` en DB = `http://localhost:5678/...` non joignable depuis le container → mettre l'IP VPS ou `http://n8n:5678/...`. Diagnostic dans `/parametres` → section "Diagnostic — Automatisations" (boutons test N8N/Slack/Email + 5 derniers `N8NLog` colorés).
+4. **KPI Dual Mode Standard/Express** — `/kpis` : sélecteur mode persisté `localStorage['shipinfy_kpi_mode']`, badge pill (Standard bleu / Express orange). `UploadZone` prend une prop `mode` qui route upload/status/delete + template. Upload Express = **même archi fire-and-forget** que Standard (`sheetRows:200000` guard F9, batches 500, Map `lib/upload-progress.ts` partagée). API : `/api/express/upload`, `/api/express/upload/status/[reportId]`, `/api/express/kpis`, `/api/express/reports` (GET+DELETE cascade). KPIs Express : `slaRate`, `avgPickingTime`, `avgDeliveryTime`, `avgTotalTime`, `byDriver`, `byPicker`, `bySla` (supermarket vs hypermarket).
+   - `EXPRESS_COLUMN_MAP` : order_id, driver_name, picker_id, hub, zone, status, picking_start, picking_end, delivery_start, delivery_end, sla_minutes, sla_ok, address, store_type.
+   - ⚠️ `slaRate` = dénominateur sur commandes avec `slaRespected` non-null ; `bySla` matche "super"/"hyper" dans `storeType`.
+5. **Score IA lié au rapport actif** — `POST /api/score-ia/calculate` accepte `{ reportId? }` (sinon rapport actif). Bouton "Recalculer depuis rapport actif" dans `/score-ia`.
+6. **Dispatch IA** — `lib/dispatch-engine.ts` (pur, sans DB) : `computeAssignmentScore` (load·0.4 + eta/60·0.4 + dist·0.2, plus bas = mieux, ≥maxOrders→9999 "Saturé"), `balanceLoad` (greedy recalcul par itération), `detectBundles` (Haversine 500m si GPS, sinon code ville, saving = (n-1)·8min), `haversineMeters`. API : `GET /api/dispatch/drivers-status`, `POST /api/dispatch/assign` (conseil **non persisté** — pas de modèle Assignment), `GET /api/dispatch/bundles`. UI : 3 sections ajoutées SOUS l'existant de `/dispatch` (aucune suppression). Pas de carte (Leaflet = Sprint 17).
+7. **QR Pointage éphémère** — `lib/qr-blacklist.ts` (Map mémoire usage unique, cleanup 60s, Docker standalone uniquement). `POST /api/pointage/qr-generate` : token base64url `driverName|ts|role|hmac` (HMAC-SHA256 `QR_SECRET`, fallback `shipinfy-dev-secret`), validité **10s**, + PIN 6 chiffres (usage futur) + `qrDataUrl` (npm `qrcode`). `POST /api/pointage/qr-scan` : vérif shape/HMAC(`timingSafeEqual`)/expiration/`isUsed` → upsert `DriverAttendance` (check-in puis check-out) avec `role`/`scannedBy`/`qrScanId`. Erreurs : `TOKEN_INVALID` (400), `TOKEN_EXPIRED` (400), `TOKEN_USED` (409). UI `/pointage` : sections Générer QR (countdown 10s + overlay expiré) + Scanner QR (textarea + feedback) + colonne Rôle + filtre + KPIs heures livreurs/pickers.
+8. **Module Picking Express** — route `/picking` (Opérations, après Dispatch, rôles DISPATCHER/COORDINATOR/MANAGER/ADMIN/SUPER_ADMIN). `GET /api/picking?reportId=&date=` (kpis toPick/inProgress/ready/avgPickingMin, `byPicker`, `slaAlerts` >80% SLA), `PATCH /api/picking/[orderId]` (`pickingStatus` a_picker|en_cours|pret|recupere + effets `pickingStartAt`/`pickingEndAt`). Page gated Express (bannière soft si `shipinfy_kpi_mode !== 'express'`, non bloquant). Badge SLA rouge `animate-pulse`.
+9. **Shifts WhatsApp** — `lib/whatsapp.ts` : `sendWhatsApp(to, msg)` (provider `twilio`|`meta` selon `WHATSAPP_PROVIDER`, **inerte + return false si non configuré, ne throw jamais**, timeout 10s, log `N8NLog` event `whatsapp_shift`), `formatShiftPlanning(driverName, slots)`. `POST /api/shifts/notify-whatsapp` `{ week, driverNames? }` → groupe assignations Lun-Dim par livreur, téléphone via `Driver.phone` (match `firstName + ' ' + lastName`), retourne `{ sent, failed, details }`. Bouton + modal confirmation dans onglet Planning de `/shifts`.
+10. **Rappel shift non ouvert** — `lib/cron.ts` job `*/15 * * * *` (Africa/Casablanca) : assignations du jour démarrant dans `SHIFT_REMINDER_MINUTES` (défaut 30) sans check-in → `sendWhatsApp` rappel + `DeliveryAlert` level 1 in-app.
+
+### Modèles DB ajoutés / modifiés
+- **`ExpressReport`** (filename, uploadedAt, totalRows, storeType, tenantId) + **`ExpressOrder`** (orderId, driverName, pickerId, hubName, zone, status, `pickingStatus` [a_picker|en_cours|pret|recupere], pickingStartAt/EndAt, deliveryStartAt/EndAt, `slaTarget` Int=45, slaRespected Bool?, customerAddress, storeType, tenantId) — FK CASCADE.
+- **`Driver.role`** ('LIVREUR'|'PICKER', défaut LIVREUR). `Driver.phone` existait déjà (`@unique`).
+- **`DriverAttendance.role`** ('LIVREUR'|'PICKER'), **`.qrScanId`**, **`.scannedBy`**.
+- ⚠️ Tout en `CREATE TABLE IF NOT EXISTS` / `ALTER TABLE ... ADD COLUMN IF NOT EXISTS` dans `prisma/init-tables.sql` (jamais `prisma migrate`).
+
+### Variables .env ajoutées (voir `.env.example`)
+- `SMTP_PROVIDER` (smtp|resend), `SMTP_TEST_TO`, `RESEND_API_KEY`
+- `QR_SECRET` (⚠️ valeur forte obligatoire en prod)
+- `WHATSAPP_PROVIDER` (twilio|meta|vide), `TWILIO_ACCOUNT_SID`, `TWILIO_AUTH_TOKEN`, `TWILIO_WHATSAPP_FROM`, `META_WHATSAPP_PHONE_ID`, `META_WHATSAPP_TOKEN`
+- `SHIFT_REMINDER_MINUTES` (défaut 30)
+
+### Dépendance ajoutée
+- `qrcode@^1.5.4` + `@types/qrcode` (génération QR data URL côté serveur dans `qr-generate`)
+
+### Commits Sprint 16
+| Commit | Contenu |
+|--------|---------|
+| `39c528d` | DB foundation — ExpressReport/ExpressOrder + Driver.role + DriverAttendance QR |
+| `477dec8` | dep qrcode |
+| `c427ebc` | Bloc 1 — fix SMTP/Slack/N8N + routes debug |
+| `aa49e8d` | Bloc 2 — Dual Mode KPI Standard/Express |
+| `d2f3f58` | Bloc 3 — Dispatch IA |
+| `545c899` | Bloc 4+5 — QR pointage + Picking Express + Shifts WhatsApp |
+
+### ⚠️ Fixes critiques Sprint 16
+- **F16-blacklist** : `lib/qr-blacklist.ts` = Map mémoire — valide UNIQUEMENT en Docker standalone mono-process. Multi-replica → Redis requis.
+- **F16-async-params** : `app/api/picking/[orderId]/route.ts` + `app/api/express/upload/status/[reportId]/route.ts` utilisent `type RouteCtx = { params: Promise<{...}> }` + `await ctx.params`.
+- **F16-whatsapp-safe** : `sendWhatsApp` ne doit JAMAIS throw ni crasher le cron — return `false` + `console.warn` si `WHATSAPP_PROVIDER` absent.
+- **F16-express-fireforget** : NE PAS revenir à un upload Express bloquant — même contrainte Traefik 60s que le Standard (F1).
+
+---
+
+*Dernière mise à jour : 2026-08-27 — Sprint 16 : Dual Mode + Dispatch IA + QR Pointage + Picking + WhatsApp — v16.0*

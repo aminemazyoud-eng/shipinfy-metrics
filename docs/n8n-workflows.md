@@ -4,6 +4,22 @@ n8n devient le **moteur d'envoi unique** : email + Slack (+ WhatsApp plus tard).
 L'app shipinfy-metrics envoie juste des événements webhook, n8n fait le travail et
 renvoie le résultat de chaque canal à l'app.
 
+## ⚡ Démarrage rapide (import)
+
+1. n8n → **Workflows → Import from File** → charger `docs/n8n/shipinfy-notifications.workflow.json`
+2. Ouvrir le node **Gmail — envoyer** → sélectionner (ou créer) ta credential *Gmail OAuth2*
+   *(alternative SMTP : remplacer par un node « Send Email »)*
+3. Ouvrir le node **Slack — poster** → renseigner l'URL *Incoming Webhook* Slack
+   *(ou passer en OAuth + choisir le channel)*
+4. **Activer** le workflow (toggle en haut à droite)
+5. Copier l'URL du webhook (node *Webhook Shipinfy*, onglet Production) — ex.
+   `https://n8n.mediflows.shop/webhook/shipinfy-notify`
+6. Dans shipinfy-metrics → `/parametres` → Automatisations N8N → nouvelle config :
+   `Webhook URL` = l'URL copiée · `Event type` = `*` · `Active` ✅
+7. Dokploy → Environment → `NOTIFY_MODE=n8n` → Save
+
+À partir de là, chaque rapport / alerte part par n8n et le résultat remonte dans `/notifications`.
+
 ## Activer le mode n8n
 
 Dans Dokploy → app `shipinfy-metrics` → Environment :

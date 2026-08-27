@@ -80,17 +80,20 @@
     },
     {
       "parameters": {
-        "authentication": "webhook",
-        "text": "=🚨 *{{ $json.title }}*\n{{ $json.summary }}",
-        "otherOptions": {}
+        "method": "POST",
+        "url": "PASTE_YOUR_SLACK_INCOMING_WEBHOOK_URL_HERE",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ text: '🚨 *' + $json.title + '*\\n' + $json.summary }) }}",
+        "options": {}
       },
       "id": "slack",
       "name": "Slack — poster",
-      "type": "n8n-nodes-base.slack",
-      "typeVersion": 2.2,
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
       "position": [700, 440],
-      "notes": "TODO: renseigner l'URL de webhook Slack (Incoming Webhook), ou passer en OAuth + channel.",
-      "credentials": {}
+      "notes": "TODO: remplacer l'URL par ton Slack Incoming Webhook (https://hooks.slack.com/services/...). Aucun credential nécessaire.",
+      "onError": "continueErrorOutput"
     },
     {
       "parameters": {

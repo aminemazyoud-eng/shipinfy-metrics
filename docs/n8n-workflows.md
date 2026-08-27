@@ -11,8 +11,9 @@ renvoie le résultat de chaque canal à l'app.
    - Host `smtp.gmail.com` · Port `465` · SSL/TLS **ON**
    - User = ton email Gmail · Password = **mot de passe d'application Gmail** (16 car., Google Account → Sécurité → Mots de passe des applications)
    - Ajuste `fromEmail` dans le node si besoin
-3. Ouvrir le node **Slack — poster** → renseigner l'URL *Incoming Webhook* Slack
-   *(ou passer en OAuth + choisir le channel)*
+3. Ouvrir le node **Slack — poster** (HTTP Request) → remplacer le champ **URL**
+   `PASTE_YOUR_SLACK_INCOMING_WEBHOOK_URL_HERE` par ton *Slack Incoming Webhook*
+   (`https://hooks.slack.com/services/...`). Aucun credential.
 4. **Activer** le workflow (toggle en haut à droite)
 5. Copier l'URL du webhook (node *Webhook Shipinfy*, onglet Production) — ex.
    `https://n8n.mediflows.shop/webhook/shipinfy-notify`

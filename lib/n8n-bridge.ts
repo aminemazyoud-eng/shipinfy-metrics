@@ -15,6 +15,8 @@ export type N8NEventType =
   | 'alert_critical'
   | 'driver_onboarded'
   | 'shift_assigned'
+  | 'notification_retry'
+  | 'whatsapp_shift'
   | '*'
 
 export interface N8NPayload {

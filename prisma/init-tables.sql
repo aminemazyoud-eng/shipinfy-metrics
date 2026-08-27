@@ -739,3 +739,29 @@ BEGIN
   END IF;
 END $$;
 
+-- ═══ SPRINT 17 — NOTIFICATIONS (n8n hub) ════════════════════════════════════
+
+CREATE TABLE IF NOT EXISTS "NotificationLog" (
+  "id"          TEXT NOT NULL PRIMARY KEY,
+  "kind"        TEXT NOT NULL,
+  "event"       TEXT NOT NULL,
+  "title"       TEXT NOT NULL,
+  "summary"     TEXT NOT NULL,
+  "recipients"  TEXT,
+  "channels"    TEXT NOT NULL DEFAULT '[]',
+  "results"     TEXT,
+  "status"      TEXT NOT NULL DEFAULT 'pending',
+  "mode"        TEXT NOT NULL DEFAULT 'direct',
+  "pdfFilename" TEXT,
+  "reportId"    TEXT,
+  "alertLevel"  INTEGER,
+  "payloadJson" TEXT,
+  "tenantId"    TEXT,
+  "createdAt"   TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  "updatedAt"   TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+CREATE INDEX IF NOT EXISTS "NotificationLog_kind_idx"      ON "NotificationLog"("kind");
+CREATE INDEX IF NOT EXISTS "NotificationLog_status_idx"    ON "NotificationLog"("status");
+CREATE INDEX IF NOT EXISTS "NotificationLog_createdAt_idx" ON "NotificationLog"("createdAt");
+CREATE INDEX IF NOT EXISTS "NotificationLog_tenantId_idx"  ON "NotificationLog"("tenantId");
+

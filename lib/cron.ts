@@ -7,22 +7,13 @@
 
 import cron from 'node-cron'
 import { PrismaClient } from '@prisma/client'
-import nodemailer from 'nodemailer'
 // Sprint 7 — moteur alertes prédictives
 import { checkStandardDelays, runPredictiveAlerts } from '@/lib/alert-engine'
+// Sprint 17 — notifications centralisées (direct OU n8n) + trace /notifications
+import { notify } from '@/lib/notify'
 
 // Prisma client dédié au scheduler (pas le singleton global)
 const db = new PrismaClient()
-
-const mailer = nodemailer.createTransport({
-  host:   process.env.SMTP_HOST   ?? 'smtp.gmail.com',
-  port:   parseInt(process.env.SMTP_PORT ?? '465'),
-  secure: (process.env.SMTP_PORT ?? '465') === '465',
-  auth: {
-    user: process.env.SMTP_USER,
-    pass: process.env.SMTP_PASS,
-  },
-})
 
 // ─── KPI computation (light version for scheduled sends) ────────────────────
 async function getKpisForReport(reportId: string) {
@@ -98,21 +89,36 @@ async function sendScheduledReport(scheduleId: string) {
     const month  = months[now.getMonth()]
     const year   = now.getFullYear()
     const dateStr = `${day.padStart(2, '0')}-${(now.getMonth() + 1).toString().padStart(2, '0')}-${year}`
+    const subject = `📦 Rapport Performance Livraison — ${day} ${month} ${year} | Shipinfy Metrics`
+    const pdfFilename = `rapport-livraisons-${dateStr}.pdf`
 
-    await mailer.sendMail({
-      from:    process.env.SMTP_FROM ?? process.env.SMTP_USER,
-      to:      emails.join(', '),
-      subject: `📦 Rapport Performance Livraison — ${day} ${month} ${year} | Shipinfy Metrics`,
-      text:    textContent,
-      attachments: [{
-        filename:    `rapport-livraisons-${dateStr}.pdf`,
-        content:     pdfBuffer,
-        contentType: 'application/pdf',
-      }],
+    // Sprint 17 — passe par notify() : mode direct OU délégation n8n + trace /notifications
+    const r = await notify({
+      kind:       'report',
+      event:      'report_ready',
+      title:      subject,
+      summary:    `${kpisData.summary.totalOrders} commandes · ${kpisData.summary.deliveryRate}% livrées · planifié (${schedule.frequency})`,
+      channels:   ['email', 'slack'],
+      recipients: emails,
+      reportId:   schedule.reportId,
+      pdfFilename,
+      pdfBase64:  pdfBuffer.toString('base64'),
+      data: {
+        totalOrders:  kpisData.summary.totalOrders,
+        delivered:    kpisData.summary.delivered,
+        deliveryRate: kpisData.summary.deliveryRate,
+        scheduleId,
+        frequency:    schedule.frequency,
+      },
+      emailSubject:     subject,
+      emailText:        textContent,
+      emailAttachments: [{ filename: pdfFilename, content: pdfBuffer, contentType: 'application/pdf' }],
     })
 
-    success = true
-    console.log(`[cron] Rapport envoyé → ${emails.join(', ')} (schedule: ${scheduleId})`)
+    const emailRes = r.results.find(x => x.channel === 'email')
+    success  = r.mode === 'n8n' || !emailRes || emailRes.status === 'delivered'
+    if (!success) errorMsg = emailRes?.error
+    console.log(`[cron] Rapport ${r.mode === 'n8n' ? 'délégué à n8n' : (success ? 'envoyé' : 'ÉCHEC')} → ${emails.join(', ')} (schedule: ${scheduleId})`)
   } catch (e) {
     errorMsg = String(e)
     console.error(`[cron] Erreur envoi rapport ${scheduleId}:`, e)

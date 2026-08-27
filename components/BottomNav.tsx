@@ -8,7 +8,7 @@ import {
   Activity, BarChart3, Bell, Users, MoreHorizontal,
   MapPin, XCircle, GraduationCap, Brain,
   FileText, UserCheck, Settings, TrendingUp, X, DollarSign,
-  Truck, Clock, HeadphonesIcon, Shield, Calendar, Package,
+  Truck, Clock, HeadphonesIcon, Shield, Calendar, Package, Send,
 } from 'lucide-react'
 
 const MAIN_ITEMS = [
@@ -30,6 +30,7 @@ const MORE_ITEMS = [
   { href: '/retours',      label: 'Retours & NO_SHOW', icon: XCircle       },
   { href: '/score-ia',     label: 'Score IA',          icon: Brain         },
   { href: '/rapports',     label: 'Rapports',           icon: FileText      },
+  { href: '/notifications',label: 'Notifications',      icon: Send          },
   { href: '/onboarding',   label: 'Onboarding',         icon: UserCheck     },
   { href: '/academy',      label: 'Academy',            icon: GraduationCap },
   { href: '/admin',        label: 'Super Admin',        icon: Shield        },

@@ -13,7 +13,7 @@
  */
 
 import { prisma } from '@/lib/prisma'
-import { triggerN8N } from '@/lib/n8n-bridge'
+import { notify } from '@/lib/notify'
 
 export type AlertMode  = 'standard' | 'express'
 export type AlertLevel = 1 | 2 | 3
@@ -71,53 +71,34 @@ export async function createDeliveryAlert(payload: AlertPayload): Promise<void> 
     },
   })
 
-  // Notifications asynchrones — ne pas bloquer le moteur
-  await Promise.allSettled([
-    payload.level >= 2 ? notifySlack(payload)  : Promise.resolve(),
-    payload.level >= 3 ? escalateEmail(payload) : Promise.resolve(),
-    payload.level >= 3 ? triggerN8N('alert_critical', {
-      level:      payload.level,
-      type:       payload.type,
-      mode:       payload.mode,
-      message:    payload.message,
-      driverName: payload.driverName ?? null,
-      orderId:    payload.orderId    ?? null,
-      reportId:   payload.reportId   ?? null,
-    }) : Promise.resolve(),
-  ])
-}
+  // Sprint 17 — level >= 2 : notification sortante via notify() (direct OU n8n)
+  //   level 2 → Slack ; level 3 → Slack + Email (si ALERT_EMAIL_TO configuré)
+  if (payload.level >= 2) {
+    const modeLabel = payload.mode === 'express' ? 'Express <60min' : 'Tournée Standard'
+    const channels: ('email' | 'slack')[] = ['slack']
+    const alertEmail = process.env.ALERT_EMAIL_TO?.split(',').map(s => s.trim()).filter(Boolean)
+    if (payload.level >= 3 && alertEmail?.length) channels.push('email')
 
-// ── Notification Slack ───────────────────────────────────────────────────────
-async function notifySlack(payload: AlertPayload): Promise<void> {
-  try {
-    const config = await prisma.slackConfig.findFirst({ where: { active: true } })
-    if (!config?.webhookUrl) return
-
-    const emoji = payload.level === 3 ? '🔴 [CRITIQUE]' : '🟠 [ALERTE]'
-    const mode  = payload.mode === 'express' ? 'Express <60min' : 'Tournée Standard'
-
-    const res = await fetch(config.webhookUrl, {
-      method:  'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        text: `${emoji} *Shipinfy — ${mode}*\n${payload.message}${payload.driverName ? `\n> Livreur : ${payload.driverName}` : ''}`,
-      }),
-      signal: AbortSignal.timeout(8000),
-    })
-
-    if (!res.ok) {
-      const body = await res.text().catch(() => '')
-      console.error('[AlertEngine] Slack non-2xx:', res.status, body.slice(0, 500))
-    }
-  } catch (e) {
-    console.error('[AlertEngine] notifySlack error:', e)
+    await notify({
+      kind:       'alert',
+      event:      'alert_critical',
+      title:      `${payload.level === 3 ? '🔴 [CRITIQUE]' : '🟠 [ALERTE]'} Shipinfy — ${modeLabel}`,
+      summary:    `${payload.message}${payload.driverName ? `\n> Livreur : ${payload.driverName}` : ''}`,
+      channels,
+      recipients: channels.includes('email') ? alertEmail : undefined,
+      alertLevel: payload.level,
+      reportId:   payload.reportId,
+      data: {
+        level:      payload.level,
+        type:       payload.type,
+        mode:       payload.mode,
+        message:    payload.message,
+        driverName: payload.driverName ?? null,
+        orderId:    payload.orderId ?? null,
+        reportId:   payload.reportId ?? null,
+      },
+    }).catch((e) => console.error('[AlertEngine] notify error:', e))
   }
-}
-
-// ── Escalade email (level 3 uniquement) ─────────────────────────────────────
-async function escalateEmail(payload: AlertPayload): Promise<void> {
-  // Log pour l'instant — emailer via nodemailer quand config SMTP confirmée
-  console.warn('[AlertEngine] ESCALADE LEVEL 3:', payload.message, payload.driverName ?? '')
 }
 
 // ── Moteur Standard — vérifie retards tournée ───────────────────────────────

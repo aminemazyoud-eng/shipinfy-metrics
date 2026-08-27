@@ -1,8 +1,7 @@
 import { NextResponse } from 'next/server'
-import { sendEmail } from '@/lib/email'
 import { buildEmailText, type EmailKpisData } from '@/lib/email-template'
 import { generateReportPDF } from '@/lib/pdf-report'
-import { triggerN8N } from '@/lib/n8n-bridge'
+import { notify } from '@/lib/notify'
 
 export const runtime = 'nodejs'
 
@@ -118,36 +117,45 @@ export async function POST(request: Request) {
       .toLocaleDateString('fr-FR', { day: '2-digit', month: '2-digit', year: 'numeric' })
       .replace(/\//g, '-')
 
-    const result = await sendEmail({
-      to:      emails,
-      subject,
-      text:    textContent,
-      attachments: [
-        {
-          filename:    `rapport-livraisons-${dateStr}.pdf`,
-          content:     pdfBuffer,
-          contentType: 'application/pdf',
-        },
-      ],
+    const pdfFilename = `rapport-livraisons-${dateStr}.pdf`
+
+    // Sprint 17 — un seul point d'entrée : notify() gère direct OU délégation n8n,
+    // + trace systématique dans NotificationLog (/notifications).
+    const r = await notify({
+      kind:        'report',
+      event:       'report_ready',
+      title:       subject,
+      summary:     `${body.kpisData.totalOrders} commandes · ${body.kpisData.deliveryRate}% livrées · ${emails.length} destinataire(s)`,
+      channels:    ['email', 'slack'],
+      recipients:  emails,
+      reportId:    body.reportId,
+      pdfFilename,
+      pdfBase64:   pdfBuffer.toString('base64'),
+      data: {
+        totalOrders:  body.kpisData.totalOrders,
+        delivered:    body.kpisData.delivered,
+        deliveryRate: body.kpisData.deliveryRate,
+        onTimeRate:   body.kpisData.onTimeRate,
+        totalCOD:     body.kpisData.totalCOD,
+      },
+      emailSubject:     subject,
+      emailText:        textContent,
+      emailAttachments: [{ filename: pdfFilename, content: pdfBuffer, contentType: 'application/pdf' }],
     })
 
-    if (!result.ok) {
-      return NextResponse.json(
-        { error: 'Envoi email échoué', detail: result.error },
-        { status: 502 }
-      )
+    // En mode direct : si l'email a échoué → 502. En mode n8n : delivery asynchrone → 202.
+    if (r.mode === 'direct') {
+      const emailRes = r.results.find(x => x.channel === 'email')
+      if (emailRes && emailRes.status === 'failed') {
+        return NextResponse.json(
+          { error: 'Envoi email échoué', detail: emailRes.error, notificationId: r.notificationId },
+          { status: 502 }
+        )
+      }
+      return NextResponse.json({ sent: true, emails, notificationId: r.notificationId, mode: r.mode })
     }
 
-    // Sprint 11 — trigger N8N automations (non-blocking)
-    triggerN8N('report_ready', {
-      reportId:    body.reportId,
-      filename:    `rapport-livraisons-${dateStr}.pdf`,
-      totalOrders: body.kpisData.totalOrders,
-      deliveryRate: body.kpisData.deliveryRate,
-      recipients:  emails,
-    }).catch(() => {})
-
-    return NextResponse.json({ sent: true, emails, mode: body.mode ?? 'instant' })
+    return NextResponse.json({ queued: true, emails, notificationId: r.notificationId, mode: r.mode }, { status: 202 })
   } catch (e) {
     console.error('[send-report]', e)
     return NextResponse.json({ error: 'Send failed', detail: String(e) }, { status: 500 })

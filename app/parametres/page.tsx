@@ -4,7 +4,7 @@ import {
   Settings, Mail, Bell, Database, Shield, RefreshCw,
   CheckCircle, AlertTriangle, Save, Eye, EyeOff,
   Hash, Loader2, CheckCircle2, XCircle, Webhook,
-  Plus, Trash2, Play, ChevronDown, ChevronUp, Lock,
+  Plus, Trash2, Play, ChevronDown, ChevronUp, Lock, KeyRound,
 } from 'lucide-react'
 
 interface LoginLog {
@@ -119,6 +119,13 @@ export default function ParametresPage() {
   const [loginLogs, setLoginLogs]           = useState<LoginLog[]>([])
   const [loginLogsLoading, setLoginLogsLoading] = useState(false)
   const [loginLogsLoaded, setLoginLogsLoaded]   = useState(false)
+
+  // Changer mon mot de passe
+  const [pwForm, setPwForm] = useState({ current: '', next: '', confirm: '' })
+  const [pwShow, setPwShow] = useState({ current: false, next: false })
+  const [pwLoading, setPwLoading] = useState(false)
+  const [pwError, setPwError]     = useState('')
+  const [pwSuccess, setPwSuccess] = useState(false)
 
   // Sprint 16 BLOC 1 — Diagnostic Automatisations
   const [diagN8n,   setDiagN8n]   = useState<{ state: 'idle'|'loading'|'ok'|'error'; msg?: string }>({ state: 'idle' })
@@ -338,6 +345,39 @@ export default function ParametresPage() {
       setTestStatus('error')
     }
     setTimeout(() => setTestStatus('idle'), 4000)
+  }
+
+  async function handleChangePassword(e: React.FormEvent) {
+    e.preventDefault()
+    setPwError('')
+    setPwSuccess(false)
+    if (pwForm.next.length < 6) {
+      setPwError('Le nouveau mot de passe doit contenir au moins 6 caractères')
+      return
+    }
+    if (pwForm.next !== pwForm.confirm) {
+      setPwError('Les deux mots de passe ne correspondent pas')
+      return
+    }
+    setPwLoading(true)
+    try {
+      const res = await fetch('/api/auth/change-password', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ currentPassword: pwForm.current, newPassword: pwForm.next }),
+      })
+      const data = await res.json()
+      if (!res.ok) {
+        setPwError(data.error ?? 'Erreur lors du changement de mot de passe')
+        return
+      }
+      setPwSuccess(true)
+      setPwForm({ current: '', next: '', confirm: '' })
+    } catch {
+      setPwError('Erreur réseau — réessayez')
+    } finally {
+      setPwLoading(false)
+    }
   }
 
   async function loadLoginLogs() {
@@ -900,6 +940,79 @@ export default function ParametresPage() {
             )}
           </div>
         </div>
+      </Section>
+
+      {/* ── Sécurité — Changer mon mot de passe ──────────────────────────── */}
+      <Section icon={KeyRound} title="Sécurité — Changer mon mot de passe">
+        <form onSubmit={handleChangePassword} className="space-y-3 max-w-sm">
+          <div>
+            <label className="block text-xs font-medium text-gray-600 mb-1">Mot de passe actuel</label>
+            <div className="relative">
+              <input
+                type={pwShow.current ? 'text' : 'password'}
+                value={pwForm.current}
+                onChange={e => setPwForm(f => ({ ...f, current: e.target.value }))}
+                className="w-full border border-gray-200 rounded-lg px-3 py-2 pr-9 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                autoComplete="current-password"
+                required
+              />
+              <button type="button" onClick={() => setPwShow(s => ({ ...s, current: !s.current }))}
+                className="absolute right-2.5 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600">
+                {pwShow.current ? <EyeOff size={14} /> : <Eye size={14} />}
+              </button>
+            </div>
+          </div>
+
+          <div>
+            <label className="block text-xs font-medium text-gray-600 mb-1">Nouveau mot de passe</label>
+            <div className="relative">
+              <input
+                type={pwShow.next ? 'text' : 'password'}
+                value={pwForm.next}
+                onChange={e => setPwForm(f => ({ ...f, next: e.target.value }))}
+                className="w-full border border-gray-200 rounded-lg px-3 py-2 pr-9 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                placeholder="Minimum 6 caractères"
+                autoComplete="new-password"
+                minLength={6}
+                required
+              />
+              <button type="button" onClick={() => setPwShow(s => ({ ...s, next: !s.next }))}
+                className="absolute right-2.5 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600">
+                {pwShow.next ? <EyeOff size={14} /> : <Eye size={14} />}
+              </button>
+            </div>
+          </div>
+
+          <div>
+            <label className="block text-xs font-medium text-gray-600 mb-1">Confirmer le nouveau mot de passe</label>
+            <input
+              type="password"
+              value={pwForm.confirm}
+              onChange={e => setPwForm(f => ({ ...f, confirm: e.target.value }))}
+              className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+              autoComplete="new-password"
+              required
+            />
+          </div>
+
+          {pwError && (
+            <div className="bg-red-50 border border-red-200 rounded-lg px-3 py-2 text-xs text-red-700 font-medium">{pwError}</div>
+          )}
+          {pwSuccess && (
+            <div className="bg-green-50 border border-green-200 rounded-lg px-3 py-2 text-xs text-green-700 font-medium flex items-center gap-1.5">
+              <CheckCircle2 size={13} /> Mot de passe changé avec succès.
+            </div>
+          )}
+
+          <button
+            type="submit"
+            disabled={pwLoading}
+            className="flex items-center gap-2 bg-gray-900 text-white px-4 py-2 rounded-lg text-sm font-medium hover:bg-gray-800 transition-colors disabled:opacity-60"
+          >
+            {pwLoading ? <Loader2 size={14} className="animate-spin" /> : <KeyRound size={14} />}
+            {pwLoading ? 'Changement…' : 'Changer le mot de passe'}
+          </button>
+        </form>
       </Section>
 
       {/* ── Sprint 15 — Sécurité — Historique des connexions ─────────────── */}

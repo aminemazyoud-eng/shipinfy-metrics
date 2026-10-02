@@ -14,18 +14,19 @@ const DEFAULT_COURSES = [
 
 export async function GET() {
   try {
+    const includeOpts = {
+      lessons:  { orderBy: { order: 'asc' as const } },
+      progress: { include: { driver: { select: { id: true, firstName: true, lastName: true } } } },
+    }
     let courses = await prisma.course.findMany({
-      include: {
-        lessons:  { orderBy: { order: 'asc' } },
-        progress: true,
-      },
+      include: includeOpts,
       orderBy: { order: 'asc' },
     })
     // Seed default courses if none exist
     if (courses.length === 0) {
       await prisma.course.createMany({ data: DEFAULT_COURSES })
       courses = await prisma.course.findMany({
-        include: { lessons: { orderBy: { order: 'asc' } }, progress: true },
+        include: includeOpts,
         orderBy: { order: 'asc' },
       })
     }

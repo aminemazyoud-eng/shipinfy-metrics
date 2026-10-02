@@ -6,7 +6,7 @@
 
 ---
 
-## VERSION ACTUELLE : v17.0 — Sprint 17 n8n Hub Notifications (2026-08-27)
+## VERSION ACTUELLE : v18.0 — Sprint 18 Academy : boucle formation complète (2026-09-29)
 
 > **Agents IA utilisés pour builder ce SaaS** :
 > - Claude Sonnet 4.6 (Claude Code) — agent principal, architecture + coordination
@@ -938,4 +938,28 @@ n8n devient le **moteur d'envoi unique** (email + Slack + WhatsApp futur). L'app
 
 ---
 
-*Dernière mise à jour : 2026-08-27 — Sprint 17 : n8n Hub Notifications + module /notifications — v17.0*
+## 24. SPRINT 18 — ACADEMY : BOUCLE FORMATION COMPLÈTE (2026-09-29)
+
+### VERSION : v18.0
+Build `npm run build` OK · TypeScript clean (`DATABASE_URL="postgresql://d:d@localhost:5432/d" npx next build`). Pas de test E2E réel : aucun `.env` local avec la vraie `DATABASE_URL` Supabase dans ce checkout → non testé contre données réelles, seulement compilé/typé. À vérifier après déploiement (ou avec un `.env.local` pointant vers Supabase).
+
+### Constat de départ
+`CourseProgress` (Prisma) existait déjà mais n'était **jamais créé** nulle part dans l'app : `academyScore` était codé en dur à `0` dans `score-ia/calculate`, le bouton certificat sur `/academy` utilisait le nom de l'utilisateur **connecté** (le manager) au lieu du livreur, et aucune API ne permettait d'ajouter des leçons malgré le texte UI qui l'annonçait. La boucle Academy → Score IA → Certificat était donc cassée de bout en bout.
+
+### Ajouts
+- **`POST /api/courses/[id]/progress`** — enregistre/mets à jour la formation d'un livreur (`{ driverId, score }`, upsert sur `driverId_courseId`). `certified = score >= 70`, `completedAt = now()`. Déclenche `triggerN8N('academy_certified', {...})` (non bloquant) si certifié.
+- **`DELETE /api/courses/[id]/progress?driverId=`** — retire un enregistrement.
+- **`POST /api/courses/[id]/lessons`** — crée une leçon (`title`, `type: video|quiz|document`, `contentUrl?`, `content?`, `duration?`, `order?`).
+- **`lib/n8n-bridge.ts`** : nouvel `N8NEventType` `'academy_certified'`.
+- **`GET /api/courses`** : `progress` inclut désormais `driver: { id, firstName, lastName }` (nécessaire pour afficher le vrai nom sur le certificat).
+- **`app/api/score-ia/calculate/route.ts`** : `academyScore` n'est plus `0` — calculé comme la moyenne des `CourseProgress.score` du livreur (join par nom `firstName lastName`, comme le reste du fichier — pas de lien direct `Driver ↔ DeliveryOrder`).
+- **`app/academy/page.tsx`** : dans la modale d'un module, nouvelle section « Suivi de formation » — liste les livreurs déjà enregistrés (score, badge certifié, lien certificat avec leur **vrai nom**) + formulaire (select livreur + score + bouton Enregistrer) qui appelle la nouvelle API et rafraîchit. Le bouton certificat au niveau de la carte (qui utilisait le nom du manager connecté) a été retiré — remplacé par un lien par livreur dans la modale.
+
+### ⚠️ Points d'attention Sprint 18
+- **F18-name-match** : le lien Academy ↔ Score IA se fait par **nom complet** (`firstName lastName`, insensible à la casse), pas par `driverId` — mêmes limites que le matching livreur existant dans `score-ia/calculate` (orthographe/espaces doivent correspondre entre `Driver` et les noms `DeliveryOrder.livreurFirstName/livreurLastName`).
+- **F18-no-lesson-ui** : la création de leçons n'a **pas** d'interface — uniquement l'API `POST /api/courses/[id]/lessons`. Pas bloquant pour la certification (qui ne dépend pas des leçons), mais à ajouter si le contenu pédagogique doit être saisi sans passer par l'API.
+- **F18-untested-e2e** : à tester en conditions réelles (créer un livreur, lui enregistrer un score ≥ 70, vérifier badge certifié + certificat + `POST /api/score-ia/calculate` qui remonte l'academyScore) avant de considérer le workflow "Go".
+
+---
+
+*Dernière mise à jour : 2026-09-29 — Sprint 18 : Academy — boucle formation → certificat → Score IA — v18.0*

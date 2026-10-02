@@ -73,12 +73,29 @@ export async function POST(req: Request) {
       livreurMap.set(name, s)
     }
 
+    // Academy Score — moyenne des scores de formation Course/CourseProgress du livreur
+    // (jointure par nom, faute d'un lien direct Driver ↔ DeliveryOrder)
+    const drivers = await prisma.driver.findMany({
+      select: {
+        firstName: true,
+        lastName:  true,
+        courseProgress: { select: { score: true, certified: true } },
+      },
+    })
+    const academyScoreMap = new Map<string, number>()
+    for (const d of drivers) {
+      const name = `${d.firstName} ${d.lastName}`.trim().toLowerCase()
+      if (!name || d.courseProgress.length === 0) continue
+      const avg = d.courseProgress.reduce((sum, p) => sum + (p.score ?? (p.certified ? 100 : 0)), 0) / d.courseProgress.length
+      academyScoreMap.set(name, avg)
+    }
+
     const created: string[] = []
     for (const [name, stats] of livreurMap.entries()) {
       if (stats.total < 3) continue // skip drivers with too few orders
       const deliveryRate = stats.total > 0 ? (stats.delivered / stats.total) * 100 : 0
       const noShowRate   = stats.total > 0 ? (stats.noShow   / stats.total) * 100 : 0
-      const academyScore = 0 // will be updated when Academy data is available
+      const academyScore = academyScoreMap.get(name.trim().toLowerCase()) ?? 0
       const score = deliveryRate * coeffDelivery + academyScore * coeffAcademy + (100 - noShowRate) * coeffNoShow
 
       // Determine recommendation

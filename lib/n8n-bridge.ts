@@ -17,6 +17,7 @@ export type N8NEventType =
   | 'shift_assigned'
   | 'notification_retry'
   | 'whatsapp_shift'
+  | 'academy_certified'
   | '*'
 
 export interface N8NPayload {

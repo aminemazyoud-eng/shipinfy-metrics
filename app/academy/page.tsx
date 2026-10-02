@@ -1,8 +1,7 @@
 'use client'
 import { useEffect, useState } from 'react'
-import { GraduationCap, BookOpen, CheckCircle, Play, FileText, Award, Users, BookMarked, AlertTriangle } from 'lucide-react'
+import { GraduationCap, BookOpen, CheckCircle, Play, FileText, Award, Users, BookMarked, AlertTriangle, Loader2 } from 'lucide-react'
 import { GuideContent } from './components/guides/GuideContent'
-import { useCurrentUser } from '@/hooks/useCurrentUser'
 
 interface Lesson {
   id: string
@@ -10,6 +9,14 @@ interface Lesson {
   type: 'video' | 'quiz' | 'document'
   duration?: number
   order: number
+}
+
+interface ProgressEntry {
+  id?: string
+  score?: number
+  certified?: boolean
+  driverId?: string
+  driver?: { id: string; firstName: string; lastName: string }
 }
 
 interface Course {
@@ -21,7 +28,13 @@ interface Course {
   emoji: string
   order: number
   lessons: Lesson[]
-  progress: { score?: number; certified?: boolean; driverId?: string }[]
+  progress: ProgressEntry[]
+}
+
+interface DriverOption {
+  id: string
+  firstName: string
+  lastName: string
 }
 
 const CATEGORY_LABELS: Record<string, string> = {
@@ -40,14 +53,52 @@ export default function AcademyPage() {
   const [courses, setCourses] = useState<Course[]>([])
   const [loading, setLoading] = useState(true)
   const [selected, setSelected] = useState<Course | null>(null)
-  const { user: currentUser } = useCurrentUser()
+  const [drivers, setDrivers] = useState<DriverOption[]>([])
+  const [formDriverId, setFormDriverId] = useState('')
+  const [formScore, setFormScore] = useState('')
+  const [submitting, setSubmitting] = useState(false)
+  const [formError, setFormError] = useState<string | null>(null)
+
+  function loadCourses() {
+    fetch('/api/courses').then(r => r.json()).then(d => {
+      const list: Course[] = Array.isArray(d) ? d : []
+      setCourses(list)
+      setLoading(false)
+      // garde le modal ouvert à jour avec les nouvelles données
+      setSelected(prev => prev ? (list.find(c => c.id === prev.id) ?? null) : prev)
+    })
+  }
 
   useEffect(() => {
-    fetch('/api/courses').then(r => r.json()).then(d => {
-      setCourses(Array.isArray(d) ? d : [])
-      setLoading(false)
-    })
+    loadCourses()
+    fetch('/api/drivers').then(r => r.json()).then(d => {
+      setDrivers(Array.isArray(d) ? d.map((dr: DriverOption) => ({ id: dr.id, firstName: dr.firstName, lastName: dr.lastName })) : [])
+    }).catch(() => {})
   }, [])
+
+  async function submitProgress() {
+    if (!selected || !formDriverId || formScore === '') return
+    setSubmitting(true)
+    setFormError(null)
+    try {
+      const res = await fetch(`/api/courses/${selected.id}/progress`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ driverId: formDriverId, score: Number(formScore) }),
+      })
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}))
+        throw new Error(err.error ?? 'Échec de l\'enregistrement')
+      }
+      setFormDriverId('')
+      setFormScore('')
+      loadCourses()
+    } catch (e) {
+      setFormError(e instanceof Error ? e.message : 'Erreur inconnue')
+    } finally {
+      setSubmitting(false)
+    }
+  }
 
   const totalCertified  = courses.reduce((s, c) => s + c.progress.filter(p => p.certified).length, 0)
   const totalLessons    = courses.reduce((s, c) => s + c.lessons.length, 0)
@@ -134,8 +185,6 @@ export default function AcademyPage() {
                 {courses.map(course => {
                   const certified    = course.progress.filter(p => p.certified).length
                   const participants = course.progress.length
-                  const isCompleted  = course.progress.some(p => p.certified || (p.score !== undefined && p.score >= 70))
-                  const userName     = currentUser?.name ?? 'Livreur'
                   return (
                     <div
                       key={course.id}
@@ -167,18 +216,6 @@ export default function AcademyPage() {
                             <div className="h-1.5 bg-gray-100 rounded-full overflow-hidden">
                               <div className="h-full rounded-full" style={{ width: `${Math.round((certified/participants)*100)}%`, background: course.color }} />
                             </div>
-                          </div>
-                        )}
-                        {isCompleted && (
-                          <div className="mt-3 pt-3 border-t border-gray-100" onClick={e => e.stopPropagation()}>
-                            <a
-                              href={`/api/academy/certificate?courseId=${course.id}&driverName=${encodeURIComponent(userName)}`}
-                              target="_blank"
-                              rel="noopener noreferrer"
-                              className="inline-flex items-center gap-1 text-xs px-3 py-1.5 bg-blue-50 border border-blue-200 text-blue-700 rounded-lg hover:bg-blue-100 transition font-medium"
-                            >
-                              📜 Certificat
-                            </a>
                           </div>
                         )}
                       </div>
@@ -243,6 +280,68 @@ export default function AcademyPage() {
                   ))}
                 </div>
               )}
+
+              {/* Suivi de formation par livreur */}
+              <div className="mt-6 pt-5 border-t border-gray-100">
+                <h3 className="text-xs font-bold text-gray-500 uppercase tracking-wide mb-3">Suivi de formation</h3>
+
+                {selected.progress.length > 0 && (
+                  <div className="space-y-1.5 mb-4">
+                    {selected.progress.map(p => {
+                      const name = p.driver ? `${p.driver.firstName} ${p.driver.lastName}` : 'Livreur'
+                      return (
+                        <div key={p.driverId} className="flex items-center gap-2 p-2 bg-gray-50 rounded-lg text-sm">
+                          <span className="flex-1 truncate text-gray-800">{name}</span>
+                          <span className={`text-[11px] font-semibold px-1.5 py-0.5 rounded ${p.certified ? 'bg-green-100 text-green-700' : 'bg-gray-200 text-gray-600'}`}>
+                            {p.score ?? 0}/100
+                          </span>
+                          {p.certified && (
+                            <a
+                              href={`/api/academy/certificate?courseId=${selected.id}&driverName=${encodeURIComponent(name)}`}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="text-[11px] px-2 py-1 bg-blue-50 border border-blue-200 text-blue-700 rounded-md hover:bg-blue-100 transition font-medium whitespace-nowrap"
+                            >
+                              📜 Certificat
+                            </a>
+                          )}
+                        </div>
+                      )
+                    })}
+                  </div>
+                )}
+
+                <div className="flex items-center gap-2">
+                  <select
+                    value={formDriverId}
+                    onChange={e => setFormDriverId(e.target.value)}
+                    className="flex-1 text-sm border border-gray-200 rounded-lg px-2.5 py-2 bg-white"
+                  >
+                    <option value="">Sélectionner un livreur…</option>
+                    {drivers.map(d => (
+                      <option key={d.id} value={d.id}>{d.firstName} {d.lastName}</option>
+                    ))}
+                  </select>
+                  <input
+                    type="number"
+                    min={0}
+                    max={100}
+                    placeholder="Score"
+                    value={formScore}
+                    onChange={e => setFormScore(e.target.value)}
+                    className="w-20 text-sm border border-gray-200 rounded-lg px-2.5 py-2"
+                  />
+                  <button
+                    onClick={submitProgress}
+                    disabled={!formDriverId || formScore === '' || submitting}
+                    className="flex items-center gap-1.5 text-sm font-semibold px-3 py-2 rounded-lg bg-purple-600 text-white disabled:opacity-40 disabled:cursor-not-allowed hover:bg-purple-700 transition"
+                  >
+                    {submitting ? <Loader2 size={14} className="animate-spin" /> : 'Enregistrer'}
+                  </button>
+                </div>
+                <p className="text-[11px] text-gray-400 mt-1.5">Certifié automatiquement à partir de 70/100.</p>
+                {formError && <p className="text-[11px] text-red-500 mt-1">{formError}</p>}
+              </div>
             </div>
           </div>
         </div>

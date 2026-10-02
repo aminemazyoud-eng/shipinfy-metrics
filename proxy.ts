@@ -13,6 +13,8 @@ const PUBLIC_PATHS = [
   '/api/auth/login',
   '/api/auth/logout',
   '/api/auth/bootstrap',
+  '/api/auth/forgot-password',
+  '/api/auth/reset-password',
 ]
 
 export function proxy(req: NextRequest) {

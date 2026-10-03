@@ -19,6 +19,7 @@ interface DispatchData {
   drivers: DriverDispatch[]
   hubs: string[]
   totals: { total: number; DELIVERED: number; NO_SHOW: number; READY_PICKUP: number; OTHER: number }
+  unassigned?: { total: number; totalCOD: number }
 }
 
 interface AssignmentRow { orderId: string | null; driverName: string; score: number; reason: string }
@@ -177,6 +178,17 @@ export default function DispatchPage() {
           )}
         </div>
       </div>
+
+      {/* Sprint 19 — commandes non assignées (aucun livreur identifié à l'import) */}
+      {!!data?.unassigned?.total && (
+        <div className="flex items-start gap-2 bg-amber-50 border border-amber-200 rounded-xl px-4 py-3 text-sm text-amber-800">
+          <Clock size={16} className="flex-shrink-0 mt-0.5" />
+          <span>
+            <strong>{data.unassigned.total.toLocaleString('fr-MA')} commande(s) non assignées</strong>
+            {' '}({Math.round(data.unassigned.totalCOD).toLocaleString('fr-MA')} MAD) — exclues du dispatch par livreur, aucune assignation possible.
+          </span>
+        </div>
+      )}
 
       {/* Summary cards */}
       {data && (

@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
+import { isUnassigned } from '@/lib/driver-utils'
 
 // ── Helpers ────────────────────────────────────────────────────────────────
 
@@ -194,9 +195,12 @@ export async function GET(request: Request) {
       .sort((a, b) => a.trend - b.trend)
 
     // ── Livreurs à risque ───────────────────────────────────────────────────
+    // Sprint 19 — exclure les commandes non assignées : "Inconnu" n'est pas un
+    // livreur à risque, c'est un volume de commandes jamais prises en charge.
     const livreurMap = new Map<string, { delivered: number; total: number; noShow: number }>()
     for (const o of orders) {
-      const name = [o.livreurFirstName, o.livreurLastName].filter(Boolean).join(' ') || o.sprintName || 'Inconnu'
+      if (isUnassigned(o)) continue
+      const name = [o.livreurFirstName, o.livreurLastName].filter(Boolean).join(' ') || o.sprintName!
       if (!livreurMap.has(name)) livreurMap.set(name, { delivered: 0, total: 0, noShow: 0 })
       const l = livreurMap.get(name)!
       l.total++

@@ -79,14 +79,17 @@ export default function PickingPage() {
   }, [])
 
   const load = useCallback(async () => {
-    if (!reportId) { setData(null); return }
+    if (!reportId) { setData(null); setLoading(false); return }
     setLoading(true)
     try {
       const url = `/api/picking?reportId=${reportId}${date ? `&date=${date}` : ''}`
       const res = await fetch(url)
-      if (res.ok) setData(await res.json())
-      else setData(null)
-    } finally { setLoading(false) }
+      setData(res.ok ? await res.json() : null)
+    } catch {
+      setData(null)
+    } finally {
+      setLoading(false)
+    }
   }, [reportId, date])
 
   useEffect(() => { load() }, [load])
@@ -187,6 +190,8 @@ export default function PickingPage() {
             <tbody className="divide-y divide-gray-100">
               {loading ? (
                 <tr><td colSpan={8} className="px-3 py-10 text-center text-gray-400">Chargement…</td></tr>
+              ) : !reportId ? (
+                <tr><td colSpan={8} className="px-3 py-10 text-center text-gray-400">Aucun rapport Express disponible — importez-en un depuis KPIs &amp; Métriques (mode Express).</td></tr>
               ) : !data || data.orders.length === 0 ? (
                 <tr><td colSpan={8} className="px-3 py-10 text-center text-gray-400">Aucune commande de picking</td></tr>
               ) : data.orders.map(o => {

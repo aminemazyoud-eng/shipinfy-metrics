@@ -1,16 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
-
-function livreurName(o: {
-  livreurFirstName: string | null
-  livreurLastName:  string | null
-  sprintName:       string | null
-}): string {
-  const first = o.livreurFirstName?.trim()
-  const last  = o.livreurLastName?.trim()
-  if (first || last) return [first, last].filter(Boolean).join(' ')
-  return o.sprintName ?? 'Inconnu'
-}
+import { livreurName, isUnassigned } from '@/lib/driver-utils'
 
 // GET /api/dispatch?reportId=xxx&hub=xxx
 export async function GET(req: NextRequest) {
@@ -42,9 +32,15 @@ export async function GET(req: NextRequest) {
       },
     })
 
+    // Sprint 19 — les commandes sans livreur ET sans sprintName sont des commandes
+    // non assignées, pas un "livreur Inconnu" : exclues du classement, remontées
+    // séparément dans `unassigned`.
+    const assignedOrders = orders.filter(o => !isUnassigned(o))
+    const unassignedOrders = orders.filter(isUnassigned)
+
     // Group by driver
     const driverMap = new Map<string, typeof orders>()
-    for (const o of orders) {
+    for (const o of assignedOrders) {
       const name = livreurName(o)
       if (!driverMap.has(name)) driverMap.set(name, [])
       driverMap.get(name)!.push(o)
@@ -99,7 +95,15 @@ export async function GET(req: NextRequest) {
       { total: 0, DELIVERED: 0, NO_SHOW: 0, READY_PICKUP: 0, OTHER: 0 }
     )
 
-    return NextResponse.json({ drivers, hubs, totals })
+    const unassignedByStatus: Record<string, number> = { DELIVERED: 0, NO_SHOW: 0, READY_PICKUP: 0, OTHER: 0 }
+    for (const o of unassignedOrders) unassignedByStatus[statusGroup(o.shippingWorkflowStatus)]++
+    const unassigned = {
+      total:    unassignedOrders.length,
+      byStatus: unassignedByStatus,
+      totalCOD: unassignedOrders.reduce((s, o) => s + (o.paymentOnDeliveryAmount ?? 0), 0),
+    }
+
+    return NextResponse.json({ drivers, hubs, totals, unassigned })
   } catch (e) {
     console.error('[api/dispatch GET]', e)
     return NextResponse.json({ error: 'Erreur serveur' }, { status: 500 })

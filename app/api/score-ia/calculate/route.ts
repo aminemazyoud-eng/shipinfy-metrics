@@ -95,8 +95,18 @@ export async function POST(req: Request) {
       if (stats.total < 3) continue // skip drivers with too few orders
       const deliveryRate = stats.total > 0 ? (stats.delivered / stats.total) * 100 : 0
       const noShowRate   = stats.total > 0 ? (stats.noShow   / stats.total) * 100 : 0
-      const academyScore = academyScoreMap.get(name.trim().toLowerCase()) ?? 0
-      const score = deliveryRate * coeffDelivery + academyScore * coeffAcademy + (100 - noShowRate) * coeffNoShow
+
+      // Sprint 19 — tant que l'Academy n'a aucun contenu/progression pour ce
+      // livreur, le noter 0% sur 30% du score le plafonnait artificiellement
+      // (~70/100 max). On renormalise les 2 autres coefficients à 100% au lieu
+      // de pénaliser un livreur pour une formation qui n'existe pas encore.
+      const hasAcademyData = academyScoreMap.has(name.trim().toLowerCase())
+      const academyScore   = academyScoreMap.get(name.trim().toLowerCase()) ?? 0
+      const remainder       = coeffDelivery + coeffNoShow
+      const effDelivery = hasAcademyData ? coeffDelivery : (remainder > 0 ? coeffDelivery / remainder : 0.5)
+      const effNoShow   = hasAcademyData ? coeffNoShow   : (remainder > 0 ? coeffNoShow   / remainder : 0.5)
+      const effAcademy  = hasAcademyData ? coeffAcademy  : 0
+      const score = deliveryRate * effDelivery + academyScore * effAcademy + (100 - noShowRate) * effNoShow
 
       // Determine recommendation
       let recommendation: string | null = null

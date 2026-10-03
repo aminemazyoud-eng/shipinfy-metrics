@@ -1,6 +1,6 @@
 'use client'
 import React, { useState, useEffect, useCallback } from 'react'
-import { Users, Trophy, TrendingDown, TrendingUp, Search, Filter, BarChart3 } from 'lucide-react'
+import { Users, Trophy, TrendingDown, TrendingUp, Search, Filter, BarChart3, AlertTriangle } from 'lucide-react'
 
 interface Livreur {
   name: string; rank: number; total: number; delivered: number
@@ -8,7 +8,10 @@ interface Livreur {
   avgDuration: number; totalCOD: number
 }
 
-interface KpisData { byLivreur: Livreur[] }
+interface KpisData {
+  byLivreur: Livreur[]
+  unassigned?: { count: number; totalCOD: number }
+}
 
 interface Report { id: string; filename: string; uploadedAt: string; _count: { orders: number } }
 
@@ -135,6 +138,17 @@ export default function LivreursPage() {
           </div>
         </div>
       </div>
+
+      {/* Sprint 19 — commandes non assignées (exclues du classement livreurs) */}
+      {!!data?.unassigned?.count && (
+        <div className="flex items-start gap-2 bg-amber-50 border border-amber-200 rounded-xl px-4 py-3 text-sm text-amber-800">
+          <AlertTriangle size={16} className="flex-shrink-0 mt-0.5" />
+          <span>
+            <strong>{data.unassigned.count.toLocaleString('fr-MA')} commande(s) non assignées</strong>
+            {' '}({Math.round(data.unassigned.totalCOD).toLocaleString('fr-MA')} MAD de COD) — aucun livreur identifié à l&apos;import, exclues du classement ci-dessous.
+          </span>
+        </div>
+      )}
 
       {/* Summary KPI Cards */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-3 lg:gap-4">

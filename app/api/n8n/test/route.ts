@@ -39,13 +39,23 @@ export async function POST(req: Request) {
       return NextResponse.json({ ok: res.ok, status: res.status, configName: cfg.name })
     }
 
-    // Otherwise fan-out to all active configs for this event
+    // Sprint 19 — vérifier qu'il existe au moins une config active pour cet
+    // event avant de prétendre que le test a réussi (triggerN8N ne fait rien
+    // silencieusement si aucune config ne correspond).
+    const matching = await prisma.n8NConfig.count({
+      where: { active: true, OR: [{ eventType }, { eventType: '*' }] },
+    })
+    if (matching === 0) {
+      return NextResponse.json({ ok: false, eventType, warning: 'Aucune config N8N active pour cet événement' })
+    }
+
+    // Fan-out to all active configs for this event
     await triggerN8N(eventType, {
       test: true,
       message: 'Test depuis Shipinfy Paramètres',
     })
 
-    return NextResponse.json({ ok: true, eventType })
+    return NextResponse.json({ ok: true, eventType, configsNotified: matching })
   } catch (e) {
     return NextResponse.json({ error: String(e) }, { status: 500 })
   }

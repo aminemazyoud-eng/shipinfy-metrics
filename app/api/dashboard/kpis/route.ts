@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { Prisma } from '@prisma/client'
+import { livreurName, isUnassigned, summarizeUnassigned } from '@/lib/driver-utils'
 
 function splitParam(p: string | null): string[] {
   if (!p || p.trim() === '') return []
@@ -54,17 +55,6 @@ function avgMinutes(arr: (number | null)[]): number {
   const valid = arr.filter((x): x is number => x !== null)
   if (!valid.length) return 0
   return Math.round(valid.reduce((s, v) => s + v, 0) / valid.length)
-}
-
-function livreurName(o: {
-  livreurFirstName: string | null
-  livreurLastName:  string | null
-  sprintName:       string | null
-}): string {
-  const first = o.livreurFirstName?.trim()
-  const last  = o.livreurLastName?.trim()
-  if (first || last) return [first, last].filter(Boolean).join(' ')
-  return o.sprintName ?? 'Inconnu'
 }
 
 export const runtime = 'nodejs'
@@ -197,8 +187,14 @@ export async function GET(request: Request) {
       }
     })
 
+    // Sprint 19 — les commandes sans livreur ET sans sprintName ne sont pas un
+    // "livreur Inconnu" : ce sont des commandes non assignées, exclues du
+    // classement livreurs et remontées séparément (unassigned).
+    const assignedOrders = filtered.filter(o => !isUnassigned(o))
+    const unassigned = summarizeUnassigned(filtered)
+
     const livreurMap = new Map<string, typeof filtered>()
-    for (const o of filtered) {
+    for (const o of assignedOrders) {
       const name = livreurName(o)
       if (!livreurMap.has(name)) livreurMap.set(name, [])
       livreurMap.get(name)!.push(o)
@@ -335,6 +331,7 @@ export async function GET(request: Request) {
       heatmapPoints,
       noShowLocations,
       hubLocations,
+      unassigned,
     })
   } catch (e) {
     console.error(e)

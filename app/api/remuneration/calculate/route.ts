@@ -1,16 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
-
-function livreurName(o: {
-  livreurFirstName: string | null
-  livreurLastName:  string | null
-  sprintName:       string | null
-}): string {
-  const first = o.livreurFirstName?.trim()
-  const last  = o.livreurLastName?.trim()
-  if (first || last) return [first, last].filter(Boolean).join(' ')
-  return o.sprintName ?? 'Inconnu'
-}
+import { livreurName, isUnassigned } from '@/lib/driver-utils'
 
 // POST /api/remuneration/calculate
 // Body: { reportId, mode? }  — mode defaults to "standard"
@@ -53,13 +43,20 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'Aucune commande pour ce rapport' }, { status: 404 })
     }
 
-    // 3. Grouper par livreur
+    // 3. Grouper par livreur — Sprint 19 : exclure les commandes non assignées
+    // (pas de livreur, pas de sprintName) : on ne rémunère pas "personne".
     const driverMap = new Map<string, typeof orders>()
     for (const o of orders) {
+      if (isUnassigned(o)) continue
       const name = livreurName(o)
       if (!driverMap.has(name)) driverMap.set(name, [])
       driverMap.get(name)!.push(o)
     }
+
+    // Nettoyage d'anciennes lignes "Inconnu" calculées avant Sprint 19
+    await prisma.driverPay.deleteMany({
+      where: { reportId: body.reportId, mode, driverName: { in: ['Inconnu', 'Non assignées'] } },
+    }).catch(() => {})
 
     // 4. Calculer la rémunération par livreur
     const { baseRate, bonusRate, penaltyRate } = config

@@ -153,10 +153,10 @@ export default function ParametresPage() {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ eventType: 'report_ready' }),
       })
-      const d = await res.json() as { ok?: boolean; error?: string; eventType?: string }
+      const d = await res.json() as { ok?: boolean; error?: string; warning?: string; eventType?: string; configsNotified?: number }
       setDiagN8n(d.ok
-        ? { state: 'ok', msg: `Événement ${d.eventType ?? 'report_ready'} envoyé aux configs actives` }
-        : { state: 'error', msg: d.error ?? 'Échec envoi N8N' })
+        ? { state: 'ok', msg: `Événement ${d.eventType ?? 'report_ready'} envoyé à ${d.configsNotified ?? 0} config(s) active(s)` }
+        : { state: 'error', msg: d.warning ?? d.error ?? 'Échec envoi N8N' })
     } catch (e) {
       setDiagN8n({ state: 'error', msg: String(e) })
     }
@@ -590,7 +590,7 @@ export default function ParametresPage() {
       {/* ── Base de données ───────────────────────────────── */}
       <Section icon={Database} title="Base de données">
         <div className="space-y-3">
-          <Field label="Connexion PostgreSQL" hint="Supabase — partagée avec App 1 (qualityos)">
+          <Field label="Connexion PostgreSQL" hint="Supabase PostgreSQL — base dédiée shipinfy-metrics">
             <div className="flex items-center gap-2">
               <span className="w-2 h-2 rounded-full bg-green-500 flex-shrink-0" />
               <span className="text-sm text-gray-600">Connectée · Supabase PostgreSQL</span>
@@ -623,11 +623,11 @@ export default function ParametresPage() {
         <div className="space-y-2 text-sm text-gray-600">
           <div className="flex justify-between">
             <span>Version plateforme</span>
-            <span className="font-bold text-blue-700">SHIPINFY Metrics v5.0</span>
+            <span className="font-bold text-blue-700">SHIPINFY Metrics v19.0</span>
           </div>
           <div className="flex justify-between">
             <span>Sprints déployés</span>
-            <span className="font-medium">Sprint 1 → 12 · Full Platform</span>
+            <span className="font-medium">Sprint 1 → 19 · Full Platform</span>
           </div>
           <div className="flex justify-between">
             <span>Framework</span>

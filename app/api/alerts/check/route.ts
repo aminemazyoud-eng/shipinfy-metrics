@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
+import { notify } from '@/lib/notify'
 
 // Checks all enabled alert rules against latest KPIs
 // Called by cron (hourly) or manually from the Alertes page
@@ -66,18 +67,40 @@ export async function POST() {
         })
         if (!recent) {
           const operatorLabel = rule.operator === 'lt' ? '<' : rule.operator === 'gt' ? '>' : rule.operator === 'lte' ? '≤' : '≥'
+          const title       = `${metricLabels[rule.metric] ?? rule.metric} — seuil dépassé`
+          const description = `${metricLabels[rule.metric] ?? rule.metric} est à ${val.toFixed(1)}% (seuil : ${operatorLabel} ${rule.threshold}%)`
+
           await prisma.alert.create({
             data: {
               ruleId:      rule.id,
               type:        'auto',
               severity:    rule.severity,
-              title:       `${metricLabels[rule.metric] ?? rule.metric} — seuil dépassé`,
-              description: `${metricLabels[rule.metric] ?? rule.metric} est à ${val.toFixed(1)}% (seuil : ${operatorLabel} ${rule.threshold}%)`,
+              title,
+              description,
               metricValue: val,
               threshold:   rule.threshold,
             },
           })
           triggered++
+
+          // Sprint 19 — unifie ce système d'alertes (seuils KPI) avec le hub de
+          // notifications : critical → Slack + email (si ALERT_EMAIL_TO) ; warning → Slack.
+          if (rule.severity === 'critical' || rule.severity === 'warning') {
+            const channels: ('email' | 'slack')[] = ['slack']
+            const alertEmail = process.env.ALERT_EMAIL_TO?.split(',').map(s => s.trim()).filter(Boolean)
+            if (rule.severity === 'critical' && alertEmail?.length) channels.push('email')
+
+            notify({
+              kind:       'alert',
+              event:      'alert_critical',
+              title:      `${rule.severity === 'critical' ? '🔴 [CRITIQUE]' : '🟠 [ALERTE]'} ${title}`,
+              summary:    description,
+              channels,
+              recipients: channels.includes('email') ? alertEmail : undefined,
+              alertLevel: rule.severity === 'critical' ? 3 : 2,
+              data:       { rule: rule.metric, value: val, threshold: rule.threshold },
+            }).catch((e) => console.error('[alerts/check] notify error:', e))
+          }
         }
       }
     }

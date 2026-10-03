@@ -1,21 +1,11 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import type { DriverStatus } from '@/lib/dispatch-engine'
+import { livreurName, isUnassigned } from '@/lib/driver-utils'
 
 export const runtime = 'nodejs'
 
 const FINISHED = new Set(['DELIVERED', 'NO_SHOW', 'CANCELLED'])
-
-function livreurName(o: {
-  livreurFirstName: string | null
-  livreurLastName:  string | null
-  sprintName:       string | null
-}): string {
-  const first = o.livreurFirstName?.trim()
-  const last  = o.livreurLastName?.trim()
-  if (first || last) return [first, last].filter(Boolean).join(' ')
-  return o.sprintName ?? 'Inconnu'
-}
 
 // Build DriverStatus[] for a report. The same logic is duplicated in
 // /api/dispatch/assign (route files can't cleanly share non-handler exports).
@@ -40,8 +30,11 @@ async function buildDriversStatus(reportId: string): Promise<DriverStatus[]> {
   }
 
   const now = Date.now()
+  // Sprint 19 — exclure les commandes non assignées (pas de livreur, pas de
+  // sprintName) : on ne peut pas afficher un statut temps réel pour "personne".
   const driverMap = new Map<string, typeof orders>()
   for (const o of orders) {
+    if (isUnassigned(o)) continue
     const name = livreurName(o)
     if (!driverMap.has(name)) driverMap.set(name, [])
     driverMap.get(name)!.push(o)

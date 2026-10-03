@@ -6,7 +6,7 @@
 
 ---
 
-## VERSION ACTUELLE : v18.0 — Sprint 18 Academy : boucle formation complète (2026-09-29)
+## VERSION ACTUELLE : v19.0 — Sprint 19 Qualité des données + alertes unifiées (2026-10-03)
 
 > **Agents IA utilisés pour builder ce SaaS** :
 > - Claude Sonnet 4.6 (Claude Code) — agent principal, architecture + coordination
@@ -962,4 +962,23 @@ Build `npm run build` OK · TypeScript clean (`DATABASE_URL="postgresql://d:d@lo
 
 ---
 
-*Dernière mise à jour : 2026-09-29 — Sprint 18 : Academy — boucle formation → certificat → Score IA — v18.0*
+## 25. SPRINT 19 — QUALITÉ DES DONNÉES, ALERTES UNIFIÉES, SCORE IA, POLISH (2026-10-03)
+
+### VERSION : v19.0 — commit `04cb216`, déployé et contrôlé dans Chrome (session réelle)
+Audit complet de la plateforme (18 pages, 0 erreur console, tous les appels API en 200) → corrections ci-dessous.
+
+### Corrections
+- **Commandes non assignées** : `lib/driver-utils.ts` (`isUnassigned`, `livreurName`, `summarizeUnassigned`). Une commande sans `livreurFirstName`/`livreurLastName` ET sans `sprintName` n'est plus un faux livreur « Inconnu » : exclue des classements dans `dashboard/kpis`, `dispatch` (route + `drivers-status` + `assign`), `remuneration/calculate`, `previsions`; remontée dans `unassigned` (`{count,totalCOD}` ou `{total,byStatus,totalCOD}` pour dispatch) + bannières ambre `/livreurs` et `/dispatch`. `remuneration/calculate` supprime les anciennes lignes `DriverPay` « Inconnu »/« Non assignées ». Sur `data3.xlsx` : 1424 commandes (1.153.723 MAD COD), toutes en attente.
+- **Alertes unifiées** : `POST /api/alerts/check` (AlertRule, seuils KPI) appelle `notify()` → Slack (+ email si `ALERT_EMAIL_TO`) ; critical = niveau 3, warning = niveau 2 ; tracé dans `/notifications`. Avant, seul le moteur de retards (`alert-engine`) notifiait.
+- **Score IA** : si un livreur n'a aucune donnée Academy, coefficients livraison/no-show renormalisés à 100 % (plus de plafond ~70). Résultat prod : moyenne 68,7 → 98,2. ⚠️ L'affichage `/score-ia` montre toujours « ACADEMY ×0.3 » même quand ce poids n'est pas appliqué.
+- **Polish** : `/picking` (état vide distinct, try/catch), `/api/n8n/test` renvoie `ok:false` + `warning` si aucune config active, `/parametres` (texte DB, v19.0). Mot de passe : `POST /api/auth/change-password` + section dans `/parametres`; `proxy.ts` : `/api/auth/forgot-password` et `/reset-password` ajoutées à PUBLIC_PATHS (elles étaient bloquées pour tout visiteur sans session).
+
+### ⚠️ Points ouverts
+- **F19-express-junk** : un `ExpressReport` « data3.xlsx » contient 4304 `ExpressOrder` inutilisables (fichier Standard importé en mode Express, orderId vide). `/picking` les affiche tous sans pagination → onglet lent/figé. À supprimer (`DELETE /api/express/reports?reportId=`) et ajouter pagination + garde-fou d'import Express (colonnes obligatoires).
+- **F19-dispatch-score0** : `/dispatch` affiche Score IA 0 pour OMAR IZARKAN, Oussama Baraka, marouane charif alors que `/score-ia` les note → probable écart de nom (casse/espaces) dans `reliabilityScore.driverName`. Non investigué.
+- **SMTP et Slack toujours non configurés en prod** (secrets à saisir par l'utilisateur) → aucun email ni alerte Slack ne part réellement.
+- Marjane Morocco Mall : 49,5 % de livraison (2889 cmd, 1460 non livrées) — problème opérationnel, pas logiciel.
+
+---
+
+*Dernière mise à jour : 2026-10-03 — Sprint 19 : qualité des données, alertes unifiées, Score IA, polish — v19.0*

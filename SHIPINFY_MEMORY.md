@@ -982,3 +982,62 @@ Audit complet de la plateforme (18 pages, 0 erreur console, tous les appels API 
 ---
 
 *Dernière mise à jour : 2026-10-03 — Sprint 19 : qualité des données, alertes unifiées, Score IA, polish — v19.0*
+
+---
+
+## 26. PIVOT « SHIPINFY OPÉRATIONNEL » — MODULE 0 : SOCLE TEMPS RÉEL (2026-10-04)
+
+> **Nouvelle orientation** : l'outil passe de « metrics sur import Excel » à « pilotage opérationnel / anticipation » :
+> dispatch temps réel (type Tookan / Jungleworks), BI live par hub × créneau, prévisions de volume par créneau,
+> suivi par statut avec retards en couleur, pointage journalier + paie fixe + bonus, flotte/gasoil, historique consulting.
+> **On avance module par module. Les modules existants (import Excel, /kpis, /dispatch…) ne sont PAS supprimés** : ils
+> basculent sur les tables `Ops*` un par un.
+
+### Architecture de données
+- **Contexte client** : Marjane (E-Delivery) → back-office Shipinfy. Aujourd'hui = fichier Excel importé à la main ; demain = API du back-office.
+- **Mock back-office** (`mock-backoffice/`, process Node séparé, port 4010, clé `x-api-key: dev-key`) : sert `data3.xlsx`
+  (4 304 lignes = **2 591 expéditions uniques** = 1 704 commandes Marjane) re-daté autour d'aujourd'hui. Le statut est une
+  fonction pure de l'horloge → la donnée « vit » seule, les précommandes de demain arrivent au fil de la journée.
+  - Lancer : `npm run mock:bo` (≈15 s de chargement Excel). `data/data3.xlsx` et `data/state.json` sont **gitignorés** (données clients).
+  - API : `GET /api/v1/orders?cursor=<ISO|id>&limit&day&hub&city&status`, `/api/v1/hubs`, `/api/v1/couriers`, `POST /api/v1/orders/:id/assign {courierRef}`.
+  - Admin (pour tester) : `POST /admin/clock {setTo|addMinutes|reset}` (voyage dans le temps), `POST /admin/inject {count,day,hubCode,hour}`,
+    `POST /admin/delay {hubCode,minutes,pct}` (créer des retards), `POST /admin/orders/:id {status,delayMinutes,courierRef}`, `GET /admin/summary`, `POST /admin/reset`.
+- **Statuts** : READY_PICKUP → ASSIGNED → IN_TRANSPORT → START_DELIVERY → DELIVERED | NO_SHOW. « En retard » = pas terminé et `now > slotEnd`.
+- **Créneaux** : fenêtres de 3 h (08-11, 09-12, 11-14, 12-15, 14-17, 15-18, 17-20, 18-21…) en heure locale Africa/Casablanca (UTC+1).
+- **Organisation de test** (`mock-backoffice/org.js`, partagée mock + seed) : 3 villes · **7 hubs** (Casa : Morocco Mall, Dar Bouazza, Tamaris, Californie ;
+  Marrakech : Massira, Menara ; Agadir : Marjane Agadir) · **23 livreurs** (D01–D23) · 23 véhicules. Dans `data3.xlsx`, « Marjane Massira » est
+  à Marrakech ; les hubs Tamaris/Californie/Menara/Agadir sont fictifs (placés au centre de la demande). Agadir = ~6 % de clones synthétiques.
+- **Tables Prisma** (`prisma/init-tables.sql`, section Module 0) : `OpsHub`, `OpsVehicle`, `OpsDriver` (code = courierRef, `hubId` modifiable = switch de hub,
+  rémunération `dailyRate` fixe + `bonusPerOrder`), `OpsOrder` (unique `[source, externalId]`, `driverId` = notre dispatch prioritaire sur `courierRef`),
+  `OpsOrderEvent` (historique de transitions horodaté source), `OpsSyncRun` (journal + curseur).
+- **Synchro** : `lib/ops-sync.ts` (`runOpsSync({full})`) ; cron `*/5` dans `lib/cron.ts` **opt-in `OPS_SYNC_ENABLED=true`** (désactivé par défaut → prod inchangée) ;
+  `GET/POST /api/ops/sync` (état / forcer, `?full=1` ignore le curseur — nécessaire après `/admin/reset` ou retour en arrière de l'horloge).
+  Env : `BACKOFFICE_API_URL` (défaut http://localhost:4010), `BACKOFFICE_API_KEY`, `OPS_SOURCE` (`mock` | `shipinfy-bo`).
+  **Brancher le vrai back-office = changer ces 3 variables** (le contrat `/api/v1/orders` doit être respecté ou adapté dans `ops-sync.ts`).
+- **Seed** : `npm run seed:ops` (idempotent, ne touche pas `hubId` d'un livreur déjà switché).
+
+### À faire / non fait dans le Module 0
+- Les tables n'ont PAS encore été appliquées sur Supabase (pas de .env local) : `node run-init-sql.js` puis `npm run seed:ops`, puis `OPS_SYNC_ENABLED=true`.
+  ⚠️ Même base que la prod (`aedhvfcdbylicuihatzn`) : les tables sont additives et préfixées `Ops*`, mais le seed y créera de faux livreurs.
+- Rôles Back Office / Dispatch / Service client / Superviseur / Manager Ville / Manager + **périmètre par ville/hub** : prévus Module 1 (RBAC). Rôles existants
+  (`lib/permissions.ts`, `lib/auth.ts`) inchangés.
+- Prochains modules : (1) Prévisions par créneau + BI live par hub (heatmap, scoring) ; (2) Dispatch temps réel + switch de hub ;
+  (3) Suivi par statut (retards en rouge) ; (4) Pointage journalier + paie fixe/bonus ; (5) Flotte & gasoil ; (6) Réclamations/tickets liés aux commandes ; (7) Historique consulting ; (8) RBAC.
+
+---
+
+## 27. MODULE 1 — COCKPIT OPÉRATIONNEL : prévisions par créneau + live par hub + carte (2026-10-04)
+
+- **Page** `/operations` (`app/operations/page.tsx`, composant carte `components/LiveMap.tsx`) — 3 onglets : *Prévisions par créneau*, *Live par hub*, *Carte & heatmap*.
+  Filtre ville, rafraîchissement auto (30 s live / 60 s prévisions). Nouveau module de permissions `operations` (SUPER_ADMIN, ADMIN, MANAGER, COORDINATOR, DISPATCHER) ; entrée sidebar « Cockpit opérationnel ».
+- **Logique pure** `lib/ops-analytics.ts` (aucun import, testable) :
+  - `forecastDay` : par hub × créneau → `known` (déjà reçues), `expected` = max(known, w·known/p + (1−w)·historique) avec `p` = part du volume final habituellement connue à cet instant
+    (courbe d'arrivée), `w = min(0.8, p)` ; capacité = livreurs du hub × `perDriverPerSlot` (défaut 3, réglable dans l'UI) ; niveau ok <70 % / tendu / saturé ≥100 % ; besoin en livreurs.
+  - `liveSnapshot` : par hub statuts, **en retard** (non terminé et now > fin de créneau), **à risque** (<45 min de la fin, pas encore en livraison), taux à l'heure, reliquat des jours précédents, points carte, charge livreurs.
+- **Accès données** `lib/ops-data.ts` : tables `Ops*` en normal ; **mode dev `OPS_DIRECT=1`** (ignoré en production) lit directement le mock back-office → écrans testables sans base ni login (`.env.local` : `OPS_DIRECT=1`,
+  cookies factices `shipinfy_session`/`shipinfy_role=SUPER_ADMIN` dans le navigateur). En mode direct, l'horloge suivie est celle du mock (`/admin/clock`).
+- **API** : `GET /api/ops/forecast?day=today|tomorrow|YYYY-MM-DD|N&city=&perDriver=`, `GET /api/ops/live?city=&hub=`, `GET /api/ops/hubs` (session requise hors mode direct).
+- **Dev** : `.claude/launch.json` → config `shipinfy-ops` (next dev port 3001). Lancer aussi `npm run mock:bo`.
+- Mock : jours d'historique conservés dès 25 expéditions/jour (~dédoublonnage) ⇒ ~4 jours d'historique ; la précision des prévisions s'améliore avec plus d'historique réel.
+- Vérifié : typecheck propre ; page testée dans le navigateur (prévisions, live, carte) contre le mock.
+- **Reste** : appliquer les tables Ops* sur Supabase + `DATABASE_URL` locale (voir §26) ; modules suivants : dispatch temps réel + switch de hub, suivi par statut, pointage/paie, flotte, RBAC.

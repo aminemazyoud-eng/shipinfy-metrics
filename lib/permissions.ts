@@ -10,6 +10,7 @@ export type RoleKey = typeof ALL_ROLES[number]
 // Module key → route prefixes that belong to it
 export const MODULE_ROUTES: Record<string, string[]> = {
   dashboard:    ['/', '/kpis', '/previsions'],
+  operations:   ['/operations'],
   livreurs:     ['/livreurs', '/score-ia'],
   remuneration: ['/remuneration'],
   hubs:         ['/hubs', '/retours'],
@@ -28,10 +29,10 @@ export const MODULE_ROUTES: Record<string, string[]> = {
 // Role → set of allowed module keys
 export const ROLE_MODULES: Record<RoleKey, Set<string>> = {
   SUPER_ADMIN:  new Set(Object.keys(MODULE_ROUTES)),
-  ADMIN:        new Set(['dashboard','livreurs','remuneration','hubs','dispatch','picking','shifts','alertes','rapports','notifications','support','rh','parametres']),
-  MANAGER:      new Set(['dashboard','livreurs','remuneration','hubs','dispatch','picking','shifts','alertes','rapports','notifications','support','rh','parametres']),
-  COORDINATOR:  new Set(['dashboard','livreurs','dispatch','picking','shifts','alertes','notifications','rh','parametres']),
-  DISPATCHER:   new Set(['dashboard','dispatch','picking','alertes']),
+  ADMIN:        new Set(['dashboard','operations','livreurs','remuneration','hubs','dispatch','picking','shifts','alertes','rapports','notifications','support','rh','parametres']),
+  MANAGER:      new Set(['dashboard','operations','livreurs','remuneration','hubs','dispatch','picking','shifts','alertes','rapports','notifications','support','rh','parametres']),
+  COORDINATOR:  new Set(['dashboard','operations','livreurs','dispatch','picking','shifts','alertes','notifications','rh','parametres']),
+  DISPATCHER:   new Set(['dashboard','operations','dispatch','picking','alertes']),
   SUPPORT:      new Set(['dashboard','alertes','support']),
   VIEWER:       new Set(['dashboard']),
 }

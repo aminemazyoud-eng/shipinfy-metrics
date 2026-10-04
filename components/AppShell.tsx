@@ -25,6 +25,7 @@ const SECTIONS: NavSection[] = [
     items: [
       { href: '/',           label: 'Dashboard',        icon: Activity   },
       { href: '/kpis',       label: 'KPIs & Métriques', icon: BarChart3  },
+      { href: '/operations', label: 'Cockpit opérationnel', icon: Activity },
       { href: '/previsions', label: 'Prévisions',        icon: TrendingUp },
     ],
   },

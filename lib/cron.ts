@@ -247,6 +247,21 @@ export function startCronScheduler() {
     }
   }, { timezone: 'Africa/Casablanca' })
 
+  // Module 0 — Synchro back-office -> OpsOrder toutes les 5 min (opt-in : OPS_SYNC_ENABLED=true)
+  if (process.env.OPS_SYNC_ENABLED === 'true') {
+    cron.schedule('*/5 * * * *', async () => {
+      try {
+        const { runOpsSync } = await import('@/lib/ops-sync')
+        const r = await runOpsSync()
+        if (!r.ok) console.warn('[cron] ops-sync:', r.error)
+        else if (r.fetched > 0) console.log(`[cron] ops-sync: ${r.fetched} reçues, ${r.created} créées, ${r.updated} MAJ, ${r.events} évts (${r.durationMs}ms)`)
+      } catch (e) {
+        console.error('[cron] ops-sync:', e)
+      }
+    }, { timezone: 'Africa/Casablanca' })
+    console.log('[cron] ops-sync activé (*/5 min)')
+  }
+
   // Sprint 7 — Prévisions prédictives Score IA chaque matin 07:00
   cron.schedule('0 7 * * *', async () => {
     try {

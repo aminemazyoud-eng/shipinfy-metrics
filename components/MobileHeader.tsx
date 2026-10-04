@@ -7,6 +7,7 @@ const ROUTE_LABELS: Record<string, string> = {
   '/':             'Dashboard',
   '/kpis':         'KPIs & Métriques',
   '/previsions':   'Prévisions',
+  '/operations':   'Cockpit opérationnel',
   '/livreurs':     'Livreurs',
   '/remuneration': 'Rémunération',
   '/hubs':         'Hubs',

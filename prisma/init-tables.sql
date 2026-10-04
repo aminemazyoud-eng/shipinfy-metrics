@@ -765,3 +765,72 @@ CREATE INDEX IF NOT EXISTS "NotificationLog_status_idx"    ON "NotificationLog"(
 CREATE INDEX IF NOT EXISTS "NotificationLog_createdAt_idx" ON "NotificationLog"("createdAt");
 CREATE INDEX IF NOT EXISTS "NotificationLog_tenantId_idx"  ON "NotificationLog"("tenantId");
 
+
+-- ═══ MODULE 0 — SHIPINFY OPÉRATIONNEL (socle temps réel) ═══════════════════
+
+CREATE TABLE IF NOT EXISTS "OpsHub" (
+  "id" TEXT NOT NULL PRIMARY KEY, "tenantId" TEXT, "code" TEXT NOT NULL, "name" TEXT NOT NULL, "city" TEXT NOT NULL,
+  "lat" DOUBLE PRECISION, "lng" DOUBLE PRECISION, "active" BOOLEAN NOT NULL DEFAULT true,
+  "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP, "updatedAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+CREATE UNIQUE INDEX IF NOT EXISTS "OpsHub_code_key" ON "OpsHub"("code");
+CREATE INDEX IF NOT EXISTS "OpsHub_city_idx" ON "OpsHub"("city");
+CREATE INDEX IF NOT EXISTS "OpsHub_tenantId_idx" ON "OpsHub"("tenantId");
+
+CREATE TABLE IF NOT EXISTS "OpsVehicle" (
+  "id" TEXT NOT NULL PRIMARY KEY, "tenantId" TEXT, "plate" TEXT NOT NULL, "type" TEXT NOT NULL, "fuelType" TEXT NOT NULL DEFAULT 'diesel',
+  "capacityKg" DOUBLE PRECISION, "consumptionL100" DOUBLE PRECISION, "odometerKm" DOUBLE PRECISION NOT NULL DEFAULT 0,
+  "status" TEXT NOT NULL DEFAULT 'active', "hubId" TEXT,
+  "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP, "updatedAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+CREATE UNIQUE INDEX IF NOT EXISTS "OpsVehicle_plate_key" ON "OpsVehicle"("plate");
+CREATE INDEX IF NOT EXISTS "OpsVehicle_hubId_idx" ON "OpsVehicle"("hubId");
+
+CREATE TABLE IF NOT EXISTS "OpsDriver" (
+  "id" TEXT NOT NULL PRIMARY KEY, "tenantId" TEXT, "code" TEXT NOT NULL, "firstName" TEXT NOT NULL, "lastName" TEXT NOT NULL, "phone" TEXT,
+  "hubId" TEXT, "homeHubId" TEXT, "vehicleId" TEXT, "status" TEXT NOT NULL DEFAULT 'active', "payMode" TEXT NOT NULL DEFAULT 'fixed',
+  "dailyRate" DOUBLE PRECISION NOT NULL DEFAULT 150, "bonusPerOrder" DOUBLE PRECISION NOT NULL DEFAULT 0,
+  "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP, "updatedAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+CREATE UNIQUE INDEX IF NOT EXISTS "OpsDriver_code_key" ON "OpsDriver"("code");
+CREATE UNIQUE INDEX IF NOT EXISTS "OpsDriver_vehicleId_key" ON "OpsDriver"("vehicleId");
+CREATE INDEX IF NOT EXISTS "OpsDriver_hubId_idx" ON "OpsDriver"("hubId");
+CREATE INDEX IF NOT EXISTS "OpsDriver_tenantId_idx" ON "OpsDriver"("tenantId");
+
+CREATE TABLE IF NOT EXISTS "OpsOrder" (
+  "id" TEXT NOT NULL PRIMARY KEY, "tenantId" TEXT, "source" TEXT NOT NULL DEFAULT 'mock', "externalId" TEXT NOT NULL, "reference" TEXT, "shipper" TEXT,
+  "hubCode" TEXT, "city" TEXT, "district" TEXT, "status" TEXT NOT NULL, "slotStart" TIMESTAMP(3) NOT NULL, "slotEnd" TIMESTAMP(3) NOT NULL, "slotLabel" TEXT,
+  "amount" DOUBLE PRECISION, "customerName" TEXT, "address" TEXT, "lat" DOUBLE PRECISION, "lng" DOUBLE PRECISION, "cluster" TEXT,
+  "attemptCount" INTEGER NOT NULL DEFAULT 1, "courierRef" TEXT, "driverId" TEXT,
+  "createdAtSrc" TIMESTAMP(3), "assignedAt" TIMESTAMP(3), "inTransportAt" TIMESTAMP(3), "startDeliveryAt" TIMESTAMP(3), "deliveredAt" TIMESTAMP(3), "noShowAt" TIMESTAMP(3),
+  "sourceUpdatedAt" TIMESTAMP(3) NOT NULL, "syncedAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+CREATE UNIQUE INDEX IF NOT EXISTS "OpsOrder_source_externalId_key" ON "OpsOrder"("source","externalId");
+CREATE INDEX IF NOT EXISTS "OpsOrder_slotStart_idx" ON "OpsOrder"("slotStart");
+CREATE INDEX IF NOT EXISTS "OpsOrder_hubCode_slotStart_idx" ON "OpsOrder"("hubCode","slotStart");
+CREATE INDEX IF NOT EXISTS "OpsOrder_status_idx" ON "OpsOrder"("status");
+CREATE INDEX IF NOT EXISTS "OpsOrder_driverId_idx" ON "OpsOrder"("driverId");
+CREATE INDEX IF NOT EXISTS "OpsOrder_tenantId_idx" ON "OpsOrder"("tenantId");
+
+CREATE TABLE IF NOT EXISTS "OpsOrderEvent" (
+  "id" TEXT NOT NULL PRIMARY KEY, "orderId" TEXT NOT NULL, "fromStatus" TEXT, "toStatus" TEXT NOT NULL, "at" TIMESTAMP(3) NOT NULL,
+  "source" TEXT NOT NULL DEFAULT 'sync', "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+CREATE INDEX IF NOT EXISTS "OpsOrderEvent_orderId_idx" ON "OpsOrderEvent"("orderId");
+CREATE INDEX IF NOT EXISTS "OpsOrderEvent_at_idx" ON "OpsOrderEvent"("at");
+CREATE INDEX IF NOT EXISTS "OpsOrderEvent_toStatus_idx" ON "OpsOrderEvent"("toStatus");
+
+CREATE TABLE IF NOT EXISTS "OpsSyncRun" (
+  "id" TEXT NOT NULL PRIMARY KEY, "source" TEXT NOT NULL, "startedAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP, "finishedAt" TIMESTAMP(3),
+  "fetched" INTEGER NOT NULL DEFAULT 0, "created" INTEGER NOT NULL DEFAULT 0, "updated" INTEGER NOT NULL DEFAULT 0, "events" INTEGER NOT NULL DEFAULT 0,
+  "cursorAfter" TEXT, "ok" BOOLEAN NOT NULL DEFAULT false, "error" TEXT
+);
+CREATE INDEX IF NOT EXISTS "OpsSyncRun_source_startedAt_idx" ON "OpsSyncRun"("source","startedAt");
+
+DO $$ BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname='OpsVehicle_hubId_fkey') THEN ALTER TABLE "OpsVehicle" ADD CONSTRAINT "OpsVehicle_hubId_fkey" FOREIGN KEY ("hubId") REFERENCES "OpsHub"("id") ON DELETE SET NULL ON UPDATE CASCADE; END IF;
+  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname='OpsDriver_hubId_fkey') THEN ALTER TABLE "OpsDriver" ADD CONSTRAINT "OpsDriver_hubId_fkey" FOREIGN KEY ("hubId") REFERENCES "OpsHub"("id") ON DELETE SET NULL ON UPDATE CASCADE; END IF;
+  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname='OpsDriver_vehicleId_fkey') THEN ALTER TABLE "OpsDriver" ADD CONSTRAINT "OpsDriver_vehicleId_fkey" FOREIGN KEY ("vehicleId") REFERENCES "OpsVehicle"("id") ON DELETE SET NULL ON UPDATE CASCADE; END IF;
+  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname='OpsOrder_driverId_fkey') THEN ALTER TABLE "OpsOrder" ADD CONSTRAINT "OpsOrder_driverId_fkey" FOREIGN KEY ("driverId") REFERENCES "OpsDriver"("id") ON DELETE SET NULL ON UPDATE CASCADE; END IF;
+  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname='OpsOrderEvent_orderId_fkey') THEN ALTER TABLE "OpsOrderEvent" ADD CONSTRAINT "OpsOrderEvent_orderId_fkey" FOREIGN KEY ("orderId") REFERENCES "OpsOrder"("id") ON DELETE CASCADE ON UPDATE CASCADE; END IF;
+END $$;

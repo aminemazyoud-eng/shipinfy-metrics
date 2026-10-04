@@ -576,3 +576,141 @@ model ExpressOrder {
   @@index([pickerId])
   @@index([tenantId])
 }
+
+// ─── MODULE 0 — SHIPINFY OPÉRATIONNEL : socle temps réel (sync back-office) ───
+// Source de vérité opérationnelle : alimentée par lib/ops-sync.ts (mock-backoffice aujourd'hui,
+// API back-office Shipinfy demain). Indépendante de DeliveryReport / DeliveryOrder (import Excel).
+
+model OpsHub {
+  id        String   @id @default(cuid())
+  tenantId  String?
+  code      String   @unique // "CAS-MM"
+  name      String
+  city      String   // CASABLANCA | MARRAKECH | AGADIR
+  lat       Float?
+  lng       Float?
+  active    Boolean  @default(true)
+  drivers   OpsDriver[]
+  vehicles  OpsVehicle[]
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([city])
+  @@index([tenantId])
+}
+
+model OpsVehicle {
+  id              String    @id @default(cuid())
+  tenantId        String?
+  plate           String    @unique
+  type            String    // moto | utilitaire | van
+  fuelType        String    @default("diesel")
+  capacityKg      Float?
+  consumptionL100 Float?
+  odometerKm      Float     @default(0)
+  status          String    @default("active") // active | maintenance | out_of_service
+  hubId           String?
+  hub             OpsHub?   @relation(fields: [hubId], references: [id], onDelete: SetNull)
+  driver          OpsDriver?
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+
+  @@index([hubId])
+}
+
+model OpsDriver {
+  id            String      @id @default(cuid())
+  tenantId      String?
+  code          String      @unique // "D01" — = courierRef côté back-office
+  firstName     String
+  lastName      String
+  phone         String?
+  hubId         String?     // hub d'affectation courant (modifiable : switch de hub)
+  hub           OpsHub?     @relation(fields: [hubId], references: [id], onDelete: SetNull)
+  homeHubId     String?     // hub d'origine
+  vehicleId     String?     @unique
+  vehicle       OpsVehicle? @relation(fields: [vehicleId], references: [id], onDelete: SetNull)
+  status        String      @default("active") // active | off | leave
+  payMode       String      @default("fixed")  // rémunération fixe journalière + bonus
+  dailyRate     Float       @default(150)      // MAD / jour pointé
+  bonusPerOrder Float       @default(0)
+  createdAt     DateTime    @default(now())
+  updatedAt     DateTime    @updatedAt
+  orders        OpsOrder[]
+
+  @@index([hubId])
+  @@index([tenantId])
+}
+
+model OpsOrder {
+  id               String        @id @default(cuid())
+  tenantId         String?
+  source           String        @default("mock") // mock | shipinfy-bo
+  externalId       String
+  reference        String?
+  shipper          String?
+  hubCode          String?
+  city             String?
+  district         String?
+  status           String        // READY_PICKUP | ASSIGNED | IN_TRANSPORT | START_DELIVERY | DELIVERED | NO_SHOW
+  slotStart        DateTime
+  slotEnd          DateTime
+  slotLabel        String?       // "09-12"
+  amount           Float?
+  customerName     String?
+  address          String?
+  lat              Float?
+  lng              Float?
+  cluster          String?
+  attemptCount     Int           @default(1)
+  courierRef       String?       // livreur selon le back-office
+  driverId         String?       // livreur selon NOTRE dispatch (prioritaire sur courierRef)
+  driver           OpsDriver?    @relation(fields: [driverId], references: [id], onDelete: SetNull)
+  createdAtSrc     DateTime?
+  assignedAt       DateTime?
+  inTransportAt    DateTime?
+  startDeliveryAt  DateTime?
+  deliveredAt      DateTime?
+  noShowAt         DateTime?
+  sourceUpdatedAt  DateTime
+  syncedAt         DateTime      @default(now())
+  events           OpsOrderEvent[]
+
+  @@unique([source, externalId])
+  @@index([slotStart])
+  @@index([hubCode, slotStart])
+  @@index([status])
+  @@index([driverId])
+  @@index([tenantId])
+}
+
+model OpsOrderEvent {
+  id         String   @id @default(cuid())
+  orderId    String
+  order      OpsOrder @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  fromStatus String?
+  toStatus   String
+  at         DateTime // horodatage source (pas l'heure de sync)
+  source     String   @default("sync") // sync | dispatch | manual
+  createdAt  DateTime @default(now())
+
+  @@index([orderId])
+  @@index([at])
+  @@index([toStatus])
+}
+
+model OpsSyncRun {
+  id          String    @id @default(cuid())
+  source      String
+  startedAt   DateTime  @default(now())
+  finishedAt  DateTime?
+  fetched     Int       @default(0)
+  created     Int       @default(0)
+  updated     Int       @default(0)
+  events      Int       @default(0)
+  cursorAfter String?   // curseur "ISO|id" — le dernier run OK de la source fait foi
+  ok          Boolean   @default(false)
+  error       String?
+
+  @@index([source, startedAt])
+}

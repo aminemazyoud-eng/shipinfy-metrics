@@ -29,3 +29,7 @@ next-env.d.ts
 # Prisma
 prisma/dev.db
 prisma/dev.db-journal
+
+# Mock back-office (données client + état local)
+mock-backoffice/data/*.xlsx
+mock-backoffice/data/state.json

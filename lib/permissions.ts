@@ -10,7 +10,7 @@ export type RoleKey = typeof ALL_ROLES[number]
 // Module key → route prefixes that belong to it
 export const MODULE_ROUTES: Record<string, string[]> = {
   dashboard:    ['/', '/kpis', '/previsions'],
-  operations:   ['/operations'],
+  operations:   ['/operations', '/operations/dispatch', '/operations/suivi', '/operations/pointage', '/operations/flotte', '/operations/historique'],
   livreurs:     ['/livreurs', '/score-ia'],
   remuneration: ['/remuneration'],
   hubs:         ['/hubs', '/retours'],
@@ -21,7 +21,7 @@ export const MODULE_ROUTES: Record<string, string[]> = {
   rapports:     ['/rapports'],
   notifications:['/notifications'],
   support:      ['/support'],
-  rh:           ['/pointage', '/onboarding', '/academy', '/rh'],
+  rh:           ['/pointage', '/onboarding', '/academy', '/rh', '/rh/onboarding', '/rh/paie'],
   parametres:   ['/parametres'],
   admin:        ['/admin'],
 }

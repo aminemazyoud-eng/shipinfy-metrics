@@ -1,7 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { opsAuth, fail, audit } from '@/lib/ops-auth'
-import { dayOf, dayBounds, attendanceKey } from '@/lib/ops-time'
+import { dayOf, dayBounds } from '@/lib/ops-time'
+import { attendanceByName } from '@/lib/ops-attendance'
 import { autoAssign } from '@/lib/ops-dispatch'
 import { opsSyncConfig } from '@/lib/ops-sync'
 
@@ -16,13 +17,12 @@ export async function POST(req: NextRequest) {
     const day = dayOf(daySpec)
     const { from, to } = dayBounds(day)
 
-    const [orders, drivers, absent] = await Promise.all([
+    const [orders, drivers, att] = await Promise.all([
       prisma.opsOrder.findMany({ where: { hubCode: hub, driverId: null, status: 'READY_PICKUP', slotStart: { gte: from, lt: to } }, select: { id: true, externalId: true, slotStart: true, lat: true, lng: true } }),
-      prisma.opsDriver.findMany({ where: { hub: { code: hub }, status: 'active' }, select: { id: true, code: true } }),
-      prisma.opsAttendance.findMany({ where: { date: attendanceKey(day), status: { in: ['absent', 'leave'] } }, select: { driverId: true } }),
+      prisma.opsDriver.findMany({ where: { hub: { code: hub }, status: 'active' }, select: { id: true, code: true, firstName: true, lastName: true } }),
+      attendanceByName(day),
     ])
-    const out = new Set(absent.map(a => a.driverId))
-    const available = drivers.filter(d => !out.has(d.id))
+    const available = drivers.filter(d => { const s = att.get(`${d.firstName} ${d.lastName}`)?.status; return s !== 'absent' && s !== 'leave' })
     if (!available.length) return NextResponse.json({ error: 'Aucun livreur disponible sur ce hub (absents ou aucun affecté)' }, { status: 409 })
     if (!orders.length) return NextResponse.json({ ok: true, assigned: 0, message: 'Rien à dispatcher' })
 

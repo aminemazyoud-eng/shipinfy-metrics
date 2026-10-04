@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { opsAuth, fail, audit } from '@/lib/ops-auth'
 import { localToday, attendanceKey } from '@/lib/ops-time'
+import { fullName } from '@/lib/ops-attendance'
 
 // POST /api/ops/drivers/D07/hub { hubCode: "CAS-MM", permanent?: boolean }
 // Switch d'un livreur (et de son véhicule) vers un autre hub. Les commandes déjà en cours restent à lui.
@@ -22,7 +23,7 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ code: stri
     await prisma.$transaction([
       prisma.opsDriver.update({ where: { id: driver.id }, data: { hubId: hub.id, ...(permanent ? { homeHubId: hub.id } : {}) } }),
       ...(driver.vehicleId ? [prisma.opsVehicle.update({ where: { id: driver.vehicleId }, data: { hubId: hub.id } })] : []),
-      prisma.opsAttendance.updateMany({ where: { driverId: driver.id, date: attendanceKey(localToday()) }, data: { hubCode: hub.code } }),
+      prisma.driverAttendance.updateMany({ where: { driverName: fullName(driver), date: attendanceKey(localToday()) }, data: { hub: hub.name } }),
     ])
     await audit(auth.session, 'driver.hub_switch', 'driver', driver.code, { from: driver.hub?.code ?? null, to: hub.code, permanent: !!permanent }, hub.code)
     return NextResponse.json({ ok: true, from: driver.hub?.code ?? null, to: hub.code })

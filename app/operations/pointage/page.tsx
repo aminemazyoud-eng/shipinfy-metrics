@@ -1,5 +1,6 @@
 'use client'
 import { useState, useEffect, useCallback } from 'react'
+import Link from 'next/link'
 import { Clock, Download, Wallet, CheckCheck, RefreshCw } from 'lucide-react'
 import OpsNav from '../components/OpsNav'
 
@@ -63,7 +64,7 @@ export default function PointagePage() {
             <button onClick={loadAtt} className="p-2 border border-gray-300 rounded-lg bg-white"><RefreshCw className="w-4 h-4" /></button>
             <span className="text-sm text-gray-500">{count('present')} présents · {count('late')} en retard · {count('absent')} absents · {count('leave')} congés · {rows.filter(r => !r.status).length} non pointés</span>
           </div>
-          <p className="text-xs text-gray-400">Le pointage se fait à la journée (pas à la commande). Le nombre de commandes livrées ne sert qu&apos;aux bonus.</p>
+          <div className="text-xs bg-teal-50 border border-teal-200 text-teal-800 rounded-lg p-3">Source unique : le pointage est celui de <Link href="/pointage" className="underline font-medium">RH & Formation → Pointage</Link> (QR, saisie manuelle). Les boutons ci-dessous écrivent dans ce même pointage. Il se fait à la journée ; le nombre de commandes livrées ne sert qu&apos;aux bonus.</div>
           <div className="bg-white border border-gray-200 rounded-xl overflow-x-auto">
             <table className="w-full text-sm">
               <thead><tr className="text-xs text-gray-500 text-left border-b border-gray-200"><th className="p-2 pl-3 font-medium">Livreur</th><th className="p-2 font-medium">Hub</th><th className="p-2 font-medium">Statut du jour</th><th className="p-2 font-medium">Arrivée</th><th className="p-2 font-medium">Départ</th><th className="p-2 font-medium">Livrées</th></tr></thead>

@@ -1,7 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { opsAuth, fail } from '@/lib/ops-auth'
-import { dayOf, dayBounds, attendanceKey } from '@/lib/ops-time'
+import { dayOf, dayBounds } from '@/lib/ops-time'
+import { attendanceByName } from '@/lib/ops-attendance'
 import { canonicalSlot } from '@/lib/ops-slots'
 
 const DONE = ['DELIVERED', 'NO_SHOW']
@@ -20,16 +21,15 @@ export async function GET(req: NextRequest) {
     const hubCode = sp.get('hub') || hubs[0]?.code
     if (!hubCode) return NextResponse.json({ hubs: [], orders: [], drivers: [], day })
 
-    const [orders, drivers, attendance] = await Promise.all([
+    const [orders, drivers, att] = await Promise.all([
       prisma.opsOrder.findMany({
         where: { hubCode, OR: [{ slotStart: { gte: from, lt: to } }, { slotStart: { lt: from }, status: { notIn: DONE } }] },
         orderBy: [{ slotStart: 'asc' }, { externalId: 'asc' }],
         select: { id: true, externalId: true, reference: true, status: true, slotStart: true, slotEnd: true, slotLabel: true, district: true, amount: true, customerName: true, address: true, lat: true, lng: true, driverId: true },
       }),
       prisma.opsDriver.findMany({ where: { status: { not: 'off' } }, include: { hub: { select: { code: true, name: true } }, vehicle: { select: { plate: true, type: true } } }, orderBy: { code: 'asc' } }),
-      prisma.opsAttendance.findMany({ where: { date: attendanceKey(day) }, select: { driverId: true, status: true, hubCode: true } }),
+      attendanceByName(day),
     ])
-    const att = new Map(attendance.map(a => [a.driverId, a]))
 
     // charge des livreurs sur TOUT le jour (toutes commandes, tous hubs) pour ne pas surcharger un livreur « emprunté »
     const loads = await prisma.opsOrder.groupBy({
@@ -57,7 +57,7 @@ export async function GET(req: NextRequest) {
       })),
       drivers: drivers.map(d => ({
         code: d.code, name: `${d.firstName} ${d.lastName}`, hubCode: d.hub?.code ?? null, homeHubId: d.homeHubId, vehicle: d.vehicle?.type ?? null, plate: d.vehicle?.plate ?? null,
-        attendance: att.get(d.id)?.status ?? null, active: driverLoad.get(d.id)?.active ?? 0, done: driverLoad.get(d.id)?.done ?? 0, late: lateBy.get(d.id) ?? 0,
+        attendance: att.get(`${d.firstName} ${d.lastName}`)?.status ?? null, active: driverLoad.get(d.id)?.active ?? 0, done: driverLoad.get(d.id)?.done ?? 0, late: lateBy.get(d.id) ?? 0,
       })),
     })
   } catch (e) { return fail(e) }

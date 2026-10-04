@@ -26,12 +26,13 @@ export async function GET(req: NextRequest) {
 
     const drivers = await prisma.opsDriver.findMany({ where: { status: { not: 'off' }, ...(hub ? { hub: { code: hub } } : {}) }, include: { hub: { select: { code: true } } }, orderBy: { code: 'asc' } })
     const ids = drivers.map(d => d.id)
+    const byName = new Map(drivers.map(d => [`${d.firstName} ${d.lastName}`, d]))
     const [att, orders] = await Promise.all([
-      prisma.opsAttendance.findMany({ where: { driverId: { in: ids }, date: { gte: attendanceKey(from), lte: attendanceKey(to) } }, select: { driverId: true, date: true, status: true } }),
+      prisma.driverAttendance.findMany({ where: { driverName: { in: drivers.map(d => `${d.firstName} ${d.lastName}`) }, date: { gte: attendanceKey(from), lte: attendanceKey(to) } }, select: { driverName: true, date: true, status: true } }),
       prisma.opsOrder.findMany({ where: { driverId: { in: ids }, OR: [{ status: 'DELIVERED', deliveredAt: { gte: start, lt: end } }, { status: 'NO_SHOW', noShowAt: { gte: start, lt: end } }] }, select: { driverId: true, status: true, deliveredAt: true, noShowAt: true, slotEnd: true } }),
     ])
     const lines = computePay(cfg, drivers.map(d => ({ id: d.id, code: d.code, name: `${d.firstName} ${d.lastName}`, hubCode: d.hub?.code ?? null, dailyRate: d.dailyRate })),
-      att.map(a => ({ driverId: a.driverId, day: a.date.toISOString().slice(0, 10), status: a.status })),
+      att.flatMap(a => { const d = byName.get(a.driverName); return d ? [{ driverId: d.id, day: a.date.toISOString().slice(0, 10), status: a.status }] : [] }),
       orders.map(o => { const at = (o.deliveredAt ?? o.noShowAt) as Date; return { driverId: o.driverId as string, day: localDay(at), status: o.status, onTime: o.status === 'DELIVERED' && at <= o.slotEnd } }))
 
     if (sp.get('format') === 'csv') {

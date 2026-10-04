@@ -1,5 +1,6 @@
 'use client'
 import { useState, useEffect, useCallback } from 'react'
+import PayBonusCard from './PayBonusCard'
 import { Clock, CheckCircle2, XCircle, UserCheck, Loader2, Plus, X, Download, QrCode, ScanLine, RefreshCw } from 'lucide-react'
 
 interface Attendance {
@@ -377,6 +378,9 @@ export default function PointagePage() {
           </button>
         </div>
       </div>
+
+      {/* Paie & bonus du mois — calculés depuis ce pointage */}
+      <PayBonusCard />
 
       {/* QR sections */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">

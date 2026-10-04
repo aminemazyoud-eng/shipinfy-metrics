@@ -1,15 +1,13 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { getSession } from '@/lib/auth'
-import { directMode, loadOrders, loadHubs, loadDrivers, opsNow } from '@/lib/ops-data'
+import { opsAuth } from '@/lib/ops-auth'
+import { loadOrders, loadHubs, loadDrivers, opsNow } from '@/lib/ops-data'
 import { liveSnapshot, localDay } from '@/lib/ops-analytics'
 
 // GET /api/ops/live?city=&hub=
 // Photo temps réel : par hub (statuts, retards, à risque), par créneau, points carte, charge livreurs.
 export async function GET(req: NextRequest) {
-  if (!directMode()) {
-    const session = await getSession(req)
-    if (!session) return NextResponse.json({ error: 'Non authentifié' }, { status: 401 })
-  }
+  const auth = await opsAuth(req)
+  if ('error' in auth) return auth.error
   try {
     const sp = new URL(req.url).searchParams
     const now = await opsNow()

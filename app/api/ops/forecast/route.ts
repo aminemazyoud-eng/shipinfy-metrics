@@ -1,15 +1,13 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { getSession } from '@/lib/auth'
-import { directMode, loadOrders, loadHubs, loadDrivers, opsNow } from '@/lib/ops-data'
+import { opsAuth } from '@/lib/ops-auth'
+import { loadOrders, loadHubs, loadDrivers, opsNow } from '@/lib/ops-data'
 import { forecastDay, resolveDay } from '@/lib/ops-analytics'
 
 // GET /api/ops/forecast?day=today|tomorrow|YYYY-MM-DD|+N &city=CASABLANCA &perDriver=3
 // Prévision du nombre de commandes par hub × créneau + charge vs capacité livreurs.
 export async function GET(req: NextRequest) {
-  if (!directMode()) {
-    const session = await getSession(req)
-    if (!session) return NextResponse.json({ error: 'Non authentifié' }, { status: 401 })
-  }
+  const auth = await opsAuth(req)
+  if ('error' in auth) return auth.error
   try {
     const sp = new URL(req.url).searchParams
     const now = await opsNow()

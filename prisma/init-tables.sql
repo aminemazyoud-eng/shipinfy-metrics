@@ -834,3 +834,48 @@ DO $$ BEGIN
   IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname='OpsOrder_driverId_fkey') THEN ALTER TABLE "OpsOrder" ADD CONSTRAINT "OpsOrder_driverId_fkey" FOREIGN KEY ("driverId") REFERENCES "OpsDriver"("id") ON DELETE SET NULL ON UPDATE CASCADE; END IF;
   IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname='OpsOrderEvent_orderId_fkey') THEN ALTER TABLE "OpsOrderEvent" ADD CONSTRAINT "OpsOrderEvent_orderId_fkey" FOREIGN KEY ("orderId") REFERENCES "OpsOrder"("id") ON DELETE CASCADE ON UPDATE CASCADE; END IF;
 END $$;
+
+-- ═══ MODULES 2-7 — dispatch, pointage/paie, flotte/gasoil, audit ═══════════
+
+CREATE TABLE IF NOT EXISTS "OpsAuditLog" (
+  "id" TEXT NOT NULL PRIMARY KEY, "tenantId" TEXT, "at" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP, "actor" TEXT, "action" TEXT NOT NULL,
+  "entity" TEXT NOT NULL, "entityId" TEXT, "hubCode" TEXT, "payload" TEXT, "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+CREATE INDEX IF NOT EXISTS "OpsAuditLog_at_idx" ON "OpsAuditLog"("at");
+CREATE INDEX IF NOT EXISTS "OpsAuditLog_action_idx" ON "OpsAuditLog"("action");
+CREATE INDEX IF NOT EXISTS "OpsAuditLog_entity_entityId_idx" ON "OpsAuditLog"("entity","entityId");
+
+CREATE TABLE IF NOT EXISTS "OpsAttendance" (
+  "id" TEXT NOT NULL PRIMARY KEY, "driverId" TEXT NOT NULL, "date" TIMESTAMP(3) NOT NULL, "status" TEXT NOT NULL DEFAULT 'present',
+  "checkIn" TIMESTAMP(3), "checkOut" TIMESTAMP(3), "hubCode" TEXT, "notes" TEXT,
+  "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP, "updatedAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+CREATE UNIQUE INDEX IF NOT EXISTS "OpsAttendance_driverId_date_key" ON "OpsAttendance"("driverId","date");
+CREATE INDEX IF NOT EXISTS "OpsAttendance_date_idx" ON "OpsAttendance"("date");
+CREATE INDEX IF NOT EXISTS "OpsAttendance_driverId_idx" ON "OpsAttendance"("driverId");
+
+CREATE TABLE IF NOT EXISTS "OpsPayConfig" (
+  "id" TEXT NOT NULL PRIMARY KEY DEFAULT 'default', "dailyRate" DOUBLE PRECISION NOT NULL DEFAULT 150, "bonusThreshold" INTEGER NOT NULL DEFAULT 10,
+  "bonusPerOrder" DOUBLE PRECISION NOT NULL DEFAULT 5, "onTimeBonus" DOUBLE PRECISION NOT NULL DEFAULT 0, "noShowPenalty" DOUBLE PRECISION NOT NULL DEFAULT 0,
+  "latePenalty" DOUBLE PRECISION NOT NULL DEFAULT 0, "paidLeave" BOOLEAN NOT NULL DEFAULT false, "updatedAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+INSERT INTO "OpsPayConfig" ("id") VALUES ('default') ON CONFLICT ("id") DO NOTHING;
+
+CREATE TABLE IF NOT EXISTS "OpsFuelLog" (
+  "id" TEXT NOT NULL PRIMARY KEY, "vehicleId" TEXT NOT NULL, "date" TIMESTAMP(3) NOT NULL, "liters" DOUBLE PRECISION NOT NULL, "amountMad" DOUBLE PRECISION NOT NULL,
+  "odometerKm" DOUBLE PRECISION, "station" TEXT, "notes" TEXT, "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+CREATE INDEX IF NOT EXISTS "OpsFuelLog_vehicleId_date_idx" ON "OpsFuelLog"("vehicleId","date");
+
+CREATE TABLE IF NOT EXISTS "OpsMaintenance" (
+  "id" TEXT NOT NULL PRIMARY KEY, "vehicleId" TEXT NOT NULL, "date" TIMESTAMP(3) NOT NULL, "type" TEXT NOT NULL, "costMad" DOUBLE PRECISION NOT NULL DEFAULT 0,
+  "odometerKm" DOUBLE PRECISION, "notes" TEXT, "nextDueKm" DOUBLE PRECISION, "nextDueDate" TIMESTAMP(3), "status" TEXT NOT NULL DEFAULT 'done',
+  "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+CREATE INDEX IF NOT EXISTS "OpsMaintenance_vehicleId_date_idx" ON "OpsMaintenance"("vehicleId","date");
+
+ALTER TABLE "OpsAuditLog" ENABLE ROW LEVEL SECURITY;
+ALTER TABLE "OpsAttendance" ENABLE ROW LEVEL SECURITY;
+ALTER TABLE "OpsPayConfig" ENABLE ROW LEVEL SECURITY;
+ALTER TABLE "OpsFuelLog" ENABLE ROW LEVEL SECURITY;
+ALTER TABLE "OpsMaintenance" ENABLE ROW LEVEL SECURITY;

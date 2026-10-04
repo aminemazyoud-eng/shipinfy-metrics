@@ -2,6 +2,7 @@
 import { useState, useEffect, useCallback } from 'react'
 import dynamic from 'next/dynamic'
 import { Activity, RefreshCw, AlertTriangle, Clock, Users, TrendingUp, Layers } from 'lucide-react'
+import OpsNav from './components/OpsNav'
 import type { ForecastResult, LiveResult, Level } from '@/lib/ops-analytics'
 
 const LiveMap = dynamic(() => import('./components/LiveMap'), { ssr: false, loading: () => <div className="h-[520px] rounded-xl bg-gray-100 animate-pulse" /> })
@@ -80,6 +81,8 @@ export default function OperationsPage() {
           </button>
         </div>
       </div>
+
+      <OpsNav />
 
       <div className="flex gap-1 border-b border-gray-200">
         {([['previsions', 'Prévisions par créneau', TrendingUp], ['live', 'Live par hub', Activity], ['carte', 'Carte & heatmap', Layers]] as const).map(([k, l, Icon]) => (

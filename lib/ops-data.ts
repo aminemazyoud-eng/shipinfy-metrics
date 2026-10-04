@@ -7,6 +7,7 @@
  */
 import { prisma } from '@/lib/prisma'
 import { opsSyncConfig } from '@/lib/ops-sync'
+import { canonicalSlot } from '@/lib/ops-slots'
 import type { OrderLite, HubLite, DriverLite } from '@/lib/ops-analytics'
 
 export const directMode = () => process.env.OPS_DIRECT === '1' && process.env.NODE_ENV !== 'production'
@@ -34,7 +35,7 @@ async function directOrders(): Promise<OrderLite[]> {
     const page: { data: BoOrder[]; hasMore: boolean; nextCursor: string | null } =
       await boFetch(`/api/v1/orders?limit=5000${cursor ? `&cursor=${encodeURIComponent(cursor)}` : ''}`)
     for (const o of page.data) out.push({
-      id: o.id, hubCode: o.hubCode, city: o.city ?? null, status: o.status, slotStart: o.slotStart, slotEnd: o.slotEnd, slotLabel: o.slotLabel ?? null,
+      id: o.id, hubCode: o.hubCode, city: o.city ?? null, status: o.status, slotStart: o.slotStart, slotEnd: o.slotEnd, slotLabel: canonicalSlot(o.slotStart),
       createdAt: o.createdAt ?? null, deliveredAt: o.deliveredAt ?? null, noShowAt: o.noShowAt ?? null, lat: o.lat ?? null, lng: o.lng ?? null,
       driverCode: o.courierRef ?? null, amount: o.amount ?? null, district: o.district ?? null,
     })

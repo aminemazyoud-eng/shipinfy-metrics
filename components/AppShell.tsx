@@ -42,6 +42,11 @@ const SECTIONS: NavSection[] = [
     key: 'operations', label: 'Opérations',
     items: [
       { href: '/operations', label: 'Cockpit opérationnel', icon: Activity },
+      { href: '/operations/dispatch',   label: 'Dispatch live',   icon: Truck    },
+      { href: '/operations/suivi',      label: 'Suivi commandes', icon: Activity },
+      { href: '/operations/pointage',   label: 'Pointage & paie', icon: Clock    },
+      { href: '/operations/flotte',     label: 'Flotte & gasoil', icon: Package  },
+      { href: '/operations/historique', label: 'Historique',      icon: BarChart3 },
       { href: '/dispatch', label: 'Dispatch',          icon: Truck          },
       { href: '/picking',  label: 'Picking Express',   icon: Package        },
       { href: '/shifts',   label: 'Shifts & Planning', icon: Calendar       },
@@ -122,7 +127,7 @@ function TabletSidebar({ open, onClose }: { open: boolean; onClose: () => void }
                 </span>
               </div>
               {section.items.map(item => {
-                const isActive = pathname === item.href || (item.href !== '/' && pathname.startsWith(item.href))
+                const isActive = pathname === item.href || (item.href !== '/' && item.href !== '/operations' && pathname.startsWith(item.href))
                 return (
                   <Link
                     key={item.href}

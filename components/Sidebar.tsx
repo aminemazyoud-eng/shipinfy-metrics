@@ -53,6 +53,11 @@ const SECTIONS: NavSection[] = [
     label: 'Opérations',
     items: [
       { href: '/operations', label: 'Cockpit opérationnel', icon: Activity, disabled: false },
+      { href: '/operations/dispatch',   label: 'Dispatch live',     icon: Truck, disabled: false },
+      { href: '/operations/suivi',      label: 'Suivi commandes',   icon: Activity, disabled: false },
+      { href: '/operations/pointage',   label: 'Pointage & paie',   icon: Clock, disabled: false },
+      { href: '/operations/flotte',     label: 'Flotte & gasoil',   icon: Package, disabled: false },
+      { href: '/operations/historique', label: 'Historique',        icon: BarChart3, disabled: false },
       { href: '/dispatch', label: 'Dispatch',          icon: Truck,           disabled: false },
       { href: '/picking',  label: 'Picking Express',   icon: Package,         disabled: false },
       { href: '/shifts',   label: 'Shifts & Planning', icon: Calendar,        disabled: false },
@@ -197,7 +202,7 @@ export default function Sidebar() {
             {/* Items — respect accordion in expanded mode, always show in collapsed */}
             <div className={expanded && !accordion[section.key] ? 'hidden' : ''}>
               {section.items.map(item => {
-                const isActive   = pathname === item.href || (item.href !== '/' && pathname.startsWith(item.href))
+                const isActive   = pathname === item.href || (item.href !== '/' && item.href !== '/operations' && pathname.startsWith(item.href))
                 const isDisabled = item.disabled === true
                 const tooltipKey = item.href
 

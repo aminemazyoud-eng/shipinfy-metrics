@@ -1,13 +1,11 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { getSession } from '@/lib/auth'
-import { directMode, loadHubs } from '@/lib/ops-data'
+import { opsAuth } from '@/lib/ops-auth'
+import { loadHubs } from '@/lib/ops-data'
 
 // GET /api/ops/hubs — hubs actifs (code, nom, ville, coordonnées)
 export async function GET(req: NextRequest) {
-  if (!directMode()) {
-    const session = await getSession(req)
-    if (!session) return NextResponse.json({ error: 'Non authentifié' }, { status: 401 })
-  }
+  const auth = await opsAuth(req)
+  if ('error' in auth) return auth.error
   try {
     return NextResponse.json({ hubs: await loadHubs() })
   } catch (e) {

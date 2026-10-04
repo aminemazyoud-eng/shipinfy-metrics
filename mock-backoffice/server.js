@@ -171,6 +171,7 @@ function view(order, t) {
   else if (t < F) status = 'START_DELIVERY'
   else status = r.outcome
   let updatedAt = Math.max(r.C, ...[A, T, SD, F].filter(x => x <= t))
+  if (ov.courierRef && status === 'READY_PICKUP') { status = 'ASSIGNED'; updatedAt = Math.max(updatedAt, ov.at || t) }
   if (ov.status) { status = ov.status; updatedAt = Math.max(updatedAt, ov.at || t) }
   if (ov.at && ov.at <= t) updatedAt = Math.max(updatedAt, ov.at)
 

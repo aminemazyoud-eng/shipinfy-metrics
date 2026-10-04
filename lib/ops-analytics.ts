@@ -10,6 +10,8 @@
  * Capacité = livreurs du hub × commandes/livreur/créneau. Niveau : ok < 70 % ≤ tendu < 100 % ≤ saturé.
  */
 
+import { canonicalSlot, SLOT_LABELS } from '@/lib/ops-slots'
+
 export interface OrderLite {
   id: string
   hubCode: string
@@ -41,9 +43,7 @@ const t = (iso: string | null | undefined) => (iso ? Date.parse(iso) : NaN)
 export const localDay = (ms: number) => new Date(ms + TZ_MS).toISOString().slice(0, 10)
 const localDayIdx = (ms: number) => Math.floor((ms + TZ_MS) / DAY)
 const weekday = (ms: number) => new Date(ms + TZ_MS).getUTCDay()
-const hh = (ms: number) => String(new Date(ms + TZ_MS).getUTCHours()).padStart(2, '0')
-export const slotLabelOf = (o: { slotStart: string; slotEnd: string; slotLabel: string | null }) =>
-  o.slotLabel || `${hh(t(o.slotStart))}-${hh(t(o.slotEnd))}`
+export const slotLabelOf = (o: { slotStart: string; slotEnd: string; slotLabel: string | null }) => canonicalSlot(o.slotStart)
 
 export function resolveDay(spec: string | null | undefined, nowMs: number): string {
   const base = localDayIdx(nowMs)
@@ -109,7 +109,7 @@ export function forecastDay(
     return src.filter(o => t(o.createdAt) <= t(o.slotStart) - leadMs).length / src.length
   }
 
-  const slotSet = new Set<string>()
+  const slotSet = new Set<string>(SLOT_LABELS) // les 4 créneaux officiels sont toujours affichés
   for (const o of target) slotSet.add(slotLabelOf(o))
   for (const h of hubList) for (const d of useDays) for (const [k, n] of finalBy) if (n && k.startsWith(h.code + '|') && k.endsWith('|' + d)) slotSet.add(k.split('|')[1])
   const slots = [...slotSet].sort((a, b) => Number(a.slice(0, 2)) - Number(b.slice(0, 2)) || a.localeCompare(b))

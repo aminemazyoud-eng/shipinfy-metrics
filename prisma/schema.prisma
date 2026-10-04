@@ -714,3 +714,81 @@ model OpsSyncRun {
 
   @@index([source, startedAt])
 }
+
+// ─── MODULES 2-7 — dispatch, pointage/paie, flotte/gasoil, audit/historique ───
+
+model OpsAuditLog {
+  id        String   @id @default(cuid())
+  tenantId  String?
+  at        DateTime @default(now())
+  actor     String?  // email / nom de l'utilisateur
+  action    String   // dispatch.assign | dispatch.auto | driver.hub_switch | attendance.set | pay.config | fleet.fuel | fleet.maintenance ...
+  entity    String   // order | driver | vehicle | attendance | config
+  entityId  String?
+  hubCode   String?
+  payload   String?  // JSON
+  createdAt DateTime @default(now())
+
+  @@index([at])
+  @@index([action])
+  @@index([entity, entityId])
+}
+
+model OpsAttendance {
+  id        String   @id @default(cuid())
+  driverId  String
+  date      DateTime // minuit UTC du jour local (pointage à la JOURNÉE, pas à la commande)
+  status    String   @default("present") // present | late | absent | leave
+  checkIn   DateTime?
+  checkOut  DateTime?
+  hubCode   String?  // hub du jour (peut différer du hub d'origine après un switch)
+  notes     String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([driverId, date])
+  @@index([date])
+  @@index([driverId])
+}
+
+model OpsPayConfig {
+  id             String   @id @default("default")
+  dailyRate      Float    @default(150) // MAD / jour pointé (mode Standard = fixe)
+  bonusThreshold Int      @default(10)  // bonus au-delà de N commandes livrées dans la journée
+  bonusPerOrder  Float    @default(5)   // MAD par commande au-delà du seuil
+  onTimeBonus    Float    @default(0)   // MAD par commande livrée dans le créneau
+  noShowPenalty  Float    @default(0)   // MAD retenus par NO_SHOW
+  latePenalty    Float    @default(0)   // MAD retenus par livraison hors créneau
+  paidLeave      Boolean  @default(false)
+  updatedAt      DateTime @updatedAt
+}
+
+model OpsFuelLog {
+  id         String   @id @default(cuid())
+  vehicleId  String
+  date       DateTime
+  liters     Float
+  amountMad  Float
+  odometerKm Float?
+  station    String?
+  notes      String?
+  createdAt  DateTime @default(now())
+
+  @@index([vehicleId, date])
+}
+
+model OpsMaintenance {
+  id          String    @id @default(cuid())
+  vehicleId   String
+  date        DateTime
+  type        String    // vidange | pneus | freins | revision | reparation | assurance | visite_technique | autre
+  costMad     Float     @default(0)
+  odometerKm  Float?
+  notes       String?
+  nextDueKm   Float?
+  nextDueDate DateTime?
+  status      String    @default("done") // done | planned
+  createdAt   DateTime  @default(now())
+
+  @@index([vehicleId, date])
+}

@@ -31,38 +31,42 @@ const SECTIONS: NavSection[] = [
   {
     key: 'performance', label: 'Performance',
     items: [
-      { href: '/livreurs',     label: 'Livreurs',          icon: Users      },
-      { href: '/remuneration', label: 'Rémunération',     icon: DollarSign },
-      { href: '/hubs',         label: 'Hubs',              icon: MapPin     },
-      { href: '/retours',      label: 'Retours & NO_SHOW', icon: XCircle    },
-      { href: '/score-ia',     label: 'Score IA',          icon: Brain      },
+      { href: '/livreurs', label: 'Livreurs & Scoring', icon: Users   },
+      { href: '/hubs',     label: 'Hubs',               icon: MapPin  },
+      { href: '/retours',  label: 'Retours & NO_SHOW',  icon: XCircle },
     ],
   },
   {
     key: 'operations', label: 'Opérations',
     items: [
-      { href: '/operations', label: 'Cockpit opérationnel', icon: Activity },
-      { href: '/operations/dispatch',   label: 'Dispatch live',   icon: Truck    },
-      { href: '/operations/suivi',      label: 'Suivi commandes', icon: Activity },
-      { href: '/operations/pointage',   label: 'Pointage & paie', icon: Clock    },
-      { href: '/operations/flotte',     label: 'Flotte & gasoil', icon: Package  },
-      { href: '/operations/historique', label: 'Historique',      icon: BarChart3 },
-      { href: '/dispatch', label: 'Dispatch',          icon: Truck          },
-      { href: '/picking',  label: 'Picking Express',   icon: Package        },
-      { href: '/shifts',   label: 'Shifts & Planning', icon: Calendar       },
-      { href: '/alertes',       label: 'Alertes & Tickets', icon: Bell           },
-      { href: '/rapports',      label: 'Rapports',           icon: Mail           },
-      { href: '/notifications', label: 'Notifications',      icon: Send           },
-      { href: '/support',       label: 'Support Client',     icon: HeadphonesIcon },
+      { href: '/operations',            label: 'Cockpit opérationnel', icon: Activity  },
+      { href: '/operations/dispatch',   label: 'Dispatch live',        icon: Truck     },
+      { href: '/operations/suivi',      label: 'Suivi commandes',      icon: Activity  },
+      { href: '/operations/pointage',   label: 'Pointage & paie',      icon: Clock     },
+      { href: '/operations/flotte',     label: 'Flotte & gasoil',      icon: Package   },
+      { href: '/operations/historique', label: 'Historique',           icon: BarChart3 },
+      { href: '/shifts',                label: 'Shifts & Planning',    icon: Calendar  },
+      { href: '/incidents',             label: 'Incidents & Support',  icon: Bell      },
     ],
   },
   {
     key: 'rh', label: 'RH & Formation',
     items: [
-      { href: '/rh/onboarding', label: 'Onboarding',   icon: UserCheck },
-      { href: '/pointage',      label: 'Pointage',     icon: Clock },
-      { href: '/rh/paie',       label: 'Paie & Bonus', icon: DollarSign },
+      { href: '/rh/onboarding', label: 'Onboarding',   icon: UserCheck     },
+      { href: '/pointage',      label: 'Pointage',     icon: Clock         },
+      { href: '/rh/paie',       label: 'Paie & Bonus', icon: DollarSign    },
       { href: '/academy',       label: 'Academy',      icon: GraduationCap },
+    ],
+  },
+  {
+    key: 'settings', label: 'Paramétrage',
+    items: [
+      { href: '/parametres',               label: 'Paramètres généraux',       icon: Settings },
+      { href: '/parametres/calculs',       label: 'Calculs & équations',       icon: Settings },
+      { href: '/parametres/scoring',       label: 'Scoring livreur',           icon: Brain    },
+      { href: '/parametres/paie',          label: 'Paie & bonus',              icon: DollarSign },
+      { href: '/parametres/notifications', label: 'Notifications & incidents', icon: Send     },
+      { href: '/rapports',                 label: 'Rapports planifiés',        icon: Mail     },
     ],
   },
   {
@@ -128,7 +132,7 @@ function TabletSidebar({ open, onClose }: { open: boolean; onClose: () => void }
                 </span>
               </div>
               {section.items.map(item => {
-                const isActive = pathname === item.href || (item.href !== '/' && item.href !== '/operations' && pathname.startsWith(item.href))
+                const isActive = pathname === item.href || (item.href !== '/' && item.href !== '/operations' && item.href !== '/parametres' && pathname.startsWith(item.href))
                 return (
                   <Link
                     key={item.href}

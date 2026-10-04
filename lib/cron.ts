@@ -262,6 +262,18 @@ export function startCronScheduler() {
     console.log('[cron] ops-sync activé (*/5 min)')
   }
 
+  // Incidents terrain : créneaux à risque, retards, NO_SHOW, saturation, documents (opt-in : OPS_ALERTS_ENABLED=true)
+  if (process.env.OPS_ALERTS_ENABLED === 'true') {
+    cron.schedule('*/5 * * * *', async () => {
+      try {
+        const { runIncidentChecks } = await import('@/lib/ops-notify')
+        const r = await runIncidentChecks()
+        if (r.sent || r.failed) console.log('[cron] incidents: ' + r.sent + ' envoyés, ' + r.failed + ' échecs')
+      } catch (e) { console.error('[cron] incidents:', e) }
+    }, { timezone: 'Africa/Casablanca' })
+    console.log('[cron] alertes incidents activées (*/5 min)')
+  }
+
   // Sprint 7 — Prévisions prédictives Score IA chaque matin 07:00
   cron.schedule('0 7 * * *', async () => {
     try {

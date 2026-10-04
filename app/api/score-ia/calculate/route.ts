@@ -1,10 +1,13 @@
 import { NextResponse } from 'next/server'
+import { CFG } from '@/lib/ops-config'
+import { applyOpsSettings } from '@/lib/ops-settings'
 import { prisma } from '@/lib/prisma'
 import { getSession } from '@/lib/auth'
 
 export const runtime = 'nodejs'
 
 export async function POST(req: Request) {
+  await applyOpsSettings() // seuils de scoring paramétrables (Paramétrage → Calculs & équations)
   try {
     // Fetch tenant coefficients (fallback to defaults if not available)
     const session = await getSession(req)
@@ -110,7 +113,7 @@ export async function POST(req: Request) {
 
       // Determine recommendation
       let recommendation: string | null = null
-      if (score < 60)         recommendation = 'Formation Academy recommandée — score critique'
+      if (score < CFG.scoreCritical) recommendation = 'Formation Academy recommandée — score critique'
       else if (noShowRate > 20) recommendation = 'Taux NO_SHOW élevé — suivi requis'
       else if (deliveryRate < 70) recommendation = 'Taux de livraison insuffisant — coaching recommandé'
 
@@ -119,7 +122,7 @@ export async function POST(req: Request) {
       })
 
       // Auto-create alert if score < 60 or NO_SHOW > 20%
-      if (score < 60) {
+      if (score < CFG.scoreCritical) {
         const existing = await prisma.alert.findFirst({
           where: { title: { contains: name }, status: { not: 'resolved' }, type: 'auto' },
         })
@@ -129,7 +132,7 @@ export async function POST(req: Request) {
               type: 'auto', severity: 'critical',
               title: `Score IA critique — ${name}`,
               description: `Score de fiabilité ${score.toFixed(1)}/100. Livraison: ${deliveryRate.toFixed(1)}%, NO_SHOW: ${noShowRate.toFixed(1)}%`,
-              metricValue: score, threshold: 60,
+              metricValue: score, threshold: CFG.scoreCritical,
             },
           })
         }

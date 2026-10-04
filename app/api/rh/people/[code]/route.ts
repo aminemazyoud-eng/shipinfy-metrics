@@ -21,7 +21,7 @@ export async function PATCH(req: NextRequest, ctx: { params: Promise<{ code: str
 
     const data = {
       firstName: s('firstName') ?? undefined, lastName: s('lastName') ?? undefined, phone: s('phone'), cin: s('cin'), address: s('address'), licenseNo: s('licenseNo'), notes: s('notes'),
-      birthDate: dt('birthDate'), hireDate: dt('hireDate'), contractType: s('contractType') ?? undefined,
+      birthDate: dt('birthDate'), hireDate: dt('hireDate'), licenseExpiry: dt('licenseExpiry'), medicalVisitExpiry: dt('medicalVisitExpiry'), licenseCategory: s('licenseCategory'), contractType: s('contractType') ?? undefined,
       onboardingStatus: s('onboardingStatus') ?? undefined, trainingDone: b.trainingDone === undefined ? undefined : !!b.trainingDone, quizScore: num('quizScore'),
       status: s('status') ?? undefined, dailyRate: num('dailyRate') ?? undefined, vehicleId: b.vehicleId === undefined ? undefined : b.vehicleId ? String(b.vehicleId) : null,
       ...(hub ? { hubId: hub.id } : {}),

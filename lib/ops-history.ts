@@ -4,7 +4,7 @@
  * et courbe d'arrivée des commandes (part du volume final connue à H-24, H-12, H-6, H-3, H-0) —
  * c'est cette courbe qui permet d'anticiper le volume du lendemain.
  */
-import { canonicalSlot, SLOT_LABELS } from '@/lib/ops-slots'
+import { canonicalSlot, slotLabels } from '@/lib/ops-slots'
 
 export interface HistRow { slotStart: Date; slotEnd: Date; status: string; hubCode: string | null; driverCode: string | null; createdAt: Date | null; deliveredAt: Date | null; noShowAt: Date | null; amount: number | null }
 
@@ -39,7 +39,7 @@ export function buildHistory(rows: HistRow[]) {
   // jours de la semaine : volume moyen par créneau (moyenne sur les jours observés de ce jour de semaine)
   const daysByWd = new Map<number, Set<string>>()
   for (const d of byDay.keys()) { const w = new Date(d + 'T00:00:00Z').getUTCDay(); (daysByWd.get(w) ?? daysByWd.set(w, new Set()).get(w)!).add(d) }
-  const weekdayMatrix = [1, 2, 3, 4, 5, 6, 0].map(w => ({ weekday: w, days: daysByWd.get(w)?.size ?? 0, slots: Object.fromEntries(SLOT_LABELS.map(s => { const m = matrix.get(`${w}|${s}`); const n = daysByWd.get(w)?.size ?? 0; return [s, n ? Math.round(((m?.sum ?? 0) / n) * 10) / 10 : 0] })) }))
+  const weekdayMatrix = [1, 2, 3, 4, 5, 6, 0].map(w => ({ weekday: w, days: daysByWd.get(w)?.size ?? 0, slots: Object.fromEntries(slotLabels().map(s => { const m = matrix.get(`${w}|${s}`); const n = daysByWd.get(w)?.size ?? 0; return [s, n ? Math.round(((m?.sum ?? 0) / n) * 10) / 10 : 0] })) }))
 
   // courbe d'arrivée (global) : part des commandes connues N heures avant le début du créneau
   const withLead = rows.filter(r => r.createdAt)
@@ -50,7 +50,7 @@ export function buildHistory(rows: HistRow[]) {
     totals: { ...fin('all', all), days: dayRows.length, avgPerDay: dayRows.length ? Math.round((all.total / dayRows.length) * 10) / 10 : 0 },
     byDay: dayRows,
     byHub: [...byHub.entries()].sort((a, b) => b[1].total - a[1].total).map(([k, a]) => fin(k, a)),
-    bySlot: SLOT_LABELS.map(s => fin(s, bySlot.get(s) ?? acc())),
+    bySlot: slotLabels().map(s => fin(s, bySlot.get(s) ?? acc())),
     byDriver: [...byDriver.entries()].sort((a, b) => b[1].delivered - a[1].delivered).map(([k, a]) => fin(k, a)),
     weekdayMatrix, arrivalCurve,
   }

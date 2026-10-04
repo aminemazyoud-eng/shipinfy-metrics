@@ -17,12 +17,12 @@ export const MODULE_ROUTES: Record<string, string[]> = {
   dispatch:     ['/dispatch'],
   picking:      ['/picking'],
   shifts:       ['/shifts'],
-  alertes:      ['/alertes'],
+  alertes:      ['/alertes', '/incidents'],
   rapports:     ['/rapports'],
   notifications:['/notifications'],
   support:      ['/support'],
   rh:           ['/pointage', '/onboarding', '/academy', '/rh', '/rh/onboarding', '/rh/paie'],
-  parametres:   ['/parametres'],
+  parametres:   ['/parametres', '/parametres/calculs', '/parametres/scoring', '/parametres/paie', '/parametres/notifications'],
   admin:        ['/admin'],
 }
 

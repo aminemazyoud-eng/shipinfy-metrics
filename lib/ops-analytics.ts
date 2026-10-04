@@ -10,7 +10,8 @@
  * Capacité = livreurs du hub × commandes/livreur/créneau. Niveau : ok < 70 % ≤ tendu < 100 % ≤ saturé.
  */
 
-import { canonicalSlot, SLOT_LABELS } from '@/lib/ops-slots'
+import { canonicalSlot, slotLabels } from '@/lib/ops-slots'
+import { CFG } from '@/lib/ops-config'
 
 export interface OrderLite {
   id: string
@@ -55,7 +56,7 @@ export function resolveDay(spec: string | null | undefined, nowMs: number): stri
 const mean = (a: number[]) => (a.length ? a.reduce((s, x) => s + x, 0) / a.length : 0)
 
 export type Level = 'ok' | 'tendu' | 'sature' | 'vide'
-const levelOf = (load: number, expected: number): Level => (expected === 0 ? 'vide' : load >= 1 ? 'sature' : load >= 0.7 ? 'tendu' : 'ok')
+const levelOf = (load: number, expected: number): Level => (expected === 0 ? 'vide' : load >= CFG.saturatedThreshold ? 'sature' : load >= CFG.tenseThreshold ? 'tendu' : 'ok')
 
 export interface ForecastCell { known: number; expected: number; capacity: number; load: number; level: Level; neededDrivers: number }
 export interface ForecastHub {
@@ -74,19 +75,19 @@ export function forecastDay(
   orders: OrderLite[], hubs: HubLite[], drivers: DriverLite[], day: string, nowMs: number,
   opts: { perDriverPerSlot?: number; city?: string | null } = {},
 ): ForecastResult {
-  const perDriver = opts.perDriverPerSlot ?? 3
+  const perDriver = opts.perDriverPerSlot ?? CFG.perDriverPerSlot
   const hubList = hubs.filter(h => !opts.city || h.city === opts.city.toUpperCase())
   const hubCodes = new Set(hubList.map(h => h.code))
   const dayStart = Date.parse(day + 'T00:00:00Z') - TZ_MS
   const dayEnd = dayStart + DAY
 
   const target = orders.filter(o => hubCodes.has(o.hubCode) && t(o.slotStart) >= dayStart && t(o.slotStart) < dayEnd)
-  const hist = orders.filter(o => hubCodes.has(o.hubCode) && t(o.slotStart) < dayStart && t(o.slotStart) >= dayStart - 42 * DAY)
+  const hist = orders.filter(o => hubCodes.has(o.hubCode) && t(o.slotStart) < dayStart && t(o.slotStart) >= dayStart - CFG.historyDays * DAY)
 
   // jours d'historique « complets » (≥ 20 commandes ce jour-là, tous hubs) — exclut les bords d'export
   const perDay = new Map<string, number>()
   for (const o of hist) { const d = localDay(t(o.slotStart)); perDay.set(d, (perDay.get(d) || 0) + 1) }
-  const histDays = [...perDay.entries()].filter(([, n]) => n >= 20).map(([d]) => d).sort()
+  const histDays = [...perDay.entries()].filter(([, n]) => n >= CFG.minDayOrders).map(([d]) => d).sort()
   const histSet = new Set(histDays)
   const sameWd = histDays.filter(d => new Date(d + 'T00:00:00Z').getUTCDay() === new Date(day + 'T00:00:00Z').getUTCDay())
   const useDays = sameWd.length >= 3 ? sameWd : histDays
@@ -109,7 +110,7 @@ export function forecastDay(
     return src.filter(o => t(o.createdAt) <= t(o.slotStart) - leadMs).length / src.length
   }
 
-  const slotSet = new Set<string>(SLOT_LABELS) // les 4 créneaux officiels sont toujours affichés
+  const slotSet = new Set<string>(slotLabels()) // les 4 créneaux officiels sont toujours affichés
   for (const o of target) slotSet.add(slotLabelOf(o))
   for (const h of hubList) for (const d of useDays) for (const [k, n] of finalBy) if (n && k.startsWith(h.code + '|') && k.endsWith('|' + d)) slotSet.add(k.split('|')[1])
   const slots = [...slotSet].sort((a, b) => Number(a.slice(0, 2)) - Number(b.slice(0, 2)) || a.localeCompare(b))
@@ -178,7 +179,7 @@ export interface LiveResult {
 
 export function isLate(o: OrderLite, nowMs: number) { return !DONE.has(o.status) && nowMs > t(o.slotEnd) }
 export function isAtRisk(o: OrderLite, nowMs: number) {
-  return !DONE.has(o.status) && o.status !== 'START_DELIVERY' && nowMs <= t(o.slotEnd) && t(o.slotEnd) - nowMs < 45 * MIN
+  return !DONE.has(o.status) && o.status !== 'START_DELIVERY' && nowMs <= t(o.slotEnd) && t(o.slotEnd) - nowMs < CFG.atRiskMinutes * MIN
 }
 
 export function liveSnapshot(orders: OrderLite[], hubs: HubLite[], drivers: DriverLite[], nowMs: number, opts: { city?: string | null; hub?: string | null } = {}): LiveResult {

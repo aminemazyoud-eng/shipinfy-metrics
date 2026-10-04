@@ -5,7 +5,7 @@ import OpsNav from '../components/OpsNav'
 
 interface Hub { code: string; name: string; city: string }
 interface Order { id: string; ref: string; status: string; slotStart: string; slotEnd: string; slotLabel: string | null; district: string | null; amount: number | null; customer: string | null; driverCode: string | null; late: boolean; atRisk: boolean }
-interface Driver { code: string; name: string; hubCode: string | null; vehicle: string | null; plate: string | null; helper?: string | null; attendance: string | null; active: number; done: number; late: number }
+interface Driver { code: string; driving?: { ok: boolean; reasons: string[] }; name: string; hubCode: string | null; vehicle: string | null; plate: string | null; helper?: string | null; attendance: string | null; active: number; done: number; late: number }
 interface Data { day: string; hubCode: string; hubs: Hub[]; orders: Order[]; drivers: Driver[] }
 
 const STATUS_LABEL: Record<string, string> = { READY_PICKUP: 'À dispatcher', ASSIGNED: 'Assignée', IN_TRANSPORT: 'En transport', START_DELIVERY: 'En livraison', DELIVERED: 'Livrée', NO_SHOW: 'NO_SHOW' }
@@ -130,7 +130,7 @@ export default function DispatchPage() {
               return (
                 <div key={d.code} className={`bg-white border rounded-xl p-3 ${d.late ? 'border-red-300' : 'border-gray-200'} ${blocked ? 'opacity-60' : ''}`}>
                   <div className="flex items-start justify-between gap-2">
-                    <div><div className="font-medium text-gray-900 text-sm">{d.name} <span className="text-xs text-gray-400">{d.code}</span></div><div className="text-xs text-gray-400">{d.vehicle ?? '—'} {d.plate ?? ''}{d.helper ? ` · helper ${d.helper}` : ''}</div></div>
+                    <div><div className="font-medium text-gray-900 text-sm">{d.name} <span className="text-xs text-gray-400">{d.code}</span>{d.driving && !d.driving.ok && <span className="ml-1.5 text-[10px] px-1.5 py-0.5 rounded bg-red-100 text-red-700" title={d.driving.reasons.join(', ')}>⚠ non apte : {d.driving.reasons[0]}</span>}</div><div className="text-xs text-gray-400">{d.vehicle ?? '—'} {d.plate ?? ''}{d.helper ? ` · helper ${d.helper}` : ''}</div></div>
                     {a ? <span className={`text-[10px] px-2 py-0.5 rounded-full flex items-center gap-1 ${a.c}`}>{d.attendance === 'absent' ? <UserX className="w-3 h-3" /> : <UserCheck className="w-3 h-3" />}{a.l}</span> : <span className="text-[10px] px-2 py-0.5 rounded-full bg-gray-100 text-gray-400">non pointé</span>}
                   </div>
                   <div className="flex gap-3 mt-2 text-xs"><span><b>{d.active}</b> en cours</span><span className="text-green-700"><b>{d.done}</b> livrées</span><span className={d.late ? 'text-red-600 font-semibold' : 'text-gray-400'}><b>{d.late}</b> retard</span></div>

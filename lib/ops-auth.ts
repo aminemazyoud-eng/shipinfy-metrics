@@ -5,10 +5,12 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { getSession, roleAtLeast, type Role, type SessionPayload } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
+import { applyOpsSettings } from '@/lib/ops-settings'
 
 const devBypass = () => process.env.NODE_ENV !== 'production' && (process.env.OPS_DEV_NOAUTH === '1' || process.env.OPS_DIRECT === '1')
 
 export async function opsAuth(req: NextRequest, min?: Role): Promise<{ session: SessionPayload } | { error: NextResponse }> {
+  await applyOpsSettings()
   if (devBypass()) return { session: { userId: 'dev', tenantId: null, role: 'SUPER_ADMIN', name: 'Dev local', email: 'dev@local' } }
   const session = await getSession(req)
   if (!session) return { error: NextResponse.json({ error: 'Non authentifié' }, { status: 401 }) }

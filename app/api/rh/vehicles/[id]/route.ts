@@ -17,7 +17,7 @@ export async function PATCH(req: NextRequest, ctx: { params: Promise<{ id: strin
     const v = await prisma.opsVehicle.update({
       where: { id },
       data: { plate: s('plate') ?? undefined, type: s('type') ?? undefined, fuelType: s('fuelType') ?? undefined, brand: s('brand'), model: s('model'), year: n('year'), registrationNo: s('registrationNo'),
-        status: s('status') ?? undefined, capacityKg: n('capacityKg'), consumptionL100: n('consumptionL100'), insuranceExpiry: dt('insuranceExpiry'), technicalVisitExpiry: dt('technicalVisitExpiry'), ...(hub ? { hubId: hub.id } : {}) },
+        status: s('status') ?? undefined, capacityKg: n('capacityKg'), consumptionL100: n('consumptionL100'), insuranceExpiry: dt('insuranceExpiry'), technicalVisitExpiry: dt('technicalVisitExpiry'), vignetteExpiry: dt('vignetteExpiry'), ...(hub ? { hubId: hub.id } : {}) },
     })
     await audit(auth.session, 'rh.vehicle_update', 'vehicle', v.plate, Object.keys(b))
     return NextResponse.json({ ok: true })

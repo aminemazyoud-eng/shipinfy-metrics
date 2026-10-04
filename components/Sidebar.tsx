@@ -41,30 +41,23 @@ const SECTIONS: NavSection[] = [
     key: 'performance',
     label: 'Performance',
     items: [
-      { href: '/livreurs',     label: 'Livreurs',         icon: Users,      disabled: false },
-      { href: '/remuneration', label: 'Rémunération',    icon: DollarSign, disabled: false },
-      { href: '/hubs',         label: 'Hubs',             icon: MapPin,     disabled: false },
-      { href: '/retours',      label: 'Retours & NO_SHOW',icon: XCircle,    disabled: false },
-      { href: '/score-ia',     label: 'Score IA',         icon: Brain,      disabled: false },
+      { href: '/livreurs', label: 'Livreurs & Scoring', icon: Users,   disabled: false },
+      { href: '/hubs',     label: 'Hubs',               icon: MapPin,  disabled: false },
+      { href: '/retours',  label: 'Retours & NO_SHOW',  icon: XCircle, disabled: false },
     ],
   },
   {
     key: 'operations',
     label: 'Opérations',
     items: [
-      { href: '/operations', label: 'Cockpit opérationnel', icon: Activity, disabled: false },
-      { href: '/operations/dispatch',   label: 'Dispatch live',     icon: Truck, disabled: false },
-      { href: '/operations/suivi',      label: 'Suivi commandes',   icon: Activity, disabled: false },
-      { href: '/operations/pointage',   label: 'Pointage & paie',   icon: Clock, disabled: false },
-      { href: '/operations/flotte',     label: 'Flotte & gasoil',   icon: Package, disabled: false },
-      { href: '/operations/historique', label: 'Historique',        icon: BarChart3, disabled: false },
-      { href: '/dispatch', label: 'Dispatch',          icon: Truck,           disabled: false },
-      { href: '/picking',  label: 'Picking Express',   icon: Package,         disabled: false },
-      { href: '/shifts',   label: 'Shifts & Planning', icon: Calendar,        disabled: false },
-      { href: '/alertes',       label: 'Alertes & Tickets', icon: Bell,            disabled: false },
-      { href: '/rapports',      label: 'Rapports',           icon: Mail,            disabled: false },
-      { href: '/notifications', label: 'Notifications',      icon: Send,            disabled: false },
-      { href: '/support',       label: 'Support Client',     icon: HeadphonesIcon,  disabled: false },
+      { href: '/operations',            label: 'Cockpit opérationnel', icon: Activity,  disabled: false },
+      { href: '/operations/dispatch',   label: 'Dispatch live',        icon: Truck,     disabled: false },
+      { href: '/operations/suivi',      label: 'Suivi commandes',      icon: Activity,  disabled: false },
+      { href: '/operations/pointage',   label: 'Pointage & paie',      icon: Clock,     disabled: false },
+      { href: '/operations/flotte',     label: 'Flotte & gasoil',      icon: Package,   disabled: false },
+      { href: '/operations/historique', label: 'Historique',           icon: BarChart3, disabled: false },
+      { href: '/shifts',                label: 'Shifts & Planning',    icon: Calendar,  disabled: false },
+      { href: '/incidents',             label: 'Incidents & Support',  icon: Bell,      disabled: false },
     ],
   },
   {
@@ -75,6 +68,18 @@ const SECTIONS: NavSection[] = [
       { href: '/pointage',      label: 'Pointage',      icon: Clock,        disabled: false },
       { href: '/rh/paie',       label: 'Paie & Bonus',  icon: DollarSign,   disabled: false },
       { href: '/academy',       label: 'Academy',       icon: GraduationCap,disabled: false },
+    ],
+  },
+  {
+    key: 'settings',
+    label: 'Paramétrage',
+    items: [
+      { href: '/parametres',               label: 'Paramètres généraux',       icon: Settings, disabled: false },
+      { href: '/parametres/calculs',       label: 'Calculs & équations',       icon: Settings, disabled: false },
+      { href: '/parametres/scoring',       label: 'Scoring livreur',           icon: Brain,    disabled: false },
+      { href: '/parametres/paie',          label: 'Paie & bonus',              icon: DollarSign, disabled: false },
+      { href: '/parametres/notifications', label: 'Notifications & incidents', icon: Send,     disabled: false },
+      { href: '/rapports',                 label: 'Rapports planifiés',        icon: Mail,     disabled: false },
     ],
   },
   {
@@ -203,7 +208,7 @@ export default function Sidebar() {
             {/* Items — respect accordion in expanded mode, always show in collapsed */}
             <div className={expanded && !accordion[section.key] ? 'hidden' : ''}>
               {section.items.map(item => {
-                const isActive   = pathname === item.href || (item.href !== '/' && item.href !== '/operations' && pathname.startsWith(item.href))
+                const isActive   = pathname === item.href || (item.href !== '/' && item.href !== '/operations' && item.href !== '/parametres' && pathname.startsWith(item.href))
                 const isDisabled = item.disabled === true
                 const tooltipKey = item.href
 
@@ -250,28 +255,6 @@ export default function Sidebar() {
           </div>
         ))}
 
-        {/* ── Separator + Paramètres ────────────────────────────────────── */}
-        {allowedRoutes.includes('/parametres') && <>
-        <div className={expanded ? 'mx-3 my-1 h-px bg-gray-100' : 'mx-3 my-0.5 h-px bg-gray-100'} />
-
-        <div className="relative">
-          {!expanded && hoveredItem === '__settings' && <Tooltip label="Paramètres" />}
-          <Link
-            href="/parametres"
-            onMouseEnter={() => { if (!expanded) setHovered('__settings') }}
-            onMouseLeave={() => { if (!expanded) setHovered(null) }}
-            className={[
-              'flex items-center transition-colors duration-100',
-              expanded
-                ? 'gap-2.5 mx-2 px-2.5 py-2 rounded-lg text-sm font-medium text-gray-500 hover:bg-gray-100'
-                : 'justify-center w-9 h-9 rounded-lg mx-auto text-gray-400 hover:bg-gray-100',
-            ].join(' ')}
-          >
-            <Settings size={15} className="flex-shrink-0" />
-            {expanded && <span>Paramètres</span>}
-          </Link>
-        </div>
-        </>}
       </nav>
 
       {/* ── Footer (expanded only) ────────────────────────────────────────── */}

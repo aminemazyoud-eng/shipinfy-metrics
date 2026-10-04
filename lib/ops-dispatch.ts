@@ -4,6 +4,8 @@
  *   score = charge actuelle + 0,25 × distance (km) au barycentre de ses commandes déjà prises.
  * ⇒ charge équilibrée ET commandes voisines regroupées sur le même livreur.
  */
+import { CFG } from '@/lib/ops-config'
+
 export interface AutoOrder { id: string; slotStart: number; lat: number | null; lng: number | null }
 export interface AutoDriver { id: string; code: string; load: number; points: [number, number][] }
 
@@ -21,7 +23,7 @@ export function autoAssign(orders: AutoOrder[], drivers: AutoDriver[], baseLoad:
       let score = d.load
       if (o.lat != null && o.lng != null && d.pts.length) {
         const c: [number, number] = [d.pts.reduce((s, p) => s + p[0], 0) / d.pts.length, d.pts.reduce((s, p) => s + p[1], 0) / d.pts.length]
-        score += 0.25 * km([o.lat, o.lng], c)
+        score += CFG.autoDistWeight * km([o.lat, o.lng], c)
       }
       if (score < bestScore) { bestScore = score; best = d }
     }

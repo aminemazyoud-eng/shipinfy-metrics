@@ -4,6 +4,7 @@ import { prisma } from '@/lib/prisma'
 import { opsAuth, fail } from '@/lib/ops-auth'
 import { dayOf, dayBounds } from '@/lib/ops-time'
 import { canonicalSlot } from '@/lib/ops-slots'
+import { CFG } from '@/lib/ops-config'
 
 const DONE = ['DELIVERED', 'NO_SHOW']
 
@@ -52,7 +53,7 @@ export async function GET(req: NextRequest) {
           id: o.id, ref: o.reference || o.externalId, hubCode: o.hubCode, city: o.city, district: o.district, status: o.status, slotStart: o.slotStart, slotEnd: o.slotEnd, slotLabel: canonicalSlot(o.slotStart),
           amount: o.amount, customer: o.customerName, address: o.address, attempts: o.attemptCount, driver: o.driver ? { code: o.driver.code, name: `${o.driver.firstName} ${o.driver.lastName}` } : null,
           late: !done && o.slotEnd.getTime() < now, lateMin, deliveredLate: done && lateMin > 0,
-          atRisk: !done && o.status !== 'START_DELIVERY' && o.slotEnd.getTime() >= now && o.slotEnd.getTime() - now < 45 * 60_000,
+          atRisk: !done && o.status !== 'START_DELIVERY' && o.slotEnd.getTime() >= now && o.slotEnd.getTime() - now < CFG.atRiskMinutes * 60_000,
         }
       }),
     })

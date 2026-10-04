@@ -908,3 +908,51 @@ ALTER TABLE "OpsVehicle" ADD COLUMN IF NOT EXISTS "insuranceExpiry" TIMESTAMP(3)
 ALTER TABLE "OpsVehicle" ADD COLUMN IF NOT EXISTS "technicalVisitExpiry" TIMESTAMP(3);
 
 ALTER TABLE "OpsPayConfig" ADD COLUMN IF NOT EXISTS "helperDailyRate" DOUBLE PRECISION NOT NULL DEFAULT 100;
+
+-- ═══ ONBOARDING : documents de conduite · FLOTTE : missions · NOTIFICATIONS : règles par audience ═══
+
+ALTER TABLE "OpsDriver" ADD COLUMN IF NOT EXISTS "licenseExpiry" TIMESTAMP(3);
+ALTER TABLE "OpsDriver" ADD COLUMN IF NOT EXISTS "licenseCategory" TEXT;
+ALTER TABLE "OpsDriver" ADD COLUMN IF NOT EXISTS "medicalVisitExpiry" TIMESTAMP(3);
+ALTER TABLE "OpsVehicle" ADD COLUMN IF NOT EXISTS "vignetteExpiry" TIMESTAMP(3);
+
+CREATE TABLE IF NOT EXISTS "OpsMission" (
+  "id" TEXT NOT NULL PRIMARY KEY, "vehicleId" TEXT NOT NULL, "driverCode" TEXT, "helperCode" TEXT, "hubCode" TEXT,
+  "day" TIMESTAMP(3) NOT NULL, "startAt" TIMESTAMP(3) NOT NULL, "endAt" TIMESTAMP(3), "startKm" DOUBLE PRECISION, "endKm" DOUBLE PRECISION,
+  "status" TEXT NOT NULL DEFAULT 'en_cours', "notes" TEXT, "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP, "updatedAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+CREATE INDEX IF NOT EXISTS "OpsMission_vehicleId_day_idx" ON "OpsMission"("vehicleId","day");
+CREATE INDEX IF NOT EXISTS "OpsMission_day_idx" ON "OpsMission"("day");
+CREATE INDEX IF NOT EXISTS "OpsMission_status_idx" ON "OpsMission"("status");
+
+ALTER TABLE "OpsFuelLog" ADD COLUMN IF NOT EXISTS "missionId" TEXT;
+ALTER TABLE "OpsMaintenance" ADD COLUMN IF NOT EXISTS "missionId" TEXT;
+
+CREATE TABLE IF NOT EXISTS "OpsNotifChannel" (
+  "key" TEXT NOT NULL PRIMARY KEY, "kind" TEXT NOT NULL, "label" TEXT NOT NULL, "webhookUrl" TEXT, "active" BOOLEAN NOT NULL DEFAULT true,
+  "updatedAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE TABLE IF NOT EXISTS "OpsNotifRule" (
+  "id" TEXT NOT NULL PRIMARY KEY, "event" TEXT NOT NULL, "audience" TEXT NOT NULL, "channel" TEXT NOT NULL, "enabled" BOOLEAN NOT NULL DEFAULT true,
+  "template" TEXT NOT NULL, "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP, "updatedAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+CREATE UNIQUE INDEX IF NOT EXISTS "OpsNotifRule_event_audience_channel_key" ON "OpsNotifRule"("event","audience","channel");
+
+CREATE TABLE IF NOT EXISTS "OpsNotifLog" (
+  "id" TEXT NOT NULL PRIMARY KEY, "ruleId" TEXT, "event" TEXT NOT NULL, "audience" TEXT NOT NULL, "channel" TEXT NOT NULL, "dedupeKey" TEXT NOT NULL,
+  "recipient" TEXT, "message" TEXT NOT NULL, "ok" BOOLEAN NOT NULL DEFAULT false, "error" TEXT, "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+CREATE UNIQUE INDEX IF NOT EXISTS "OpsNotifLog_dedupeKey_key" ON "OpsNotifLog"("dedupeKey");
+CREATE INDEX IF NOT EXISTS "OpsNotifLog_createdAt_idx" ON "OpsNotifLog"("createdAt");
+
+ALTER TABLE "OpsMission" ENABLE ROW LEVEL SECURITY;
+ALTER TABLE "OpsNotifChannel" ENABLE ROW LEVEL SECURITY;
+ALTER TABLE "OpsNotifRule" ENABLE ROW LEVEL SECURITY;
+ALTER TABLE "OpsNotifLog" ENABLE ROW LEVEL SECURITY;
+
+-- ═══ PARAMÉTRAGE CENTRAL des calculs (équations, seuils, créneaux) ═══════════
+CREATE TABLE IF NOT EXISTS "OpsSetting" (
+  "key" TEXT NOT NULL PRIMARY KEY, "value" TEXT NOT NULL, "updatedAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+ALTER TABLE "OpsSetting" ENABLE ROW LEVEL SECURITY;

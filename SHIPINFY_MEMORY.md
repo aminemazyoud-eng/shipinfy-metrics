@@ -1041,3 +1041,38 @@ Audit complet de la plateforme (18 pages, 0 erreur console, tous les appels API 
 - Mock : jours d'historique conservés dès 25 expéditions/jour (~dédoublonnage) ⇒ ~4 jours d'historique ; la précision des prévisions s'améliore avec plus d'historique réel.
 - Vérifié : typecheck propre ; page testée dans le navigateur (prévisions, live, carte) contre le mock.
 - **Reste** : appliquer les tables Ops* sur Supabase + `DATABASE_URL` locale (voir §26) ; modules suivants : dispatch temps réel + switch de hub, suivi par statut, pointage/paie, flotte, RBAC.
+
+---
+
+## 28. MODULES 2→8 + REFONTE MENU & PARAMÉTRAGE (2026-10-05)
+
+> Détail des écrans `/operations/*` : dispatch live, suivi, pointage (indicateurs), flotte & missions, historique. RH : `/rh/onboarding`, `/rh/paie`, `/pointage` (source unique du pointage = table `DriverAttendance`).
+
+### Menu (Sidebar + AppShell) — voir `components/Sidebar.tsx`
+- **Performance** : Livreurs & Scoring (Score IA intégré en onglet), Hubs, Retours. *Supprimés* : Rémunération, Score IA.
+- **Opérations** : Cockpit, Dispatch live, Suivi, Pointage & paie (indicateurs), Flotte & gasoil, Historique, Shifts, **Incidents & Support** (fusion /alertes + /support, `app/incidents/page.tsx` en 2 onglets). *Supprimés* : Dispatch (ancien), Picking Express, Rapports, Notifications.
+- **RH & Formation** : Onboarding, Pointage, Paie & Bonus, Academy.
+- **Paramétrage** (nouvelle section) : Paramètres généraux, **Calculs & équations**, **Scoring livreur**, **Paie & bonus**, **Notifications & incidents**, Rapports planifiés.
+- Anciennes adresses → redirections dans `next.config.ts` (`/dispatch`, `/picking`, `/remuneration`, `/score-ia`, `/alertes`, `/support`, `/notifications`).
+- ⚠️ **Le menu filtre par adresse EXACTE** (`lib/permissions.ts` → `MODULE_ROUTES`) : toute nouvelle page doit y être listée, sinon elle est masquée.
+
+### Paramétrage central des calculs
+- `lib/ops-config.ts` : TOUS les paramètres (créneaux, capacité/équipe, seuils tendu/saturé, historique, « à risque » en minutes, poids distance auto-dispatch, prix carburant, alerte conso %, alerte documents jours, marge km entretien, seuils scoring) + défauts. Surcharge en base : table `OpsSetting` (clé → JSON), appliquée par `applyOpsSettings()` à chaque `opsAuth()` (cache 20 s).
+- API `GET/PUT /api/ops/settings` (écriture ADMIN) ; page `/parametres/calculs` (équations lisibles + champs).
+- `/parametres/scoring` : coefficients (API existante `/api/settings/score-config`) + simulateur ; seuils critique/excellent persistés (OpsSetting) et lus par `/api/score-ia/calculate`.
+- `/parametres/paie` : règles de rémunération (fixe chauffeur/helper, bonus, retenues) ; le calcul mensuel + CSV restent dans `/rh/paie`.
+
+### Notifications & incidents — structure ÉVÉNEMENT → AUDIENCE → CANAL (`lib/ops-notify.ts`)
+- Événements : `slot_at_risk`, `order_late`, `no_show`, `unassigned_soon`, `hub_saturation` (≥17 h), `doc_expiring` (≥8 h, rappel hebdo).
+- Audiences : `team:dispatch|managers|rh` (Slack, **un webhook par équipe** → `OpsNotifChannel`, repli sur `SlackConfig` global) ; `chauffeur`, `helper` (WhatsApp, `OpsDriver.phone`, via `lib/whatsapp.ts`).
+- Règles `OpsNotifRule` (11 par défaut, activables, messages modifiables) ; anti-doublon `OpsNotifLog.dedupeKey` ; cron `*/5` **opt-in `OPS_ALERTS_ENABLED=true`** ; API `GET/POST /api/ops/notif` (actions channel/rule/test/run, `dryRun`).
+- Diagnostic prod constaté : Slack = aucun webhook ; Email = `SMTP_*` absents (« Missing credentials for PLAIN ») ; N8N = URL invalide (une adresse e-mail avait été saisie). Variables à définir dans Dokploy → Environment.
+
+### Flotte, missions, documents
+- `OpsMission` (départ/retour de la journée, km, durée) + pleins et entretiens datés (`date` avec heure) rattachés à la mission ouverte (`missionId`). API `/api/ops/missions`. Flotte remise à zéro (`scripts/reset-fleet.js`).
+- Documents : chauffeur = permis (n°, catégorie, expiration) + visite médicale ; helper = visite médicale ; véhicule = assurance, visite technique, **vignette**. `lib/rh.ts → drivingStatus()` = « apte à conduire » (badge Onboarding + alerte sur la carte Dispatch).
+- Équipe par véhicule = chauffeur + helper (`OpsDriver.jobType`, plus d'unicité sur `vehicleId` — ⚠️ `init-tables.sql` DOIT garder le `DROP INDEX OpsDriver_vehicleId_key`, sinon crash au démarrage → 502).
+- ⚠️ **Démarrage du conteneur** : `run-init-sql.js` rejoue tout `init-tables.sql` ; toute erreur SQL = crash loop. Timeout relevé à 120 s.
+
+### Scripts utiles
+`apply-sql.js <fichier>` · `seed-ops.js` · `seed-crew.js` · `seed-academy.js` (3 formations métier) · `seed-fleet-demo.js` · `reset-fleet.js` · `mock-backoffice/` (voir §26).

@@ -4,6 +4,8 @@ import { opsAuth, fail } from '@/lib/ops-auth'
 import { dayOf, dayBounds } from '@/lib/ops-time'
 import { attendanceByName } from '@/lib/ops-attendance'
 import { canonicalSlot } from '@/lib/ops-slots'
+import { CFG } from '@/lib/ops-config'
+import { drivingStatus } from '@/lib/rh'
 
 const DONE = ['DELIVERED', 'NO_SHOW']
 
@@ -53,10 +55,10 @@ export async function GET(req: NextRequest) {
         amount: o.amount, customer: o.customerName, address: o.address, lat: o.lat, lng: o.lng,
         driverCode: o.driverId ? drvCode.get(o.driverId) ?? null : null,
         late: !DONE.includes(o.status) && o.slotEnd.getTime() < now,
-        atRisk: !DONE.includes(o.status) && o.status !== 'START_DELIVERY' && o.slotEnd.getTime() >= now && o.slotEnd.getTime() - now < 45 * 60_000,
+        atRisk: !DONE.includes(o.status) && o.status !== 'START_DELIVERY' && o.slotEnd.getTime() >= now && o.slotEnd.getTime() - now < CFG.atRiskMinutes * 60_000,
       })),
       drivers: drivers.map(d => ({
-        code: d.code, name: `${d.firstName} ${d.lastName}`, hubCode: d.hub?.code ?? null, homeHubId: d.homeHubId, vehicle: d.vehicle?.type ?? null, plate: d.vehicle?.plate ?? null, helper: d.vehicle?.crew[0] ? `${d.vehicle.crew[0].firstName} ${d.vehicle.crew[0].lastName}` : null,
+        code: d.code, driving: drivingStatus(d), name: `${d.firstName} ${d.lastName}`, hubCode: d.hub?.code ?? null, homeHubId: d.homeHubId, vehicle: d.vehicle?.type ?? null, plate: d.vehicle?.plate ?? null, helper: d.vehicle?.crew[0] ? `${d.vehicle.crew[0].firstName} ${d.vehicle.crew[0].lastName}` : null,
         attendance: att.get(`${d.firstName} ${d.lastName}`)?.status ?? null, active: driverLoad.get(d.id)?.active ?? 0, done: driverLoad.get(d.id)?.done ?? 0, late: lateBy.get(d.id) ?? 0,
       })),
     })

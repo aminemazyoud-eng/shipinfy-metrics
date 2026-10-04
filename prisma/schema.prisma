@@ -618,6 +618,7 @@ model OpsVehicle {
   registrationNo  String?
   insuranceExpiry      DateTime?
   technicalVisitExpiry DateTime?
+  vignetteExpiry       DateTime?
   createdAt       DateTime  @default(now())
   updatedAt       DateTime  @updatedAt
 
@@ -647,6 +648,9 @@ model OpsDriver {
   hireDate      DateTime?
   contractType  String      @default("CDD") // CDI | CDD | Prestation
   licenseNo     String?
+  licenseExpiry DateTime?
+  licenseCategory String?
+  medicalVisitExpiry DateTime?
   onboardingStatus String   @default("actif") // prospect | formation | quiz | valide | actif | inactif
   trainingDone  Boolean     @default(true)
   quizScore     Float?
@@ -791,6 +795,7 @@ model OpsFuelLog {
   odometerKm Float?
   station    String?
   notes      String?
+  missionId  String?
   createdAt  DateTime @default(now())
 
   @@index([vehicleId, date])
@@ -806,8 +811,77 @@ model OpsMaintenance {
   notes       String?
   nextDueKm   Float?
   nextDueDate DateTime?
+  missionId   String?
   status      String    @default("done") // done | planned
   createdAt   DateTime  @default(now())
 
   @@index([vehicleId, date])
+}
+
+// ─── Missions (départ / retour du véhicule dans la journée) ───
+model OpsMission {
+  id         String    @id @default(cuid())
+  vehicleId  String
+  driverCode String?
+  helperCode String?
+  hubCode    String?
+  day        DateTime  // minuit UTC du jour local
+  startAt    DateTime  // départ de la journée
+  endAt      DateTime? // fin de la journée (retour au hub)
+  startKm    Float?
+  endKm      Float?
+  status     String    @default("en_cours") // en_cours | terminee
+  notes      String?
+  createdAt  DateTime  @default(now())
+  updatedAt  DateTime  @updatedAt
+
+  @@index([vehicleId, day])
+  @@index([day])
+  @@index([status])
+}
+
+// ─── Notifications : canaux (Slack par équipe), règles événement × audience × canal, journal anti-doublon ───
+model OpsNotifChannel {
+  key        String   @id // "slack:dispatch" | "slack:managers" | "slack:rh" | "whatsapp"
+  kind       String   // slack | whatsapp
+  label      String
+  webhookUrl String?
+  active     Boolean  @default(true)
+  updatedAt  DateTime @updatedAt
+}
+
+model OpsNotifRule {
+  id        String   @id @default(cuid())
+  event     String   // slot_at_risk | order_late | no_show | unassigned_soon | hub_saturation | doc_expiring
+  audience  String   // team:dispatch | team:managers | team:rh | chauffeur | helper
+  channel   String   // slack | whatsapp
+  enabled   Boolean  @default(true)
+  template  String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([event, audience, channel])
+}
+
+model OpsNotifLog {
+  id        String   @id @default(cuid())
+  ruleId    String?
+  event     String
+  audience  String
+  channel   String
+  dedupeKey String   @unique
+  recipient String?
+  message   String
+  ok        Boolean  @default(false)
+  error     String?
+  createdAt DateTime @default(now())
+
+  @@index([createdAt])
+}
+
+// Paramètres de calcul centralisés (voir lib/ops-config.ts) : une ligne par paramètre, valeur JSON.
+model OpsSetting {
+  key       String   @id
+  value     String
+  updatedAt DateTime @updatedAt
 }

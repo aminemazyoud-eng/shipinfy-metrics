@@ -1,5 +1,7 @@
 'use client'
 import React, { useState, useEffect, useCallback } from 'react'
+import ScoreIAPage from '../score-ia/page'
+import Link from 'next/link'
 import { Users, Trophy, TrendingDown, TrendingUp, Search, Filter, BarChart3, AlertTriangle } from 'lucide-react'
 
 interface Livreur {
@@ -48,7 +50,7 @@ function MedalIcon({ rank }: { rank: number }) {
   return <span className="text-xs font-bold text-gray-400">#{rank}</span>
 }
 
-export default function LivreursPage() {
+function LivreursPerformance() {
   const [data, setData]       = useState<KpisData | null>(null)
   const [reports, setReports] = useState<Report[]>([])
   const [reportId, setReportId] = useState('')
@@ -382,6 +384,28 @@ export default function LivreursPage() {
           ))}
         </div>
       )}
+    </div>
+  )
+}
+
+
+// « Livreurs & Scoring » : performance opérationnelle + Score IA (ex /score-ia) dans un seul module.
+// Le paramétrage du scoring se fait dans Paramétrage → Scoring livreur.
+export default function LivreursPage() {
+  const [tab, setTab] = useState<'performance' | 'scoring'>('performance')
+  useEffect(() => { if (new URLSearchParams(window.location.search).get('tab') === 'scoring') setTab('scoring') }, [])
+  const go = (t: 'performance' | 'scoring') => { setTab(t); window.history.replaceState(null, '', t === 'scoring' ? '/livreurs?tab=scoring' : '/livreurs') }
+  return (
+    <div>
+      <div className="px-4 md:px-6 pt-4 md:pt-6 flex flex-wrap items-center justify-between gap-2 border-b border-gray-200">
+        <div className="flex gap-1">
+          {([['performance', 'Performance'], ['scoring', 'Score IA']] as const).map(([k, l]) => (
+            <button key={k} onClick={() => go(k)} className={`px-4 py-2 text-sm border-b-2 -mb-px ${tab === k ? 'border-blue-600 text-blue-700 font-medium' : 'border-transparent text-gray-500 hover:text-gray-800'}`}>{l}</button>
+          ))}
+        </div>
+        <Link href="/parametres/scoring" className="text-xs px-3 py-1.5 mb-1 border border-gray-300 rounded-lg bg-white">Paramétrer le scoring →</Link>
+      </div>
+      {tab === 'performance' ? <LivreursPerformance /> : <ScoreIAPage />}
     </div>
   )
 }

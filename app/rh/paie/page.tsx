@@ -42,20 +42,7 @@ export default function PaieBonusPage() {
         <Link href="/operations/pointage" className="text-xs px-3 py-1.5 border border-gray-300 rounded-lg bg-white flex items-center gap-1"><Clock className="w-3.5 h-3.5" />Indicateurs côté Opérations</Link>
       </div>
 
-      {cfg && (
-        <div className="bg-white border border-gray-200 rounded-xl p-4">
-          <div className="text-sm font-medium text-gray-800 mb-3">Règles de rémunération</div>
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-            {num('dailyRate', 'Fixe chauffeur / jour (MAD)')}{num('helperDailyRate', 'Fixe helper / jour (MAD)')}
-            {num('bonusThreshold', 'Bonus après N commandes / jour', 'seuil journalier de l’équipe')}{num('bonusPerOrder', 'Bonus / commande au-delà (MAD)')}
-            {num('onTimeBonus', 'Bonus / livraison dans le créneau (MAD)')}{num('noShowPenalty', 'Retenue / NO_SHOW (MAD)')}{num('latePenalty', 'Retenue / livraison hors créneau (MAD)')}
-            <label className="text-xs text-gray-600 flex items-center gap-2 mt-5"><input type="checkbox" checked={cfg.paidLeave} onChange={e => setCfg({ ...cfg, paidLeave: e.target.checked })} />Congés payés</label>
-          </div>
-          <div className="flex gap-2 mt-4"><button onClick={() => save(false)} className="px-3 py-1.5 text-sm rounded-lg border border-gray-300">Enregistrer les règles</button>
-            <button onClick={() => save(true)} className="px-3 py-1.5 text-sm rounded-lg bg-gray-900 text-white" title="Applique les fixes à toutes les fiches (chauffeurs et helpers)">Enregistrer + appliquer à tout le personnel</button></div>
-          <p className="text-[11px] text-gray-400 mt-2">Le helper partage les livraisons du chauffeur de son véhicule (c’est l’équipe qui livre). Le pointage se fait à la journée.</p>
-        </div>
-      )}
+      <div className="text-sm bg-purple-50 border border-purple-200 text-purple-800 rounded-lg p-3">Les <b>règles</b> de rémunération (fixe chauffeur / helper, bonus, retenues) se paramètrent dans <Link href="/parametres/paie" className="underline font-medium">Paramétrage → Paie & bonus</Link>. Cette page calcule la paie de la période à partir du pointage.</div>
 
       <div className="flex flex-wrap items-end gap-3">
         <label className="text-xs text-gray-500">Du<input type="date" value={from} onChange={e => setFrom(e.target.value)} className="block border border-gray-300 rounded-lg px-2 py-1.5 text-sm" /></label>

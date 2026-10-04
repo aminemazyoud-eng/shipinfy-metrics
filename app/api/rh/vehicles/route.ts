@@ -17,7 +17,7 @@ export async function GET(req: NextRequest) {
       canEdit: ['ADMIN', 'SUPER_ADMIN'].includes(auth.session.role),
       vehicles: rows.map(v => ({
         id: v.id, plate: v.plate, type: v.type, fuelType: v.fuelType, brand: v.brand, model: v.model, year: v.year, registrationNo: v.registrationNo, status: v.status, odometerKm: v.odometerKm, capacityKg: v.capacityKg,
-        hubCode: v.hub?.code ?? null, hubName: v.hub?.name ?? null, insuranceExpiry: v.insuranceExpiry, technicalVisitExpiry: v.technicalVisitExpiry, insuranceDays: left(v.insuranceExpiry), visitDays: left(v.technicalVisitExpiry),
+        hubCode: v.hub?.code ?? null, hubName: v.hub?.name ?? null, insuranceExpiry: v.insuranceExpiry, technicalVisitExpiry: v.technicalVisitExpiry, vignetteExpiry: v.vignetteExpiry, insuranceDays: left(v.insuranceExpiry), visitDays: left(v.technicalVisitExpiry), vignetteDays: left(v.vignetteExpiry),
         chauffeur: v.crew.find(c => c.jobType === 'chauffeur') ? `${v.crew.find(c => c.jobType === 'chauffeur')!.firstName} ${v.crew.find(c => c.jobType === 'chauffeur')!.lastName}` : null,
         helper: v.crew.find(c => c.jobType === 'helper') ? `${v.crew.find(c => c.jobType === 'helper')!.firstName} ${v.crew.find(c => c.jobType === 'helper')!.lastName}` : null,
       })),
@@ -40,7 +40,7 @@ export async function POST(req: NextRequest) {
         plate: String(b.plate), type, fuelType: b.fuelType === 'essence' ? 'essence' : 'diesel', brand: b.brand ? String(b.brand) : null, model: b.model ? String(b.model) : null, year: b.year ? Number(b.year) : null,
         registrationNo: b.registrationNo ? String(b.registrationNo) : null, capacityKg: b.capacityKg ? Number(b.capacityKg) : type === 'moto' ? 25 : type === 'van' ? 1200 : 600,
         consumptionL100: b.consumptionL100 ? Number(b.consumptionL100) : type === 'moto' ? 3.2 : type === 'van' ? 11 : 8.5, hubId: hub?.id ?? null,
-        insuranceExpiry: b.insuranceExpiry ? new Date(String(b.insuranceExpiry)) : null, technicalVisitExpiry: b.technicalVisitExpiry ? new Date(String(b.technicalVisitExpiry)) : null,
+        insuranceExpiry: b.insuranceExpiry ? new Date(String(b.insuranceExpiry)) : null, technicalVisitExpiry: b.technicalVisitExpiry ? new Date(String(b.technicalVisitExpiry)) : null, vignetteExpiry: b.vignetteExpiry ? new Date(String(b.vignetteExpiry)) : null,
       },
     })
     await audit(auth.session, 'rh.vehicle_create', 'vehicle', v.plate, { type })

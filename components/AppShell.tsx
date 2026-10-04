@@ -25,7 +25,6 @@ const SECTIONS: NavSection[] = [
     items: [
       { href: '/',           label: 'Dashboard',        icon: Activity   },
       { href: '/kpis',       label: 'KPIs & Métriques', icon: BarChart3  },
-      { href: '/operations', label: 'Cockpit opérationnel', icon: Activity },
       { href: '/previsions', label: 'Prévisions',        icon: TrendingUp },
     ],
   },
@@ -42,6 +41,7 @@ const SECTIONS: NavSection[] = [
   {
     key: 'operations', label: 'Opérations',
     items: [
+      { href: '/operations', label: 'Cockpit opérationnel', icon: Activity },
       { href: '/dispatch', label: 'Dispatch',          icon: Truck          },
       { href: '/picking',  label: 'Picking Express',   icon: Package        },
       { href: '/shifts',   label: 'Shifts & Planning', icon: Calendar       },

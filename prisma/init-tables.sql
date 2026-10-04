@@ -793,7 +793,8 @@ CREATE TABLE IF NOT EXISTS "OpsDriver" (
   "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP, "updatedAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
 CREATE UNIQUE INDEX IF NOT EXISTS "OpsDriver_code_key" ON "OpsDriver"("code");
-CREATE UNIQUE INDEX IF NOT EXISTS "OpsDriver_vehicleId_key" ON "OpsDriver"("vehicleId");
+-- (une équipe = chauffeur + helper sur le même véhicule : pas d'unicité sur vehicleId)
+DROP INDEX IF EXISTS "OpsDriver_vehicleId_key";
 CREATE INDEX IF NOT EXISTS "OpsDriver_hubId_idx" ON "OpsDriver"("hubId");
 CREATE INDEX IF NOT EXISTS "OpsDriver_tenantId_idx" ON "OpsDriver"("tenantId");
 
@@ -879,3 +880,31 @@ ALTER TABLE "OpsAttendance" ENABLE ROW LEVEL SECURITY;
 ALTER TABLE "OpsPayConfig" ENABLE ROW LEVEL SECURITY;
 ALTER TABLE "OpsFuelLog" ENABLE ROW LEVEL SECURITY;
 ALTER TABLE "OpsMaintenance" ENABLE ROW LEVEL SECURITY;
+
+-- ═══ RH — PERSONNEL (chauffeurs / helpers) + VÉHICULES détaillés + équipe par véhicule ═══════════
+
+-- une équipe = 1 chauffeur + 1 helper par véhicule : plus d'unicité sur OpsDriver.vehicleId
+DROP INDEX IF EXISTS "OpsDriver_vehicleId_key";
+CREATE INDEX IF NOT EXISTS "OpsDriver_vehicleId_idx" ON "OpsDriver"("vehicleId");
+
+ALTER TABLE "OpsDriver" ADD COLUMN IF NOT EXISTS "jobType" TEXT NOT NULL DEFAULT 'chauffeur';
+ALTER TABLE "OpsDriver" ADD COLUMN IF NOT EXISTS "cin" TEXT;
+ALTER TABLE "OpsDriver" ADD COLUMN IF NOT EXISTS "address" TEXT;
+ALTER TABLE "OpsDriver" ADD COLUMN IF NOT EXISTS "birthDate" TIMESTAMP(3);
+ALTER TABLE "OpsDriver" ADD COLUMN IF NOT EXISTS "hireDate" TIMESTAMP(3);
+ALTER TABLE "OpsDriver" ADD COLUMN IF NOT EXISTS "contractType" TEXT NOT NULL DEFAULT 'CDD';
+ALTER TABLE "OpsDriver" ADD COLUMN IF NOT EXISTS "licenseNo" TEXT;
+ALTER TABLE "OpsDriver" ADD COLUMN IF NOT EXISTS "onboardingStatus" TEXT NOT NULL DEFAULT 'actif';
+ALTER TABLE "OpsDriver" ADD COLUMN IF NOT EXISTS "trainingDone" BOOLEAN NOT NULL DEFAULT true;
+ALTER TABLE "OpsDriver" ADD COLUMN IF NOT EXISTS "quizScore" DOUBLE PRECISION;
+ALTER TABLE "OpsDriver" ADD COLUMN IF NOT EXISTS "contractGeneratedAt" TIMESTAMP(3);
+ALTER TABLE "OpsDriver" ADD COLUMN IF NOT EXISTS "notes" TEXT;
+
+ALTER TABLE "OpsVehicle" ADD COLUMN IF NOT EXISTS "brand" TEXT;
+ALTER TABLE "OpsVehicle" ADD COLUMN IF NOT EXISTS "model" TEXT;
+ALTER TABLE "OpsVehicle" ADD COLUMN IF NOT EXISTS "year" INTEGER;
+ALTER TABLE "OpsVehicle" ADD COLUMN IF NOT EXISTS "registrationNo" TEXT;
+ALTER TABLE "OpsVehicle" ADD COLUMN IF NOT EXISTS "insuranceExpiry" TIMESTAMP(3);
+ALTER TABLE "OpsVehicle" ADD COLUMN IF NOT EXISTS "technicalVisitExpiry" TIMESTAMP(3);
+
+ALTER TABLE "OpsPayConfig" ADD COLUMN IF NOT EXISTS "helperDailyRate" DOUBLE PRECISION NOT NULL DEFAULT 100;

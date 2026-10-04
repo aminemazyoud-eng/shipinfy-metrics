@@ -13,6 +13,8 @@ const ROUTE_LABELS: Record<string, string> = {
   '/operations/pointage':   'Pointage & paie',
   '/operations/flotte':     'Flotte & gasoil',
   '/operations/historique': 'Historique',
+  '/rh/onboarding': 'Onboarding',
+  '/rh/paie':       'Paie & Bonus',
   '/livreurs':     'Livreurs',
   '/remuneration': 'Rémunération',
   '/hubs':         'Hubs',

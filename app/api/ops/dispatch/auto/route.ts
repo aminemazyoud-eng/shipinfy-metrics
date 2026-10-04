@@ -19,7 +19,7 @@ export async function POST(req: NextRequest) {
 
     const [orders, drivers, att] = await Promise.all([
       prisma.opsOrder.findMany({ where: { hubCode: hub, driverId: null, status: 'READY_PICKUP', slotStart: { gte: from, lt: to } }, select: { id: true, externalId: true, slotStart: true, lat: true, lng: true } }),
-      prisma.opsDriver.findMany({ where: { hub: { code: hub }, status: 'active' }, select: { id: true, code: true, firstName: true, lastName: true } }),
+      prisma.opsDriver.findMany({ where: { hub: { code: hub }, status: 'active', jobType: 'chauffeur' }, select: { id: true, code: true, firstName: true, lastName: true } }),
       attendanceByName(day),
     ])
     const available = drivers.filter(d => { const s = att.get(`${d.firstName} ${d.lastName}`)?.status; return s !== 'absent' && s !== 'leave' })

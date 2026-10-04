@@ -59,9 +59,10 @@ const SECTIONS: NavSection[] = [
   {
     key: 'rh', label: 'RH & Formation',
     items: [
-      { href: '/pointage',   label: 'Pointage',   icon: Clock         },
-      { href: '/onboarding', label: 'Onboarding', icon: UserCheck     },
-      { href: '/academy',    label: 'Academy',    icon: GraduationCap },
+      { href: '/rh/onboarding', label: 'Onboarding',   icon: UserCheck },
+      { href: '/pointage',      label: 'Pointage',     icon: Clock },
+      { href: '/rh/paie',       label: 'Paie & Bonus', icon: DollarSign },
+      { href: '/academy',       label: 'Academy',      icon: GraduationCap },
     ],
   },
   {

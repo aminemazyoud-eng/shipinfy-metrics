@@ -85,7 +85,7 @@ export async function loadDrivers(): Promise<DriverLite[]> {
     const r = await boFetch<{ data: { code: string; firstName: string; lastName: string; hubCode: string; vehicle?: { type?: string } }[] }>('/api/v1/couriers')
     return r.data.map(d => ({ code: d.code, firstName: d.firstName, lastName: d.lastName, hubCode: d.hubCode, vehicleType: d.vehicle?.type ?? null }))
   }
-  const rows = await prisma.opsDriver.findMany({ where: { status: 'active' }, include: { hub: { select: { code: true } }, vehicle: { select: { type: true } } } })
+  const rows = await prisma.opsDriver.findMany({ where: { status: 'active', jobType: 'chauffeur' }, include: { hub: { select: { code: true } }, vehicle: { select: { type: true } } } })
   return rows.map(d => ({ code: d.code, firstName: d.firstName, lastName: d.lastName, hubCode: d.hub?.code ?? null, vehicleType: d.vehicle?.type ?? null }))
 }
 

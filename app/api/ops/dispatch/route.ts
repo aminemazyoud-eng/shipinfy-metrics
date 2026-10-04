@@ -27,7 +27,7 @@ export async function GET(req: NextRequest) {
         orderBy: [{ slotStart: 'asc' }, { externalId: 'asc' }],
         select: { id: true, externalId: true, reference: true, status: true, slotStart: true, slotEnd: true, slotLabel: true, district: true, amount: true, customerName: true, address: true, lat: true, lng: true, driverId: true },
       }),
-      prisma.opsDriver.findMany({ where: { status: { not: 'off' } }, include: { hub: { select: { code: true, name: true } }, vehicle: { select: { plate: true, type: true } } }, orderBy: { code: 'asc' } }),
+      prisma.opsDriver.findMany({ where: { status: { not: 'off' }, jobType: 'chauffeur' }, include: { hub: { select: { code: true, name: true } }, vehicle: { select: { plate: true, type: true, crew: { where: { jobType: 'helper' }, select: { firstName: true, lastName: true } } } } }, orderBy: { code: 'asc' } }),
       attendanceByName(day),
     ])
 
@@ -56,7 +56,7 @@ export async function GET(req: NextRequest) {
         atRisk: !DONE.includes(o.status) && o.status !== 'START_DELIVERY' && o.slotEnd.getTime() >= now && o.slotEnd.getTime() - now < 45 * 60_000,
       })),
       drivers: drivers.map(d => ({
-        code: d.code, name: `${d.firstName} ${d.lastName}`, hubCode: d.hub?.code ?? null, homeHubId: d.homeHubId, vehicle: d.vehicle?.type ?? null, plate: d.vehicle?.plate ?? null,
+        code: d.code, name: `${d.firstName} ${d.lastName}`, hubCode: d.hub?.code ?? null, homeHubId: d.homeHubId, vehicle: d.vehicle?.type ?? null, plate: d.vehicle?.plate ?? null, helper: d.vehicle?.crew[0] ? `${d.vehicle.crew[0].firstName} ${d.vehicle.crew[0].lastName}` : null,
         attendance: att.get(`${d.firstName} ${d.lastName}`)?.status ?? null, active: driverLoad.get(d.id)?.active ?? 0, done: driverLoad.get(d.id)?.done ?? 0, late: lateBy.get(d.id) ?? 0,
       })),
     })

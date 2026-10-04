@@ -25,7 +25,10 @@ export async function GET(req: NextRequest) {
     const cfg = await getConfig()
 
     const drivers = await prisma.opsDriver.findMany({ where: { status: { not: 'off' }, ...(hub ? { hub: { code: hub } } : {}) }, include: { hub: { select: { code: true } } }, orderBy: { code: 'asc' } })
-    const ids = drivers.map(d => d.id)
+    // un helper partage les livraisons du chauffeur de son véhicule (c'est l'équipe qui livre)
+    const chauffeurOfVehicle = new Map(drivers.filter(d => d.jobType === 'chauffeur' && d.vehicleId).map(d => [d.vehicleId as string, d.id]))
+    const ordersOwner = (d: (typeof drivers)[number]) => (d.jobType === 'helper' && d.vehicleId ? chauffeurOfVehicle.get(d.vehicleId) ?? d.id : d.id)
+    const ids = [...new Set(drivers.map(ordersOwner))]
     const byName = new Map(drivers.map(d => [`${d.firstName} ${d.lastName}`, d]))
     const [att, orders] = await Promise.all([
       prisma.driverAttendance.findMany({ where: { driverName: { in: drivers.map(d => `${d.firstName} ${d.lastName}`) }, date: { gte: attendanceKey(from), lte: attendanceKey(to) } }, select: { driverName: true, date: true, status: true } }),
@@ -33,7 +36,7 @@ export async function GET(req: NextRequest) {
     ])
     const lines = computePay(cfg, drivers.map(d => ({ id: d.id, code: d.code, name: `${d.firstName} ${d.lastName}`, hubCode: d.hub?.code ?? null, dailyRate: d.dailyRate })),
       att.flatMap(a => { const d = byName.get(a.driverName); return d ? [{ driverId: d.id, day: a.date.toISOString().slice(0, 10), status: a.status }] : [] }),
-      orders.map(o => { const at = (o.deliveredAt ?? o.noShowAt) as Date; return { driverId: o.driverId as string, day: localDay(at), status: o.status, onTime: o.status === 'DELIVERED' && at <= o.slotEnd } }))
+      orders.flatMap(o => { const at = (o.deliveredAt ?? o.noShowAt) as Date; return drivers.filter(d => ordersOwner(d) === o.driverId).map(d => ({ driverId: d.id, day: localDay(at), status: o.status, onTime: o.status === 'DELIVERED' && at <= o.slotEnd })) }))
 
     if (sp.get('format') === 'csv') {
       return new NextResponse(payCsv(lines, `${from} → ${to}`), { headers: { 'Content-Type': 'text/csv; charset=utf-8', 'Content-Disposition': `attachment; filename="paie_livreurs_${from}_${to}.csv"` } })
@@ -54,9 +57,9 @@ export async function PUT(req: NextRequest) {
     const next = await prisma.opsPayConfig.update({
       where: { id: 'default' },
       data: { dailyRate: num(b.dailyRate, cur.dailyRate), bonusThreshold: Math.round(num(b.bonusThreshold, cur.bonusThreshold)), bonusPerOrder: num(b.bonusPerOrder, cur.bonusPerOrder),
-        onTimeBonus: num(b.onTimeBonus, cur.onTimeBonus), noShowPenalty: num(b.noShowPenalty, cur.noShowPenalty), latePenalty: num(b.latePenalty, cur.latePenalty), paidLeave: b.paidLeave ?? cur.paidLeave },
+        onTimeBonus: num(b.onTimeBonus, cur.onTimeBonus), helperDailyRate: num(b.helperDailyRate, cur.helperDailyRate), noShowPenalty: num(b.noShowPenalty, cur.noShowPenalty), latePenalty: num(b.latePenalty, cur.latePenalty), paidLeave: b.paidLeave ?? cur.paidLeave },
     })
-    if (b.applyToAll) await prisma.opsDriver.updateMany({ data: { dailyRate: next.dailyRate } })
+    if (b.applyToAll) { await prisma.opsDriver.updateMany({ where: { jobType: 'chauffeur' }, data: { dailyRate: next.dailyRate } }); await prisma.opsDriver.updateMany({ where: { jobType: 'helper' }, data: { dailyRate: next.helperDailyRate } }) }
     await audit(auth.session, 'pay.config', 'config', 'default', { before: cur, after: next, applyToAll: !!b.applyToAll })
     return NextResponse.json({ ok: true, config: next })
   } catch (e) { return fail(e) }

@@ -3,7 +3,7 @@ import { useState, useEffect, useCallback } from 'react'
 import { Car, Fuel, Wrench, AlertTriangle, RefreshCw } from 'lucide-react'
 import OpsNav from '../components/OpsNav'
 
-interface V { id: string; plate: string; type: string; fuelType: string; status: string; odometerKm: number; theoreticalL100: number | null; hub: string | null; hubCode: string | null; driver: string | null
+interface V { id: string; plate: string; type: string; fuelType: string; status: string; odometerKm: number; theoreticalL100: number | null; hub: string | null; hubCode: string | null; driver: string | null; helper: string | null
   fuel: { liters: number; cost: number; fills: number; km: number; realL100: number | null; costPerKm: number | null }; maintenanceCost: number; lastMaintenance: { type: string; date: string } | null; alerts: { type: string; dueDate: string | null; dueKm: number | null }[] }
 interface Res { days: number; vehicles: V[]; totals: { vehicles: number; active: number; liters: number; fuelCost: number; maintenanceCost: number; alerts: number } }
 
@@ -45,14 +45,14 @@ export default function FlottePage() {
       )}
       <div className="bg-white border border-gray-200 rounded-xl overflow-x-auto">
         <table className="w-full text-sm">
-          <thead><tr className="text-xs text-gray-500 text-left border-b border-gray-200">{['Véhicule', 'Livreur', 'Hub', 'Km', 'Litres', 'Coût gasoil', 'L/100 réel', 'MAD/km', 'Statut', ''].map(h => <th key={h} className="p-2 font-medium whitespace-nowrap first:pl-3">{h}</th>)}</tr></thead>
+          <thead><tr className="text-xs text-gray-500 text-left border-b border-gray-200">{['Véhicule', 'Équipe', 'Hub', 'Km', 'Litres', 'Coût gasoil', 'L/100 réel', 'MAD/km', 'Statut', ''].map(h => <th key={h} className="p-2 font-medium whitespace-nowrap first:pl-3">{h}</th>)}</tr></thead>
           <tbody>
             {res?.vehicles.map(v => {
               const over = v.fuel.realL100 && v.theoreticalL100 && v.fuel.realL100 > v.theoreticalL100 * 1.15
               return (
                 <tr key={v.id} className="border-t border-gray-100">
                   <td className="p-2 pl-3"><div className="font-medium">{v.plate}</div><div className="text-xs text-gray-400">{v.type} · {v.fuelType}</div></td>
-                  <td className="p-2 text-gray-600">{v.driver ?? '—'}</td><td className="p-2 text-gray-500">{v.hub?.replace('Marjane ', '')}</td>
+                  <td className="p-2 text-gray-600">{v.driver ?? '—'}{v.helper && <div className="text-xs text-gray-400">+ {v.helper}</div>}</td><td className="p-2 text-gray-500">{v.hub?.replace('Marjane ', '')}</td>
                   <td className="p-2">{Math.round(v.odometerKm).toLocaleString('fr-FR')}</td><td className="p-2">{v.fuel.liters}</td><td className="p-2">{mad(v.fuel.cost)}</td>
                   <td className={`p-2 ${over ? 'text-red-600 font-semibold' : ''}`} title={`théorique ${v.theoreticalL100 ?? '?'}`}>{v.fuel.realL100 ?? '—'}</td><td className="p-2">{v.fuel.costPerKm ?? '—'}</td>
                   <td className="p-2"><select value={v.status} onChange={e => setStatus(v, e.target.value)} className={`text-xs rounded-full px-2 py-1 border-0 ${ST[v.status]}`}><option value="active">Actif</option><option value="maintenance">Entretien</option><option value="out_of_service">Hors service</option></select>{v.alerts.length > 0 && <AlertTriangle className="w-4 h-4 text-red-500 inline ml-1" />}</td>

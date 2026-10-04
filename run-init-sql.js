@@ -45,9 +45,9 @@ console.log(`Running ${statements.length} SQL statements...`);
 const prisma = new PrismaClient();
 
 const timer = setTimeout(() => {
-  console.error('TIMEOUT: DB init exceeded 30s');
+  console.error('TIMEOUT: DB init exceeded 120s');
   process.exit(1);
-}, 30000);
+}, 120000);
 
 async function main() {
   for (const stmt of statements) {

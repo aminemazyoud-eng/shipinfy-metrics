@@ -12,7 +12,7 @@ export async function GET(req: NextRequest) {
     const days = Math.min(Number(new URL(req.url).searchParams.get('days')) || 30, 365)
     const since = new Date(Date.now() - days * DAY)
     const [vehicles, fuel, maint] = await Promise.all([
-      prisma.opsVehicle.findMany({ include: { hub: { select: { code: true, name: true } }, driver: { select: { code: true, firstName: true, lastName: true } } }, orderBy: [{ hubId: 'asc' }, { plate: 'asc' }] }),
+      prisma.opsVehicle.findMany({ include: { hub: { select: { code: true, name: true } }, crew: { select: { code: true, firstName: true, lastName: true, jobType: true } } }, orderBy: [{ hubId: 'asc' }, { plate: 'asc' }] }),
       prisma.opsFuelLog.findMany({ where: { date: { gte: since } }, orderBy: { date: 'asc' } }),
       prisma.opsMaintenance.findMany({ orderBy: { date: 'desc' } }),
     ])
@@ -30,7 +30,7 @@ export async function GET(req: NextRequest) {
       const alerts = next.filter(n => (n.dueDate && n.dueDate.getTime() - now < 14 * DAY) || (n.dueKm != null && n.dueKm - v.odometerKm < 500))
       return {
         id: v.id, plate: v.plate, type: v.type, fuelType: v.fuelType, status: v.status, odometerKm: v.odometerKm, theoreticalL100: v.consumptionL100,
-        hub: v.hub?.name ?? null, hubCode: v.hub?.code ?? null, driver: v.driver ? `${v.driver.firstName} ${v.driver.lastName}` : null,
+        hub: v.hub?.name ?? null, hubCode: v.hub?.code ?? null, driver: (() => { const c = v.crew.find(p => p.jobType === 'chauffeur'); return c ? `${c.firstName} ${c.lastName}` : null })(), helper: (() => { const h = v.crew.find(p => p.jobType === 'helper'); return h ? `${h.firstName} ${h.lastName}` : null })(),
         fuel: { liters: Math.round(liters * 10) / 10, cost: Math.round(cost), fills: f.length, km, realL100: real, costPerKm: km > 0 ? Math.round((cost / km) * 100) / 100 : null },
         maintenanceCost: Math.round(m.filter(x => x.date >= since).reduce((s, x) => s + x.costMad, 0)),
         lastMaintenance: m[0] ? { type: m[0].type, date: m[0].date } : null, alerts,

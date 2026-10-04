@@ -44,6 +44,9 @@ const CATEGORY_LABELS: Record<string, string> = {
   softskills: 'Soft Skills',
   navigation: 'Navigation',
   admin:      'Administration',
+  backoffice: 'Dashboard Back-Office',
+  'app-livreur': 'Application Livreur',
+  delivery:   'Modules de Livraison',
 }
 
 type Tab = 'formation' | 'guides'

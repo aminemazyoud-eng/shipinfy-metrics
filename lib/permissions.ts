@@ -21,7 +21,7 @@ export const MODULE_ROUTES: Record<string, string[]> = {
   rapports:     ['/rapports'],
   notifications:['/notifications'],
   support:      ['/support'],
-  rh:           ['/pointage', '/onboarding', '/academy'],
+  rh:           ['/pointage', '/onboarding', '/academy', '/rh'],
   parametres:   ['/parametres'],
   admin:        ['/admin'],
 }

@@ -93,40 +93,14 @@ export default function PointagePage() {
           </div>
           {msg && <div className="text-sm text-gray-600">{msg}</div>}
 
-          {cfg && (
-            <details className="bg-white border border-gray-200 rounded-xl" open>
-              <summary className="px-4 py-2.5 text-sm font-medium cursor-pointer">Règles de rémunération — fixe journalier + bonus</summary>
-              <div className="p-4 border-t border-gray-100 grid grid-cols-2 md:grid-cols-4 gap-3">
-                {num('dailyRate', 'Fixe / jour pointé (MAD)')}
-                {num('bonusThreshold', 'Bonus après N commandes/jour', 'seuil journalier')}
-                {num('bonusPerOrder', 'Bonus / commande au-delà (MAD)')}
-                {num('onTimeBonus', 'Bonus / livraison dans le créneau (MAD)')}
-                {num('noShowPenalty', 'Retenue / NO_SHOW (MAD)')}
-                {num('latePenalty', 'Retenue / livraison hors créneau (MAD)')}
-                <label className="text-xs text-gray-600 flex items-center gap-2 mt-5"><input type="checkbox" checked={cfg.paidLeave} onChange={e => setCfg({ ...cfg, paidLeave: e.target.checked })} />Congés payés</label>
-                <div className="flex gap-2 items-end col-span-2 md:col-span-1">
-                  <button onClick={() => saveCfg(false)} className="px-3 py-1.5 text-sm rounded-lg border border-gray-300">Enregistrer</button>
-                  <button onClick={() => saveCfg(true)} className="px-3 py-1.5 text-sm rounded-lg bg-gray-900 text-white" title="Applique le fixe/jour à tous les livreurs">Enreg. + tous</button>
-                </div>
-              </div>
-            </details>
-          )}
+          <div className="text-xs bg-purple-50 border border-purple-200 text-purple-800 rounded-lg p-3">Les règles de rémunération (fixe, bonus, retenues) se gèrent dans <Link href="/rh/paie" className="underline font-medium">RH & Formation → Paie & Bonus</Link>. Ici : indicateurs de la période.</div>
 
           {pay && (
             <>
               <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
                 {[['Brut (fixe)', pay.totals.gross], ['Bonus', pay.totals.bonus], ['Retenues', pay.totals.deductions], ['Net à payer', pay.totals.net]].map(([l, v]) => <div key={l as string} className="bg-white border border-gray-200 rounded-xl p-3"><div className="text-xs text-gray-500">{l}</div><div className="text-xl font-bold text-gray-900">{mad(v as number)}</div></div>)}
               </div>
-              <div className="bg-white border border-gray-200 rounded-xl overflow-x-auto">
-                <table className="w-full text-sm">
-                  <thead><tr className="text-xs text-gray-500 text-left border-b border-gray-200">{['Livreur', 'Hub', 'Jours payés', 'Absences', 'Livrées', 'Dans créneau', 'NO_SHOW', 'Cmd bonus', 'Brut', 'Bonus', 'Retenues', 'Net'].map(h => <th key={h} className="p-2 font-medium whitespace-nowrap first:pl-3">{h}</th>)}</tr></thead>
-                  <tbody>
-                    {pay.lines.map(l => (
-                      <tr key={l.code} className="border-t border-gray-100"><td className="p-2 pl-3">{l.name} <span className="text-xs text-gray-400">{l.code}</span></td><td className="p-2 text-gray-500">{l.hubCode}</td><td className="p-2">{l.paidDays}</td><td className="p-2 text-gray-500">{l.daysAbsent}</td><td className="p-2">{l.delivered}</td><td className="p-2">{l.onTime}</td><td className="p-2 text-gray-500">{l.noShow}</td><td className="p-2">{l.bonusOrders}</td><td className="p-2">{mad(l.gross)}</td><td className="p-2 text-green-700">{mad(l.bonus)}</td><td className="p-2 text-red-600">{l.deductions ? `−${mad(l.deductions)}` : '—'}</td><td className="p-2 font-semibold">{mad(l.net)}</td></tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
+              <Link href="/rh/paie" className="inline-block text-sm px-3 py-1.5 rounded-lg border border-purple-300 text-purple-700">Voir le détail par personne dans Paie & Bonus →</Link>
             </>
           )}
         </>

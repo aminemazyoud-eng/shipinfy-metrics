@@ -611,7 +611,13 @@ model OpsVehicle {
   status          String    @default("active") // active | maintenance | out_of_service
   hubId           String?
   hub             OpsHub?   @relation(fields: [hubId], references: [id], onDelete: SetNull)
-  driver          OpsDriver?
+  crew            OpsDriver[] // équipe : 1 chauffeur + 1 helper
+  brand           String?
+  model           String?
+  year            Int?
+  registrationNo  String?
+  insuranceExpiry      DateTime?
+  technicalVisitExpiry DateTime?
   createdAt       DateTime  @default(now())
   updatedAt       DateTime  @updatedAt
 
@@ -628,12 +634,24 @@ model OpsDriver {
   hubId         String?     // hub d'affectation courant (modifiable : switch de hub)
   hub           OpsHub?     @relation(fields: [hubId], references: [id], onDelete: SetNull)
   homeHubId     String?     // hub d'origine
-  vehicleId     String?     @unique
+  vehicleId     String?
   vehicle       OpsVehicle? @relation(fields: [vehicleId], references: [id], onDelete: SetNull)
   status        String      @default("active") // active | off | leave
   payMode       String      @default("fixed")  // rémunération fixe journalière + bonus
   dailyRate     Float       @default(150)      // MAD / jour pointé
   bonusPerOrder Float       @default(0)
+  jobType       String      @default("chauffeur") // chauffeur | helper
+  cin           String?
+  address       String?
+  birthDate     DateTime?
+  hireDate      DateTime?
+  contractType  String      @default("CDD") // CDI | CDD | Prestation
+  licenseNo     String?
+  onboardingStatus String   @default("actif") // prospect | formation | quiz | valide | actif | inactif
+  trainingDone  Boolean     @default(true)
+  quizScore     Float?
+  contractGeneratedAt DateTime?
+  notes         String?
   createdAt     DateTime    @default(now())
   updatedAt     DateTime    @updatedAt
   orders        OpsOrder[]
@@ -759,6 +777,7 @@ model OpsPayConfig {
   onTimeBonus    Float    @default(0)   // MAD par commande livrée dans le créneau
   noShowPenalty  Float    @default(0)   // MAD retenus par NO_SHOW
   latePenalty    Float    @default(0)   // MAD retenus par livraison hors créneau
+  helperDailyRate Float   @default(100) // MAD / jour pointé pour un helper
   paidLeave      Boolean  @default(false)
   updatedAt      DateTime @updatedAt
 }

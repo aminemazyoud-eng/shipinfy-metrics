@@ -7,7 +7,7 @@
  *   net       = brut + bonus − retenues
  * Le pointage se fait à la JOURNÉE (pas à la commande) ; le nombre de commandes sert uniquement aux bonus.
  */
-export interface PayConfig { dailyRate: number; bonusThreshold: number; bonusPerOrder: number; onTimeBonus: number; noShowPenalty: number; latePenalty: number; paidLeave: boolean }
+export interface PayConfig { dailyRate: number; helperDailyRate: number; bonusThreshold: number; bonusPerOrder: number; onTimeBonus: number; noShowPenalty: number; latePenalty: number; paidLeave: boolean }
 export interface PayDriver { id: string; code: string; name: string; hubCode: string | null; dailyRate: number }
 export interface PayAttendance { driverId: string; day: string; status: string }
 export interface PayOrder { driverId: string; day: string; status: string; onTime: boolean }

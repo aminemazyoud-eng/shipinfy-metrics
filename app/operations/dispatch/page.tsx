@@ -1,9 +1,10 @@
 'use client'
-import { useState, useEffect, useCallback, useMemo } from 'react'
+import { useState, useEffect, useCallback, useMemo, Suspense } from 'react'
+import { useSearchParams } from 'next/navigation'
 import { Truck, Wand2, RefreshCw, MapPin, ArrowRightLeft, AlertTriangle, Clock, UserCheck, UserX } from 'lucide-react'
 import OpsNav from '../components/OpsNav'
 
-interface Hub { code: string; name: string; city: string }
+interface Hub { code: string; name: string; city: string; toDispatch?: number }
 interface Order { id: string; ref: string; status: string; slotStart: string; slotEnd: string; slotLabel: string | null; district: string | null; amount: number | null; customer: string | null; driverCode: string | null; late: boolean; atRisk: boolean }
 interface Driver { code: string; driving?: { ok: boolean; reasons: string[] }; name: string; hubCode: string | null; vehicle: string | null; plate: string | null; helper?: string | null; attendance: string | null; active: number; done: number; late: number }
 interface Data { day: string; hubCode: string; hubs: Hub[]; orders: Order[]; drivers: Driver[] }
@@ -12,8 +13,13 @@ const STATUS_LABEL: Record<string, string> = { READY_PICKUP: 'À dispatcher', AS
 const ATT: Record<string, { l: string; c: string }> = { present: { l: 'Présent', c: 'bg-green-100 text-green-700' }, late: { l: 'En retard', c: 'bg-amber-100 text-amber-700' }, absent: { l: 'Absent', c: 'bg-red-100 text-red-700' }, leave: { l: 'Congé', c: 'bg-gray-100 text-gray-600' } }
 
 export default function DispatchPage() {
-  const [hub, setHub] = useState<string>('')
-  const [day, setDay] = useState('today')
+  return <Suspense fallback={null}><Dispatch /></Suspense>
+}
+
+function Dispatch() {
+  const sp = useSearchParams()
+  const [hub, setHub] = useState<string>(sp.get('hub') ?? '')
+  const [day, setDay] = useState(sp.get('day') ?? 'today')
   const [data, setData] = useState<Data | null>(null)
   const [sel, setSel] = useState<Set<string>>(new Set())
   const [busy, setBusy] = useState(false)
@@ -74,7 +80,7 @@ export default function DispatchPage() {
           <div key={c} className="flex items-center gap-1.5">
             <span className="text-xs text-gray-400">{c}</span>
             {(data?.hubs ?? []).filter(h => h.city === c).map(h => (
-              <button key={h.code} onClick={() => { setHub(h.code); setSel(new Set()) }} className={`px-3 py-1.5 rounded-lg text-sm border ${hub === h.code ? 'bg-purple-600 text-white border-purple-600' : 'bg-white border-gray-300 hover:bg-gray-50'}`}>{h.name.replace('Marjane ', '')}</button>
+              <button key={h.code} onClick={() => { setHub(h.code); setSel(new Set()) }} className={`px-3 py-1.5 rounded-lg text-sm border ${hub === h.code ? 'bg-purple-600 text-white border-purple-600' : 'bg-white border-gray-300 hover:bg-gray-50'}`}>{h.name.replace('Marjane ', '')}{h.toDispatch ? <span className={`ml-1.5 text-[10px] px-1.5 rounded-full ${hub === h.code ? 'bg-white/25' : 'bg-amber-100 text-amber-700'}`}>{h.toDispatch}</span> : null}</button>
             ))}
           </div>
         ))}

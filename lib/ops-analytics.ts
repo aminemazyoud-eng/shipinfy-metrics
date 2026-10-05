@@ -66,7 +66,7 @@ export interface ForecastHub {
 }
 export interface ForecastResult {
   day: string; generatedAt: string; perDriverPerSlot: number; historyDays: number
-  slots: string[]; hubs: ForecastHub[]
+  slots: string[]; hubs: ForecastHub[]; thresholds: { tense: number; saturated: number }
   totals: Record<string, { known: number; expected: number; capacity: number }>
   summary: { known: number; expected: number; saturatedCells: number; tenseCells: number; driversGap: number; drivers: number }
 }
@@ -154,7 +154,7 @@ export function forecastDay(
   }
 
   return {
-    day, generatedAt: new Date(nowMs).toISOString(), perDriverPerSlot: perDriver, historyDays: useDays.length, slots, hubs: out, totals,
+    day, generatedAt: new Date(nowMs).toISOString(), perDriverPerSlot: perDriver, historyDays: useDays.length, slots, hubs: out, totals, thresholds: { tense: CFG.tenseThreshold, saturated: CFG.saturatedThreshold },
     summary: {
       known: out.reduce((s, h) => s + h.totalKnown, 0), expected: out.reduce((s, h) => s + h.totalExpected, 0),
       saturatedCells: saturated, tenseCells: tense, driversGap: gapTotal, drivers: out.reduce((s, h) => s + h.drivers, 0),

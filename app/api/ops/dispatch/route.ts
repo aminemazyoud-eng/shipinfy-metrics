@@ -20,7 +20,10 @@ export async function GET(req: NextRequest) {
     const day = dayOf(sp.get('day'), now)
     const { from, to } = dayBounds(day)
     const hubs = await prisma.opsHub.findMany({ where: { active: true }, orderBy: { code: 'asc' } })
-    const hubCode = sp.get('hub') || hubs[0]?.code
+    // commandes à dispatcher par hub (badge sur chaque bouton hub) ; hub par défaut = celui qui en a le plus
+    const pending = await prisma.opsOrder.groupBy({ by: ['hubCode'], _count: { _all: true }, where: { status: 'READY_PICKUP', driverId: null, OR: [{ slotStart: { gte: from, lt: to } }, { slotStart: { lt: from } }] } })
+    const pendBy = new Map(pending.map(p => [p.hubCode, p._count._all]))
+    const hubCode = sp.get('hub') || [...hubs].sort((a, b) => (pendBy.get(b.code) ?? 0) - (pendBy.get(a.code) ?? 0))[0]?.code
     if (!hubCode) return NextResponse.json({ hubs: [], orders: [], drivers: [], day })
 
     const [orders, drivers, att] = await Promise.all([
@@ -49,7 +52,7 @@ export async function GET(req: NextRequest) {
     const drvCode = new Map(drivers.map(d => [d.id, d.code]))
 
     return NextResponse.json({
-      day, now: new Date(now).toISOString(), hubCode, hubs: hubs.map(h => ({ code: h.code, name: h.name, city: h.city })),
+      day, now: new Date(now).toISOString(), hubCode, hubs: hubs.map(h => ({ code: h.code, name: h.name, city: h.city, toDispatch: pendBy.get(h.code) ?? 0 })),
       orders: orders.map(o => ({
         id: o.id, ref: o.reference || o.externalId, status: o.status, slotStart: o.slotStart, slotEnd: o.slotEnd, slotLabel: canonicalSlot(o.slotStart), district: o.district,
         amount: o.amount, customer: o.customerName, address: o.address, lat: o.lat, lng: o.lng,

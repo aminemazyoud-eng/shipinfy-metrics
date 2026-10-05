@@ -34,7 +34,7 @@ export async function GET(req: NextRequest) {
       ...(sp.get('late') === '1' ? { status: { notIn: [...DONE, 'READY_PICKUP'] }, slotEnd: { lt: new Date(now) } } : {}),
     }
 
-    const [rows, counts, lateCount] = await Promise.all([
+    const [rows, counts, lateCount, toDispatch] = await Promise.all([
       prisma.opsOrder.findMany({
         where, orderBy: [{ slotEnd: 'asc' }, { externalId: 'asc' }], take: limit,
         select: { id: true, externalId: true, reference: true, hubCode: true, city: true, district: true, status: true, slotStart: true, slotEnd: true, slotLabel: true, amount: true, customerName: true,
@@ -42,11 +42,12 @@ export async function GET(req: NextRequest) {
       }),
       prisma.opsOrder.groupBy({ by: ['status'], where: base, _count: { _all: true } }),
       prisma.opsOrder.count({ where: { ...base, status: { notIn: [...DONE, 'READY_PICKUP'] }, slotEnd: { lt: new Date(now) } } }),
+      prisma.opsOrder.count({ where: { OR: base.OR, status: 'READY_PICKUP', ...(hub ? { hubCode: hub } : {}), ...(city ? { city: city.toUpperCase() } : {}) } }),
     ])
 
     return NextResponse.json({
       day, now: new Date(now).toISOString(),
-      counts: Object.fromEntries(counts.map(c => [c.status, c._count._all])), late: lateCount,
+      counts: Object.fromEntries(counts.map(c => [c.status, c._count._all])), late: lateCount, toDispatch,
       orders: rows.map(o => {
         const done = DONE.includes(o.status)
         const endedAt = o.deliveredAt ?? o.noShowAt

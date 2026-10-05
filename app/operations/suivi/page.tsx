@@ -1,11 +1,15 @@
 'use client'
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, Suspense } from 'react'
 import { ListChecks, RefreshCw, Search, X, AlertTriangle, LifeBuoy } from 'lucide-react'
+import Link from 'next/link'
+import { useSearchParams } from 'next/navigation'
 import OpsNav from '../components/OpsNav'
+import OrderTimeline from '../components/OrderTimeline'
+import type { Step } from '@/lib/ops-steps'
 
 interface Row { id: string; ref: string; hubCode: string | null; district: string | null; status: string; slotLabel: string | null; amount: number | null; customer: string | null; driver: { code: string; name: string } | null; late: boolean; lateMin: number; deliveredLate: boolean; atRisk: boolean }
-interface Res { day: string; counts: Record<string, number>; late: number; orders: Row[] }
-interface Detail { id: string; ref: string; externalId: string; status: string; slotLabel: string | null; customer: string | null; address: string | null; amount: number | null; attempts: number; driver: { code: string; name: string; phone: string | null; hub: string | null } | null; events: { from: string | null; to: string; at: string; source: string }[]; tickets: { id: string; reference: string; subject: string; status: string }[] }
+interface Res { day: string; counts: Record<string, number>; late: number; toDispatch: number; orders: Row[] }
+interface Detail { id: string; ref: string; externalId: string; status: string; slotLabel: string | null; customer: string | null; address: string | null; amount: number | null; attempts: number; driver: { code: string; name: string; phone: string | null; hub: string | null } | null; steps: Step[]; totalMin: number | null; tickets: { id: string; reference: string; subject: string; status: string }[] }
 
 // Parcours : À dispatcher (page Dispatch) → Assignée → Acceptée → En livraison [= Suivi] → Livrée (page Encaissement) → Encaissée (Historique)
 const STATUSES = [['ASSIGNED', 'Commande assignée', '#8b5cf6'], ['IN_TRANSPORT', 'Commande acceptée', '#06b6d4'], ['START_DELIVERY', 'En livraison', '#f59e0b'], ['NO_SHOW', 'NO_SHOW', '#6b7280']] as const
@@ -14,10 +18,15 @@ const COL: Record<string, string> = { COLLECTED: '#15803d', READY_PICKUP: '#3b82
 const fmt = (d: string) => new Date(d).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit', timeZone: 'Africa/Casablanca' })
 
 export default function SuiviPage() {
+  return <Suspense fallback={null}><Suivi /></Suspense>
+}
+
+function Suivi() {
+  const sp = useSearchParams()
   const [day, setDay] = useState('today')
   const [status, setStatus] = useState('')
   const [lateOnly, setLateOnly] = useState(false)
-  const [hub, setHub] = useState('')
+  const [hub, setHub] = useState(sp.get('hub') ?? '')
   const [q, setQ] = useState('')
   const [hubs, setHubs] = useState<{ code: string; name: string }[]>([])
   const [res, setRes] = useState<Res | null>(null)
@@ -75,7 +84,7 @@ export default function SuiviPage() {
                 <td className="p-2 pr-3 text-right text-gray-500">{o.amount ? `${Math.round(o.amount)} MAD` : ''}</td>
               </tr>
             ))}
-            {res && !res.orders.length && <tr><td colSpan={8} className="p-8 text-center text-gray-400">Aucune commande</td></tr>}
+            {res && !res.orders.length && <tr><td colSpan={8} className="p-8 text-center text-gray-400">Aucune commande en cours de livraison{res.toDispatch ? <> — <Link href={`/operations/dispatch${hub ? `?hub=${hub}` : ''}`} className="text-purple-700 underline">{res.toDispatch} commande(s) attendent d&apos;être dispatchées</Link></> : null}</td></tr>}
           </tbody>
         </table>
       </div>
@@ -87,10 +96,7 @@ export default function SuiviPage() {
             <div className="flex justify-between items-start"><div><div className="text-lg font-bold">{detail.ref}</div><div className="text-sm text-gray-500">{LBL[detail.status]} · créneau {detail.slotLabel}</div></div><button onClick={() => setDetail(null)}><X className="w-5 h-5" /></button></div>
             <div className="mt-4 space-y-1 text-sm text-gray-700"><div><b>Client :</b> {detail.customer ?? '—'}</div><div><b>Adresse :</b> {detail.address ?? '—'}</div><div><b>Montant :</b> {detail.amount ? `${detail.amount} MAD` : '—'} · tentatives : {detail.attempts}</div><div><b>Livreur :</b> {detail.driver ? `${detail.driver.name} (${detail.driver.code}) — ${detail.driver.hub ?? ''}` : 'non affecté'}</div></div>
             <div className="mt-5 text-sm font-medium text-gray-800">Chronologie</div>
-            <ol className="mt-2 border-l-2 border-gray-200 ml-1 space-y-3">
-              {detail.events.map((e, i) => <li key={i} className="pl-4 relative"><span className="absolute -left-[7px] top-1 w-3 h-3 rounded-full" style={{ background: COL[e.to] ?? '#999' }} /><div className="text-sm">{LBL[e.to] ?? e.to}</div><div className="text-xs text-gray-400">{fmt(e.at)} · {e.source}</div></li>)}
-              {!detail.events.length && <li className="pl-4 text-xs text-gray-400">Aucun événement</li>}
-            </ol>
+            <div className="mt-3"><OrderTimeline steps={detail.steps} totalMin={detail.totalMin} slotLabel={detail.slotLabel} /></div>
             <div className="mt-5 text-sm font-medium text-gray-800">Réclamations</div>
             {detail.tickets.map(t => <div key={t.id} className="text-sm mt-1 text-gray-600">{t.reference} — {t.subject} <span className="text-xs text-gray-400">({t.status})</span></div>)}
             {!detail.tickets.length && <div className="text-xs text-gray-400 mt-1">Aucune</div>}

@@ -3,7 +3,9 @@ import { useState, useEffect, useCallback } from 'react'
 import dynamic from 'next/dynamic'
 import { Activity, RefreshCw, AlertTriangle, Clock, Users, TrendingUp, Layers } from 'lucide-react'
 import OpsNav from './components/OpsNav'
-import type { ForecastResult, LiveResult, Level } from '@/lib/ops-analytics'
+import ForecastBoard from './components/ForecastBoard'
+import HubDrawer from './components/HubDrawer'
+import type { ForecastResult, LiveResult } from '@/lib/ops-analytics'
 
 const LiveMap = dynamic(() => import('./components/LiveMap'), { ssr: false, loading: () => <div className="h-[520px] rounded-xl bg-gray-100 animate-pulse" /> })
 
@@ -11,9 +13,6 @@ type Tab = 'previsions' | 'live' | 'carte'
 const CITIES = [{ v: '', l: 'Toutes les villes' }, { v: 'CASABLANCA', l: 'Casablanca' }, { v: 'MARRAKECH', l: 'Marrakech' }, { v: 'AGADIR', l: 'Agadir' }]
 const DAYS = [{ v: 'today', l: "Aujourd'hui" }, { v: 'tomorrow', l: 'Demain' }, { v: '2', l: 'J+2' }]
 
-const LEVEL_STYLE: Record<Level, string> = {
-  vide: 'bg-gray-50 text-gray-300', ok: 'bg-green-50 text-green-800', tendu: 'bg-amber-100 text-amber-900', sature: 'bg-red-100 text-red-800 font-semibold',
-}
 const STATUS_META: { key: string; label: string; color: string }[] = [
   { key: 'READY_PICKUP', label: 'À dispatcher', color: '#3b82f6' }, { key: 'ASSIGNED', label: 'Assignée', color: '#8b5cf6' },
   { key: 'IN_TRANSPORT', label: 'En transport', color: '#06b6d4' }, { key: 'START_DELIVERY', label: 'En livraison', color: '#f59e0b' },
@@ -43,6 +42,7 @@ export default function OperationsPage() {
   const [err, setErr] = useState<string | null>(null)
   const [loading, setLoading] = useState(false)
   const [updated, setUpdated] = useState<Date | null>(null)
+  const [hubOpen, setHubOpen] = useState<string | null>(null)
 
   const load = useCallback(async () => {
     setLoading(true); setErr(null)
@@ -106,58 +106,11 @@ export default function OperationsPage() {
             {forecast && <span className="text-xs text-gray-400">{forecast.day} · basé sur {forecast.historyDays} jour(s) d&apos;historique</span>}
           </div>
 
-          {forecast && (
-            <>
-              <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-                <Kpi label="Commandes prévues" value={forecast.summary.expected} sub={`${forecast.summary.known} déjà reçues`} icon={TrendingUp} />
-                <Kpi label="Créneaux saturés" value={forecast.summary.saturatedCells} tone={forecast.summary.saturatedCells ? 'red' : 'green'} sub={`${forecast.summary.tenseCells} sous tension`} icon={AlertTriangle} />
-                <Kpi label="Livreurs disponibles" value={forecast.summary.drivers} icon={Users} />
-                <Kpi label="Livreurs manquants (pic)" value={forecast.summary.driversGap} tone={forecast.summary.driversGap ? 'red' : 'green'} sub="vs charge au pire créneau" />
-              </div>
-              <div className="bg-white border border-gray-200 rounded-xl overflow-x-auto">
-                <table className="w-full text-sm">
-                  <thead>
-                    <tr className="text-xs text-gray-500 border-b border-gray-200">
-                      <th className="text-left p-3 font-medium">Hub</th><th className="p-2 font-medium">Livreurs</th>
-                      {forecast.slots.map(s => <th key={s} className="p-2 font-medium whitespace-nowrap">{s.replace('-', 'h–')}h</th>)}
-                      <th className="p-2 font-medium">Total</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {forecast.hubs.map(h => (
-                      <tr key={h.code} className="border-b border-gray-100">
-                        <td className="p-3"><div className="font-medium text-gray-900">{h.name}</div><div className="text-xs text-gray-400">{h.city}</div></td>
-                        <td className="text-center text-gray-600">{h.drivers}</td>
-                        {forecast.slots.map(s => {
-                          const c = h.cells[s]
-                          return (
-                            <td key={s} className="p-1">
-                              <div className={`rounded-md py-1.5 text-center ${LEVEL_STYLE[c.level]}`} title={`Prévu ${c.expected} · reçu ${c.known} · capacité ${c.capacity} · charge ${Math.round(c.load * 100)}% · besoin ${c.neededDrivers} livreur(s)`}>
-                                <div className="text-base leading-none">{c.expected || '·'}</div>
-                                {c.expected > 0 && <div className="text-[10px] opacity-60 mt-0.5">{c.known} reçues</div>}
-                              </div>
-                            </td>
-                          )
-                        })}
-                        <td className="text-center font-semibold text-gray-900 p-2">{h.totalExpected}<div className="text-[10px] font-normal text-gray-400">{h.totalKnown} reçues</div></td>
-                      </tr>
-                    ))}
-                    <tr className="bg-gray-50 text-gray-700 font-semibold">
-                      <td className="p-3">Total</td><td className="text-center">{forecast.summary.drivers}</td>
-                      {forecast.slots.map(s => <td key={s} className="text-center p-2">{forecast.totals[s].expected}<div className="text-[10px] font-normal text-gray-400">/{forecast.totals[s].capacity}</div></td>)}
-                      <td className="text-center">{forecast.summary.expected}</td>
-                    </tr>
-                  </tbody>
-                </table>
-              </div>
-              <div className="flex flex-wrap gap-3 text-xs text-gray-500">
-                {(['ok', 'tendu', 'sature'] as Level[]).map(l => <span key={l} className="flex items-center gap-1.5"><span className={`w-3 h-3 rounded ${LEVEL_STYLE[l].split(' ')[0]} border border-gray-200`} />{l === 'ok' ? '< 70 % de la capacité' : l === 'tendu' ? '70–100 %' : '≥ 100 % (saturé)'}</span>)}
-                <span>Prévu = f(reçu à ce jour, historique, courbe d&apos;arrivée des commandes)</span>
-              </div>
-            </>
-          )}
+          {forecast && <ForecastBoard forecast={forecast} perDriver={perDriver} resetKey={`${day}|${city}`} city={city} onApplied={load} />}
         </>
       )}
+
+      {hubOpen && <HubDrawer hub={hubOpen} onClose={() => setHubOpen(null)} onChanged={load} />}
 
       {tab !== 'previsions' && live && (
         <>
@@ -173,7 +126,7 @@ export default function OperationsPage() {
             <>
               <div className="grid md:grid-cols-2 xl:grid-cols-3 gap-3">
                 {live.hubs.map(h => (
-                  <div key={h.code} className={`bg-white border rounded-xl p-4 ${h.late ? 'border-red-300' : 'border-gray-200'}`}>
+                  <button key={h.code} onClick={() => setHubOpen(h.code)} className={`text-left bg-white border rounded-xl p-4 hover:shadow-md hover:border-purple-300 transition ${h.late ? 'border-red-300' : 'border-gray-200'}`}>
                     <div className="flex justify-between items-start">
                       <div><div className="font-semibold text-gray-900">{h.name}</div><div className="text-xs text-gray-400">{h.city} · {h.drivers} livreurs</div></div>
                       <div className="text-right"><div className="text-xl font-bold text-gray-900">{h.total}</div><div className="text-[10px] text-gray-400">commandes</div></div>
@@ -188,8 +141,10 @@ export default function OperationsPage() {
                       <span className={`px-2 py-0.5 rounded-full ${h.late ? 'bg-red-100 text-red-700 font-semibold' : 'bg-gray-100 text-gray-500'}`}>{h.late} en retard</span>
                       <span className={`px-2 py-0.5 rounded-full ${h.atRisk ? 'bg-amber-100 text-amber-700' : 'bg-gray-100 text-gray-500'}`}>{h.atRisk} à risque</span>
                       <span className="px-2 py-0.5 rounded-full bg-gray-100 text-gray-500">{h.onTimeRate == null ? '—' : `${h.onTimeRate}% à l'heure`}</span>
+                      {h.byStatus.READY_PICKUP ? <span className="px-2 py-0.5 rounded-full bg-blue-100 text-blue-700 font-medium">{h.byStatus.READY_PICKUP} à dispatcher</span> : null}
                     </div>
-                  </div>
+                    <div className="text-[11px] text-purple-600 mt-2">Cliquer pour dispatcher / voir le détail →</div>
+                  </button>
                 ))}
               </div>
               <div className="bg-white border border-gray-200 rounded-xl overflow-x-auto">

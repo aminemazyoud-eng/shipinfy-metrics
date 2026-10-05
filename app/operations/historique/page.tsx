@@ -2,14 +2,16 @@
 import { useState, useEffect, useCallback } from 'react'
 import { History, Download, Search, CheckCircle2, X } from 'lucide-react'
 import OpsNav from '../components/OpsNav'
+import OrderTimeline, { StepChip } from '../components/OrderTimeline'
+import { fmtDuration, type Step } from '@/lib/ops-steps'
 
-interface Row { id: string; ref: string; hubCode: string | null; slot: string | null; district: string | null; customer: string | null; driver: string | null; amount: number; deliveredAt: string | null; collectedAt: string | null; collectedBy: string | null; method: string | null; onTime: boolean | null }
+interface Row { id: string; ref: string; hubCode: string | null; slot: string | null; district: string | null; customer: string | null; driver: string | null; amount: number; deliveredAt: string | null; collectedAt: string | null; collectedBy: string | null; method: string | null; onTime: boolean | null; steps: Step[]; totalMin: number | null }
+interface Detail { ref: string; hubCode: string | null; slotLabel: string | null; customer: string | null; address: string | null; district: string | null; amount: number | null; steps: Step[]; totalMin: number | null; driver: { code: string; name: string; phone: string | null; hub: string | null } | null; collected: { by: string | null; method: string | null; amount: number | null; note: string | null } | null }
 interface Res { total: number; amount: number; offset: number; rows: Row[] }
 
 const PAGE = 100
 const mad = (n: number) => `${Math.round(n).toLocaleString('fr-FR')} MAD`
 const iso = (d: Date) => d.toISOString().slice(0, 10)
-const dt = (d: string | null) => (d ? new Date(d).toLocaleString('fr-FR', { timeZone: 'Africa/Casablanca', day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' }) : '—')
 const METHOD: Record<string, string> = { especes: 'Espèces', carte: 'Carte', virement: 'Virement' }
 
 // Opérations → Historique : commandes TERMINÉES (livrées ET encaissées) — fin de parcours.
@@ -21,6 +23,8 @@ export default function HistoriquePage() {
   const [drivers, setDrivers] = useState<{ code: string; firstName: string; lastName: string }[]>([])
   const [res, setRes] = useState<Res | null>(null)
   const [page, setPage] = useState(0)
+  const [detail, setDetail] = useState<Detail | null>(null)
+  const open = async (id: string) => { const r = await fetch(`/api/ops/orders/${id}`); if (r.ok) setDetail(await r.json()) }
 
   useEffect(() => {
     fetch('/api/ops/hubs').then(r => r.ok ? r.json() : null).then(j => j && setHubs(j.hubs)).catch(() => {})
@@ -58,20 +62,36 @@ export default function HistoriquePage() {
 
       <div className="bg-white border border-gray-200 rounded-xl overflow-x-auto">
         <table className="w-full text-sm">
-          <thead><tr className="text-xs text-gray-500 text-left border-b border-gray-200">{['Réf', 'Hub', 'Créneau', 'Livreur', 'Client', 'Livrée le', 'Encaissée le', 'Par', 'Mode', 'Montant'].map(h => <th key={h} className="p-2 font-medium whitespace-nowrap first:pl-3">{h}</th>)}</tr></thead>
+          <thead><tr className="text-xs text-gray-500 text-left border-b border-gray-200">{['Réf', 'Hub', 'Créneau', 'Livreur', 'Reçue', 'Assignée', 'Acceptée', 'En livraison', 'Livrée', 'Encaissée', 'Durée', 'Montant'].map(h => <th key={h} className="p-2 font-medium whitespace-nowrap first:pl-3">{h}</th>)}</tr></thead>
           <tbody>
             {res?.rows.map(r => (
-              <tr key={r.id} className="border-t border-gray-100">
-                <td className="p-2 pl-3 font-mono text-xs whitespace-nowrap"><CheckCircle2 className="w-3.5 h-3.5 text-green-600 inline mr-1" />{r.ref}</td><td className="p-2 text-gray-500">{r.hubCode}</td><td className="p-2">{r.slot?.replace('-', 'h–')}h</td>
-                <td className="p-2 text-gray-600">{r.driver ?? '—'}</td><td className="p-2 text-gray-600">{r.customer ?? ''}{r.district ? <span className="text-xs text-gray-400"> · {r.district}</span> : ''}</td>
-                <td className="p-2 whitespace-nowrap">{dt(r.deliveredAt)} {r.onTime === false && <span className="text-[10px] px-1 rounded bg-orange-100 text-orange-700">hors créneau</span>}</td><td className="p-2 whitespace-nowrap">{dt(r.collectedAt)}</td>
-                <td className="p-2 text-gray-500 text-xs">{r.collectedBy}</td><td className="p-2 text-gray-500 text-xs">{METHOD[r.method ?? ''] ?? r.method}</td><td className="p-2 text-right font-medium whitespace-nowrap">{mad(r.amount)}</td>
+              <tr key={r.id} onClick={() => open(r.id)} className="border-t border-gray-100 cursor-pointer hover:bg-purple-50/40">
+                <td className="p-2 pl-3 font-mono text-xs whitespace-nowrap"><CheckCircle2 className="w-3.5 h-3.5 text-green-600 inline mr-1" />{r.ref}</td><td className="p-2 text-gray-500">{r.hubCode}</td><td className="p-2 whitespace-nowrap">{r.slot?.replace('-', 'h–')}h</td>
+                <td className="p-2 text-gray-600 whitespace-nowrap">{r.driver ?? '—'}</td>
+                {r.steps.map(s => <td key={s.key} className="p-1.5"><StepChip s={s} />{s.late ? <div className="text-[10px] text-red-600 mt-0.5">hors créneau +{fmtDuration(s.late)}</div> : null}</td>)}
+                <td className="p-2 text-xs text-gray-500 whitespace-nowrap">{fmtDuration(r.totalMin)}</td><td className="p-2 text-right font-medium whitespace-nowrap">{mad(r.amount)}</td>
               </tr>
             ))}
-            {res && !res.rows.length && <tr><td colSpan={10} className="p-8 text-center text-gray-400">Aucune commande terminée pour ces critères</td></tr>}
+            {res && !res.rows.length && <tr><td colSpan={12} className="p-8 text-center text-gray-400">Aucune commande terminée pour ces critères</td></tr>}
           </tbody>
         </table>
       </div>
+      <div className="text-xs text-gray-400">Chaque heure est colorée selon le délai depuis l&apos;étape précédente : <span className="text-green-700">vert</span> = dans les temps · <span className="text-amber-700">ambre</span> = lent · <span className="text-red-700">rouge</span> = trop long. Cliquez une ligne pour le parcours complet.</div>
+
+      {detail && (
+        <div className="fixed inset-0 bg-black/30 z-50 flex justify-end" onClick={() => setDetail(null)}>
+          <div className="bg-white w-full max-w-md h-full p-5 overflow-y-auto" onClick={e => e.stopPropagation()}>
+            <div className="flex justify-between items-start"><div><div className="text-lg font-bold font-mono">{detail.ref}</div><div className="text-sm text-gray-500">{detail.hubCode} · créneau {detail.slotLabel?.replace('-', 'h–')}h</div></div><button onClick={() => setDetail(null)}><X className="w-5 h-5" /></button></div>
+            <div className="mt-4 space-y-1 text-sm text-gray-700">
+              <div><b>Client :</b> {detail.customer ?? '—'}</div><div><b>Adresse :</b> {detail.address ?? '—'}{detail.district ? ` · ${detail.district}` : ''}</div>
+              <div><b>Livreur :</b> {detail.driver ? `${detail.driver.name} (${detail.driver.code})` : '—'}</div>
+              {detail.collected && <div><b>Encaissement :</b> {mad(detail.collected.amount ?? 0)} · {METHOD[detail.collected.method ?? ''] ?? detail.collected.method} · par {detail.collected.by ?? '—'}{detail.collected.note ? ` — ${detail.collected.note}` : ''}</div>}
+            </div>
+            <div className="mt-5 mb-2 text-sm font-medium text-gray-800">Parcours de la commande</div>
+            <OrderTimeline steps={detail.steps} totalMin={detail.totalMin} slotLabel={detail.slotLabel} />
+          </div>
+        </div>
+      )}
       {res && res.total > PAGE && (
         <div className="flex items-center justify-between text-sm text-gray-500">
           <span>{res.offset + 1}–{Math.min(res.offset + PAGE, res.total)} sur {res.total.toLocaleString('fr-FR')}</span>

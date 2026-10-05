@@ -7,9 +7,10 @@ interface Row { id: string; ref: string; hubCode: string | null; district: strin
 interface Res { day: string; counts: Record<string, number>; late: number; orders: Row[] }
 interface Detail { id: string; ref: string; externalId: string; status: string; slotLabel: string | null; customer: string | null; address: string | null; amount: number | null; attempts: number; driver: { code: string; name: string; phone: string | null; hub: string | null } | null; events: { from: string | null; to: string; at: string; source: string }[]; tickets: { id: string; reference: string; subject: string; status: string }[] }
 
-const STATUSES = [['READY_PICKUP', 'À dispatcher', '#3b82f6'], ['ASSIGNED', 'Assignée', '#8b5cf6'], ['IN_TRANSPORT', 'En transport', '#06b6d4'], ['START_DELIVERY', 'En livraison', '#f59e0b'], ['DELIVERED', 'Livrée', '#16a34a'], ['NO_SHOW', 'NO_SHOW', '#6b7280']] as const
-const LBL = Object.fromEntries(STATUSES.map(s => [s[0], s[1]]))
-const COL = Object.fromEntries(STATUSES.map(s => [s[0], s[2]]))
+// Parcours : À dispatcher (page Dispatch) → Assignée → Acceptée → En livraison [= Suivi] → Livrée (page Encaissement) → Encaissée (Historique)
+const STATUSES = [['ASSIGNED', 'Commande assignée', '#8b5cf6'], ['IN_TRANSPORT', 'Commande acceptée', '#06b6d4'], ['START_DELIVERY', 'En livraison', '#f59e0b'], ['NO_SHOW', 'NO_SHOW', '#6b7280']] as const
+const LBL: Record<string, string> = { COLLECTED: 'Encaissée (parcours terminé)', READY_PICKUP: 'Reçue (à dispatcher)', ASSIGNED: 'Commande assignée', IN_TRANSPORT: 'Commande acceptée', START_DELIVERY: 'En livraison', DELIVERED: 'Livrée', NO_SHOW: 'NO_SHOW' }
+const COL: Record<string, string> = { COLLECTED: '#15803d', READY_PICKUP: '#3b82f6', ASSIGNED: '#8b5cf6', IN_TRANSPORT: '#06b6d4', START_DELIVERY: '#f59e0b', DELIVERED: '#16a34a', NO_SHOW: '#6b7280' }
 const fmt = (d: string) => new Date(d).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit', timeZone: 'Africa/Casablanca' })
 
 export default function SuiviPage() {

@@ -1,87 +1,82 @@
 'use client'
 import { useState, useEffect, useCallback } from 'react'
-import { History, Download } from 'lucide-react'
-import { ResponsiveContainer, ComposedChart, Bar, Line, XAxis, YAxis, Tooltip, CartesianGrid, Legend } from 'recharts'
+import { History, Download, Search, CheckCircle2, X } from 'lucide-react'
 import OpsNav from '../components/OpsNav'
 
-interface Row { key: string; total: number; delivered: number; noShow: number; onTimeRate: number | null; noShowRate: number | null; deliveryRate: number | null; amount: number }
-interface Res { from: string; to: string; totals: Row & { days: number; avgPerDay: number }; byDay: Row[]; byHub: Row[]; bySlot: Row[]; byDriver: Row[]
-  weekdayMatrix: { weekday: number; days: number; slots: Record<string, number> }[]; arrivalCurve: { hoursBefore: number; knownPct: number | null }[]
-  log: { at: string; actor: string | null; action: string; entity: string; entityId: string | null; hubCode: string | null; payload: string | null }[] }
+interface Row { id: string; ref: string; hubCode: string | null; slot: string | null; district: string | null; customer: string | null; driver: string | null; amount: number; deliveredAt: string | null; collectedAt: string | null; collectedBy: string | null; method: string | null; onTime: boolean | null }
+interface Res { total: number; amount: number; offset: number; rows: Row[] }
 
-const WD = ['Dim', 'Lun', 'Mar', 'Mer', 'Jeu', 'Ven', 'Sam']
+const PAGE = 100
+const mad = (n: number) => `${Math.round(n).toLocaleString('fr-FR')} MAD`
 const iso = (d: Date) => d.toISOString().slice(0, 10)
-const pc = (v: number | null) => (v == null ? '—' : `${v}%`)
+const dt = (d: string | null) => (d ? new Date(d).toLocaleString('fr-FR', { timeZone: 'Africa/Casablanca', day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' }) : '—')
+const METHOD: Record<string, string> = { especes: 'Espèces', carte: 'Carte', virement: 'Virement' }
 
-function Table({ title, rows, label }: { title: string; rows: Row[]; label: (k: string) => string }) {
-  return (
-    <div className="bg-white border border-gray-200 rounded-xl overflow-x-auto">
-      <div className="p-3 text-sm font-medium text-gray-700 border-b border-gray-100">{title}</div>
-      <table className="w-full text-sm"><thead><tr className="text-xs text-gray-500 text-left"><th className="p-2 pl-3 font-medium"> </th><th className="p-2 font-medium">Cmd</th><th className="p-2 font-medium">Livrées</th><th className="p-2 font-medium">À l&apos;heure</th><th className="p-2 font-medium">NO_SHOW</th></tr></thead>
-        <tbody>{rows.slice(0, 12).map(r => <tr key={r.key} className="border-t border-gray-100"><td className="p-2 pl-3">{label(r.key)}</td><td className="p-2">{r.total}</td><td className="p-2">{r.delivered}</td><td className={`p-2 ${r.onTimeRate != null && r.onTimeRate < 85 ? 'text-red-600' : ''}`}>{pc(r.onTimeRate)}</td><td className="p-2 text-gray-500">{pc(r.noShowRate)}</td></tr>)}</tbody></table>
-    </div>
-  )
-}
-
+// Opérations → Historique : commandes TERMINÉES (livrées ET encaissées) — fin de parcours.
+// Recherche par code, livreur, hub et date. (Les analyses de volumes/ponctualité sont dans Performance → Analyse.)
 export default function HistoriquePage() {
   const [from, setFrom] = useState(iso(new Date(Date.now() - 30 * 86_400_000))); const [to, setTo] = useState(iso(new Date()))
+  const [hub, setHub] = useState(''); const [driver, setDriver] = useState(''); const [q, setQ] = useState('')
+  const [hubs, setHubs] = useState<{ code: string; name: string }[]>([])
+  const [drivers, setDrivers] = useState<{ code: string; firstName: string; lastName: string }[]>([])
   const [res, setRes] = useState<Res | null>(null)
-  const load = useCallback(async () => { const r = await fetch(`/api/ops/history?from=${from}&to=${to}`); if (r.ok) setRes(await r.json()) }, [from, to])
-  useEffect(() => { load() }, [load])
-  const max = Math.max(1, ...(res?.weekdayMatrix.flatMap(w => Object.values(w.slots)) ?? [1]))
-  const slots = res ? Object.keys(res.weekdayMatrix[0]?.slots ?? {}) : []
+  const [page, setPage] = useState(0)
+
+  useEffect(() => {
+    fetch('/api/ops/hubs').then(r => r.ok ? r.json() : null).then(j => j && setHubs(j.hubs)).catch(() => {})
+    fetch('/api/rh/people?type=chauffeur').then(r => r.ok ? r.json() : null).then(j => j && setDrivers(j.people)).catch(() => {})
+  }, [])
+  const qs = useCallback((extra = '') => `view=done&from=${from}&to=${to}${hub ? `&hub=${hub}` : ''}${driver ? `&driver=${driver}` : ''}${q ? `&q=${encodeURIComponent(q)}` : ''}${extra}`, [from, to, hub, driver, q])
+  useEffect(() => { setPage(0) }, [from, to, hub, driver, q])
+  useEffect(() => {
+    const t = setTimeout(async () => { const r = await fetch(`/api/ops/history?${qs(`&offset=${page * PAGE}`)}`); if (r.ok) setRes(await r.json()) }, q ? 300 : 0)
+    return () => clearTimeout(t)
+  }, [qs, page, q])
+  const reset = () => { setHub(''); setDriver(''); setQ(''); setFrom(iso(new Date(Date.now() - 30 * 86_400_000))); setTo(iso(new Date())) }
+  const filtered = hub || driver || q
 
   return (
     <div className="p-4 md:p-6 space-y-4">
-      <h1 className="text-xl font-bold text-gray-900 flex items-center gap-2"><History className="w-5 h-5 text-purple-600" />Historique & consulting</h1>
+      <h1 className="text-xl font-bold text-gray-900 flex items-center gap-2"><History className="w-5 h-5 text-purple-600" />Historique des commandes</h1>
       <OpsNav />
-      <div className="flex flex-wrap items-end gap-3">
-        <label className="text-xs text-gray-500">Du<input type="date" value={from} onChange={e => setFrom(e.target.value)} className="block border border-gray-300 rounded-lg px-2 py-1.5 text-sm" /></label>
-        <label className="text-xs text-gray-500">Au<input type="date" value={to} onChange={e => setTo(e.target.value)} className="block border border-gray-300 rounded-lg px-2 py-1.5 text-sm" /></label>
-        <a href={`/api/ops/history?from=${from}&to=${to}&format=csv`} className="flex items-center gap-1.5 px-3 py-2 text-sm rounded-lg bg-purple-600 text-white"><Download className="w-4 h-4" />Export CSV</a>
+      <p className="text-sm text-gray-500">Commandes <b>terminées</b> : livrées et encaissées — leur parcours est fini. Les commandes livrées en attente d&apos;encaissement sont dans <b>Encaissement</b>.</p>
+
+      <div className="bg-white border border-gray-200 rounded-xl p-3 flex flex-wrap items-end gap-3">
+        <label className="text-xs text-gray-500 relative">Code / recherche<Search className="w-4 h-4 absolute left-2.5 bottom-2 text-gray-400" /><input value={q} onChange={e => setQ(e.target.value)} placeholder="réf commande, client, quartier…" className="block border border-gray-300 rounded-lg pl-8 pr-2 py-1.5 text-sm w-60" /></label>
+        <label className="text-xs text-gray-500">Livreur<select value={driver} onChange={e => setDriver(e.target.value)} className="block border border-gray-300 rounded-lg px-2 py-1.5 text-sm bg-white w-48"><option value="">Tous les livreurs</option>{drivers.map(d => <option key={d.code} value={d.code}>{d.firstName} {d.lastName} ({d.code})</option>)}</select></label>
+        <label className="text-xs text-gray-500">Hub<select value={hub} onChange={e => setHub(e.target.value)} className="block border border-gray-300 rounded-lg px-2 py-1.5 text-sm bg-white w-44"><option value="">Tous les hubs</option>{hubs.map(h => <option key={h.code} value={h.code}>{h.name.replace('Marjane ', '')}</option>)}</select></label>
+        <label className="text-xs text-gray-500">Encaissée du<input type="date" value={from} onChange={e => setFrom(e.target.value)} className="block border border-gray-300 rounded-lg px-2 py-1.5 text-sm" /></label>
+        <label className="text-xs text-gray-500">au<input type="date" value={to} onChange={e => setTo(e.target.value)} className="block border border-gray-300 rounded-lg px-2 py-1.5 text-sm" /></label>
+        {filtered && <button onClick={reset} className="flex items-center gap-1 text-xs px-2.5 py-2 border border-gray-300 rounded-lg"><X className="w-3.5 h-3.5" />Réinitialiser</button>}
+        <a href={`/api/ops/history?${qs('&format=csv')}`} className="ml-auto flex items-center gap-1.5 px-3 py-2 text-sm rounded-lg bg-purple-600 text-white"><Download className="w-4 h-4" />Export CSV</a>
       </div>
 
-      {res && (
-        <>
-          <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
-            {[['Commandes', res.totals.total], ['Moy. / jour', res.totals.avgPerDay], ['Livrées', pc(res.totals.deliveryRate)], ['À l\'heure', pc(res.totals.onTimeRate)], ['NO_SHOW', pc(res.totals.noShowRate)]].map(([l, v]) => <div key={l as string} className="bg-white border border-gray-200 rounded-xl p-3"><div className="text-xs text-gray-500">{l}</div><div className="text-xl font-bold text-gray-900">{v}</div></div>)}
-          </div>
+      <div className="grid grid-cols-2 gap-3 max-w-md">
+        <div className="bg-white border border-gray-200 rounded-xl p-3"><div className="text-xs text-gray-500">Commandes terminées</div><div className="text-xl font-bold text-gray-900">{res ? res.total.toLocaleString('fr-FR') : '…'}</div></div>
+        <div className="bg-white border border-gray-200 rounded-xl p-3"><div className="text-xs text-gray-500">Montant encaissé</div><div className="text-xl font-bold text-green-600">{res ? mad(res.amount) : '…'}</div></div>
+      </div>
 
-          <div className="bg-white border border-gray-200 rounded-xl p-3">
-            <div className="text-sm font-medium text-gray-700 mb-2">Volume et ponctualité par jour</div>
-            <div className="h-64"><ResponsiveContainer width="100%" height="100%">
-              <ComposedChart data={res.byDay}><CartesianGrid strokeDasharray="3 3" stroke="#eee" /><XAxis dataKey="key" tickFormatter={(d: string) => d.slice(5)} fontSize={11} /><YAxis yAxisId="l" fontSize={11} /><YAxis yAxisId="r" orientation="right" domain={[0, 100]} fontSize={11} unit="%" /><Tooltip /><Legend />
-                <Bar yAxisId="l" dataKey="total" name="Commandes" fill="#a78bfa" radius={[3, 3, 0, 0]} /><Line yAxisId="r" dataKey="onTimeRate" name="% à l'heure" stroke="#16a34a" dot={false} strokeWidth={2} /></ComposedChart>
-            </ResponsiveContainer></div>
-          </div>
-
-          <div className="grid lg:grid-cols-2 gap-4">
-            <div className="bg-white border border-gray-200 rounded-xl p-3">
-              <div className="text-sm font-medium text-gray-700 mb-2">Volume moyen par jour de semaine × créneau</div>
-              <table className="w-full text-sm text-center"><thead><tr className="text-xs text-gray-500"><th className="text-left">Jour</th>{slots.map(s => <th key={s} className="font-medium">{s.replace('-', 'h–')}h</th>)}</tr></thead>
-                <tbody>{res.weekdayMatrix.map(w => <tr key={w.weekday}><td className="text-left py-1 text-gray-600">{WD[w.weekday]} <span className="text-[10px] text-gray-400">({w.days}j)</span></td>{slots.map(s => <td key={s} className="p-0.5"><div className="rounded py-1" style={{ background: `rgba(124,58,237,${0.08 + (w.slots[s] / max) * 0.7})`, color: w.slots[s] / max > 0.5 ? '#fff' : '#333' }}>{w.slots[s]}</div></td>)}</tr>)}</tbody></table>
-            </div>
-            <div className="bg-white border border-gray-200 rounded-xl p-3">
-              <div className="text-sm font-medium text-gray-700">Courbe d&apos;arrivée des commandes</div>
-              <p className="text-xs text-gray-400 mb-3">Part du volume final déjà connue avant le début du créneau — base de l&apos;anticipation.</p>
-              <div className="space-y-2">{res.arrivalCurve.map(a => <div key={a.hoursBefore} className="flex items-center gap-2 text-sm"><span className="w-20 text-gray-500">{a.hoursBefore === 0 ? 'Au début' : `H−${a.hoursBefore}`}</span><div className="flex-1 h-3 bg-gray-100 rounded-full overflow-hidden"><div className="h-full bg-purple-500" style={{ width: `${a.knownPct ?? 0}%` }} /></div><span className="w-12 text-right font-medium">{pc(a.knownPct)}</span></div>)}</div>
-            </div>
-          </div>
-
-          <div className="grid lg:grid-cols-3 gap-4">
-            <Table title="Par hub" rows={res.byHub} label={k => k} />
-            <Table title="Par créneau" rows={res.bySlot} label={k => `${k.replace('-', 'h–')}h`} />
-            <Table title="Par livreur (top 12)" rows={res.byDriver} label={k => k} />
-          </div>
-
-          <div className="bg-white border border-gray-200 rounded-xl">
-            <div className="p-3 text-sm font-medium text-gray-700 border-b border-gray-100">Journal des actions (dispatch, pointage, paie, flotte)</div>
-            <div className="max-h-72 overflow-y-auto divide-y divide-gray-100">
-              {res.log.map((l, i) => <div key={i} className="px-3 py-2 text-sm flex gap-3"><span className="text-xs text-gray-400 w-32 shrink-0">{new Date(l.at).toLocaleString('fr-FR', { timeZone: 'Africa/Casablanca', day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' })}</span><span className="font-mono text-xs text-purple-700 w-36 shrink-0">{l.action}</span><span className="text-gray-600 truncate">{l.actor} {l.hubCode ? `· ${l.hubCode}` : ''} {l.entityId ? `· ${l.entityId}` : ''}</span></div>)}
-              {!res.log.length && <div className="p-4 text-sm text-gray-400">Aucune action enregistrée</div>}
-            </div>
-          </div>
-        </>
+      <div className="bg-white border border-gray-200 rounded-xl overflow-x-auto">
+        <table className="w-full text-sm">
+          <thead><tr className="text-xs text-gray-500 text-left border-b border-gray-200">{['Réf', 'Hub', 'Créneau', 'Livreur', 'Client', 'Livrée le', 'Encaissée le', 'Par', 'Mode', 'Montant'].map(h => <th key={h} className="p-2 font-medium whitespace-nowrap first:pl-3">{h}</th>)}</tr></thead>
+          <tbody>
+            {res?.rows.map(r => (
+              <tr key={r.id} className="border-t border-gray-100">
+                <td className="p-2 pl-3 font-mono text-xs whitespace-nowrap"><CheckCircle2 className="w-3.5 h-3.5 text-green-600 inline mr-1" />{r.ref}</td><td className="p-2 text-gray-500">{r.hubCode}</td><td className="p-2">{r.slot?.replace('-', 'h–')}h</td>
+                <td className="p-2 text-gray-600">{r.driver ?? '—'}</td><td className="p-2 text-gray-600">{r.customer ?? ''}{r.district ? <span className="text-xs text-gray-400"> · {r.district}</span> : ''}</td>
+                <td className="p-2 whitespace-nowrap">{dt(r.deliveredAt)} {r.onTime === false && <span className="text-[10px] px-1 rounded bg-orange-100 text-orange-700">hors créneau</span>}</td><td className="p-2 whitespace-nowrap">{dt(r.collectedAt)}</td>
+                <td className="p-2 text-gray-500 text-xs">{r.collectedBy}</td><td className="p-2 text-gray-500 text-xs">{METHOD[r.method ?? ''] ?? r.method}</td><td className="p-2 text-right font-medium whitespace-nowrap">{mad(r.amount)}</td>
+              </tr>
+            ))}
+            {res && !res.rows.length && <tr><td colSpan={10} className="p-8 text-center text-gray-400">Aucune commande terminée pour ces critères</td></tr>}
+          </tbody>
+        </table>
+      </div>
+      {res && res.total > PAGE && (
+        <div className="flex items-center justify-between text-sm text-gray-500">
+          <span>{res.offset + 1}–{Math.min(res.offset + PAGE, res.total)} sur {res.total.toLocaleString('fr-FR')}</span>
+          <div className="flex gap-2"><button disabled={page === 0} onClick={() => setPage(p => p - 1)} className="px-3 py-1 border border-gray-300 rounded-lg bg-white disabled:opacity-40">Précédent</button><button disabled={(page + 1) * PAGE >= res.total} onClick={() => setPage(p => p + 1)} className="px-3 py-1 border border-gray-300 rounded-lg bg-white disabled:opacity-40">Suivant</button></div>
+        </div>
       )}
     </div>
   )

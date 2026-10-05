@@ -43,6 +43,7 @@ const SECTIONS: NavSection[] = [
     items: [
       { href: '/livreurs', label: 'Livreurs & Scoring', icon: Users,   disabled: false },
       { href: '/hubs',     label: 'Hubs',               icon: MapPin,  disabled: false },
+      { href: '/performance/analyse', label: 'Metrics', icon: TrendingUp, disabled: false },
       { href: '/retours',  label: 'Retours & NO_SHOW',  icon: XCircle, disabled: false },
     ],
   },
@@ -53,6 +54,7 @@ const SECTIONS: NavSection[] = [
       { href: '/operations',            label: 'Cockpit opérationnel', icon: Activity,  disabled: false },
       { href: '/operations/dispatch',   label: 'Dispatch live',        icon: Truck,     disabled: false },
       { href: '/operations/suivi',      label: 'Suivi commandes',      icon: Activity,  disabled: false },
+      { href: '/operations/encaissement', label: 'Encaissement',      icon: DollarSign, disabled: false },
       { href: '/operations/pointage',   label: 'Pointage & paie',      icon: Clock,     disabled: false },
       { href: '/operations/flotte',     label: 'Flotte & gasoil',      icon: Package,   disabled: false },
       { href: '/operations/historique', label: 'Historique',           icon: BarChart3, disabled: false },
@@ -87,6 +89,7 @@ const SECTIONS: NavSection[] = [
     label: 'Administration',
     items: [
       { href: '/admin', label: 'Super Admin', icon: Shield, disabled: false },
+      { href: '/admin/journal', label: 'Journal des actions', icon: Clock, disabled: false },
     ],
   },
 ]

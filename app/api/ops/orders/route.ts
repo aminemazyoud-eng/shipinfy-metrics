@@ -7,6 +7,8 @@ import { canonicalSlot } from '@/lib/ops-slots'
 import { CFG } from '@/lib/ops-config'
 
 const DONE = ['DELIVERED', 'NO_SHOW']
+// Parcours d'une commande : À dispatcher (page Dispatch) → Assignée → Acceptée → En livraison  [= Suivi]  → Livrée (page Encaissement) → Encaissée (Historique)
+const NOT_IN_SUIVI = ['READY_PICKUP', 'DELIVERED']
 
 // GET /api/ops/orders?day=today&hub=&city=&status=&slot=09-12&late=1&q=&limit=400
 // Suivi des commandes : statut, retard (minutes), livreur — + compteurs par statut pour les filtres.
@@ -23,12 +25,13 @@ export async function GET(req: NextRequest) {
 
     const base: Prisma.OpsOrderWhereInput = {
       OR: [{ slotStart: { gte: from, lt: to } }, { slotStart: { lt: from }, status: { notIn: DONE } }],
+      NOT: { status: { in: NOT_IN_SUIVI } },
       ...(hub ? { hubCode: hub } : {}), ...(city ? { city: city.toUpperCase() } : {}), ...(slot ? { slotLabel: slot } : {}),
       ...(q ? { AND: [{ OR: [{ reference: { contains: q } }, { externalId: { contains: q } }, { customerName: { contains: q, mode: 'insensitive' } }, { district: { contains: q, mode: 'insensitive' } }] }] } : {}),
     }
     const where: Prisma.OpsOrderWhereInput = {
       ...base, ...(status ? { status } : {}),
-      ...(sp.get('late') === '1' ? { status: { notIn: DONE }, slotEnd: { lt: new Date(now) } } : {}),
+      ...(sp.get('late') === '1' ? { status: { notIn: [...DONE, 'READY_PICKUP'] }, slotEnd: { lt: new Date(now) } } : {}),
     }
 
     const [rows, counts, lateCount] = await Promise.all([
@@ -38,7 +41,7 @@ export async function GET(req: NextRequest) {
           address: true, deliveredAt: true, noShowAt: true, attemptCount: true, driver: { select: { code: true, firstName: true, lastName: true } } },
       }),
       prisma.opsOrder.groupBy({ by: ['status'], where: base, _count: { _all: true } }),
-      prisma.opsOrder.count({ where: { ...base, status: { notIn: DONE }, slotEnd: { lt: new Date(now) } } }),
+      prisma.opsOrder.count({ where: { ...base, status: { notIn: [...DONE, 'READY_PICKUP'] }, slotEnd: { lt: new Date(now) } } }),
     ])
 
     return NextResponse.json({

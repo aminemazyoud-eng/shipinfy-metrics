@@ -1076,3 +1076,22 @@ Audit complet de la plateforme (18 pages, 0 erreur console, tous les appels API 
 
 ### Scripts utiles
 `apply-sql.js <fichier>` · `seed-ops.js` · `seed-crew.js` · `seed-academy.js` (3 formations métier) · `seed-fleet-demo.js` · `reset-fleet.js` · `mock-backoffice/` (voir §26).
+
+---
+
+## 29. PARCOURS DE COMMANDE, ENCAISSEMENT, HISTORIQUE, JOURNAL, METRICS, BASE UNIQUE (2026-10-05)
+
+### Parcours d'une commande (statuts OpsOrder + fin de parcours)
+`À dispatcher` (page **Dispatch live**) → `Commande assignée` → `Commande acceptée` (IN_TRANSPORT) → `En livraison` = page **Suivi** → `Livrée` (page **Encaissement**) → `Encaissée` = **Historique** (parcours terminé).
+- **Suivi** (`/operations/suivi`, `GET /api/ops/orders`) : n'affiche NI les commandes à dispatcher (READY_PICKUP) NI les livrées (DELIVERED). NO_SHOW reste visible (action requise).
+- **Encaissement** (`/operations/encaissement`, `GET/POST /api/ops/cash`) : commandes DELIVERED avec montant > 0 et `collectedAt` nul, groupées par livreur, ancienneté (>24 h ambre, >48 h rouge). Action `collect` (rôle DISPATCHER+) renseigne `collectedAt/Amount/By/Method/Note` + événement `COLLECTED` ; `revert` (MANAGER+). Colonnes ajoutées sur `OpsOrder` ; la synchro back-office ne les écrase pas.
+  Reprise historique faite : les commandes livrées il y a > 36 h ont été marquées encaissées (`collectedBy = « Reprise historique »`).
+- **Historique** (`/operations/historique`) = liste des commandes TERMINÉES (encaissées) avec recherche par **code**, **livreur**, **hub**, **dates** + pagination + export CSV (`GET /api/ops/history?view=done&q=&driver=&hub=&from=&to=&offset=`).
+
+### Où est quoi
+- **Performance → Metrics** (`/performance/analyse`) : l'ancienne analyse (volumes, ponctualité, matrice jour × créneau, courbe d'arrivée) déplacée telle quelle.
+- **Administration → Journal des actions** (`/admin/journal`, `GET /api/ops/audit`, rôles ADMIN+, module de droits `journal`) : filtres date / acteur / module / recherche libre, pagination, CSV. Le journal n'apparaît plus dans Opérations.
+
+### Une seule base pour Performance et Cockpit
+- `lib/ops-live-report.ts` : rapport spécial **LIVE** (`DeliveryReport.id = 'live-ops'`) = copie de `OpsOrder` au format rapport, rafraîchi à chaque synchro qui change des données. Les pages Performance (KPIs, Livreurs, Hubs, Retours, Score IA) prennent le rapport le plus récent → LIVE par défaut ; les imports Excel restent dans le sélecteur.
+- Score IA : `POST /api/score-ia/calculate` calcule depuis le rapport actif le plus récent et **supprime les scores de livreurs absents** de ce rapport (plus de données data3).

@@ -956,3 +956,11 @@ CREATE TABLE IF NOT EXISTS "OpsSetting" (
   "key" TEXT NOT NULL PRIMARY KEY, "value" TEXT NOT NULL, "updatedAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
 ALTER TABLE "OpsSetting" ENABLE ROW LEVEL SECURITY;
+
+-- ═══ ENCAISSEMENT : fin de parcours d'une commande (livrée → encaissée → historique) ═══════════
+ALTER TABLE "OpsOrder" ADD COLUMN IF NOT EXISTS "collectedAt" TIMESTAMP(3);
+ALTER TABLE "OpsOrder" ADD COLUMN IF NOT EXISTS "collectedAmount" DOUBLE PRECISION;
+ALTER TABLE "OpsOrder" ADD COLUMN IF NOT EXISTS "collectedBy" TEXT;
+ALTER TABLE "OpsOrder" ADD COLUMN IF NOT EXISTS "collectionMethod" TEXT;
+ALTER TABLE "OpsOrder" ADD COLUMN IF NOT EXISTS "collectionNote" TEXT;
+CREATE INDEX IF NOT EXISTS "OpsOrder_collectedAt_idx" ON "OpsOrder"("collectedAt");

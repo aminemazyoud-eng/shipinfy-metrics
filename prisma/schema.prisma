@@ -696,6 +696,11 @@ model OpsOrder {
   noShowAt         DateTime?
   sourceUpdatedAt  DateTime
   syncedAt         DateTime      @default(now())
+  collectedAt      DateTime?     // encaissement : commande livrée dont le montant a été remis (fin de parcours)
+  collectedAmount  Float?
+  collectedBy      String?
+  collectionMethod String?
+  collectionNote   String?
   events           OpsOrderEvent[]
 
   @@unique([source, externalId])
@@ -704,6 +709,7 @@ model OpsOrder {
   @@index([status])
   @@index([driverId])
   @@index([tenantId])
+  @@index([collectedAt])
 }
 
 model OpsOrderEvent {

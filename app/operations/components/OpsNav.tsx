@@ -6,6 +6,7 @@ const LINKS = [
   { href: '/operations', label: 'Cockpit' },
   { href: '/operations/dispatch', label: 'Dispatch live' },
   { href: '/operations/suivi', label: 'Suivi commandes' },
+  { href: '/operations/encaissement', label: 'Encaissement' },
   { href: '/operations/pointage', label: 'Pointage & paie' },
   { href: '/operations/flotte', label: 'Flotte & gasoil' },
   { href: '/operations/historique', label: 'Historique' },

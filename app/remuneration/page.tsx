@@ -263,14 +263,14 @@ export default function RemunerationPage() {
             <Settings2 size={14} /> Tarifs
           </button>
 
-          {/* Export CSV button */}
+          {/* Export Excel button */}
           {result && (
             <button
               onClick={() => window.open('/api/remuneration/export?reportId=' + result.reportId)}
               className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white text-sm font-medium rounded-lg hover:bg-blue-700 min-h-[44px]"
             >
               <Download size={15} />
-              <span>Export CSV</span>
+              <span>Export Excel</span>
             </button>
           )}
 

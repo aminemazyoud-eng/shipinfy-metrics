@@ -36,7 +36,7 @@ export default function MetricsPage() {
       <div className="flex flex-wrap items-end gap-3">
         <label className="text-xs text-gray-500">Du<input type="date" value={from} onChange={e => setFrom(e.target.value)} className="block border border-gray-300 rounded-lg px-2 py-1.5 text-sm" /></label>
         <label className="text-xs text-gray-500">Au<input type="date" value={to} onChange={e => setTo(e.target.value)} className="block border border-gray-300 rounded-lg px-2 py-1.5 text-sm" /></label>
-        <a href={`/api/ops/history?from=${from}&to=${to}&format=csv`} className="flex items-center gap-1.5 px-3 py-2 text-sm rounded-lg bg-purple-600 text-white"><Download className="w-4 h-4" />Export CSV</a>
+        <a href={`/api/ops/history?from=${from}&to=${to}&format=xlsx`} className="flex items-center gap-1.5 px-3 py-2 text-sm rounded-lg bg-purple-600 text-white"><Download className="w-4 h-4" />Export Excel</a>
       </div>
 
       {res && (

@@ -52,7 +52,7 @@ export default function HistoriquePage() {
         <label className="text-xs text-gray-500">Encaissée du<input type="date" value={from} onChange={e => setFrom(e.target.value)} className="block border border-gray-300 rounded-lg px-2 py-1.5 text-sm" /></label>
         <label className="text-xs text-gray-500">au<input type="date" value={to} onChange={e => setTo(e.target.value)} className="block border border-gray-300 rounded-lg px-2 py-1.5 text-sm" /></label>
         {filtered && <button onClick={reset} className="flex items-center gap-1 text-xs px-2.5 py-2 border border-gray-300 rounded-lg"><X className="w-3.5 h-3.5" />Réinitialiser</button>}
-        <a href={`/api/ops/history?${qs('&format=csv')}`} className="ml-auto flex items-center gap-1.5 px-3 py-2 text-sm rounded-lg bg-purple-600 text-white"><Download className="w-4 h-4" />Export CSV</a>
+        <a href={`/api/ops/history?${qs('&format=xlsx')}`} className="ml-auto flex items-center gap-1.5 px-3 py-2 text-sm rounded-lg bg-purple-600 text-white"><Download className="w-4 h-4" />Export Excel</a>
       </div>
 
       <div className="grid grid-cols-2 gap-3 max-w-md">

@@ -3,6 +3,7 @@ export const runtime = 'nodejs'
 import { NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { getSession, roleAtLeast } from '@/lib/auth'
+import { xlsxResponse } from '@/lib/xlsx-response'
 
 export async function GET(req: Request) {
   const session = await getSession(req)
@@ -46,11 +47,5 @@ export async function GET(req: Request) {
   const csv = [header, ...lines].join('\n')
   const date = new Date().toISOString().slice(0, 10)
 
-  return new Response(csv, {
-    status: 200,
-    headers: {
-      'Content-Type': 'text/csv; charset=utf-8',
-      'Content-Disposition': `attachment; filename="remuneration-${date}.csv"`,
-    },
-  })
+  return xlsxResponse(csv, `remuneration-${date}`, 'Rémunération')
 }

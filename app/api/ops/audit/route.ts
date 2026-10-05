@@ -3,6 +3,7 @@ import type { Prisma } from '@prisma/client'
 import { prisma } from '@/lib/prisma'
 import { opsAuth, fail } from '@/lib/ops-auth'
 import { dayBounds, dayOf } from '@/lib/ops-time'
+import { xlsxResponse } from '@/lib/xlsx-response'
 
 // GET /api/ops/audit?q=&module=&actor=&hub=&from=&to=&limit=100&offset=0&format=csv
 // Journal des actions (dispatch, pointage, paie, flotte, RH, paramétrage, encaissement…) — réservé à l'administration.
@@ -13,7 +14,7 @@ export async function GET(req: NextRequest) {
     const sp = new URL(req.url).searchParams
     const from = sp.get('from') || dayOf('-30'), to = sp.get('to') || dayOf('today')
     const q = sp.get('q')?.trim(), mod = sp.get('module'), actor = sp.get('actor')?.trim(), hub = sp.get('hub')
-    const csv = sp.get('format') === 'csv'
+    const csv = sp.get('format') === 'xlsx'
     const limit = csv ? 20000 : Math.min(Number(sp.get('limit')) || 100, 500), offset = Number(sp.get('offset')) || 0
 
     const where: Prisma.OpsAuditLogWhereInput = {
@@ -28,7 +29,7 @@ export async function GET(req: NextRequest) {
     ])
     if (csv) {
       const lines = [['Date', 'Acteur', 'Action', 'Objet', 'Hub', 'Détail'], ...rows.map(r => [r.at.toISOString().replace('T', ' ').slice(0, 19), r.actor ?? '', r.action, `${r.entity} ${r.entityId ?? ''}`.trim(), r.hubCode ?? '', r.payload ?? ''])]
-      return new NextResponse('﻿' + lines.map(l => l.map(c => '"' + String(c).replace(/"/g, '""') + '"').join(';')).join('\r\n'), { headers: { 'Content-Type': 'text/csv; charset=utf-8', 'Content-Disposition': `attachment; filename="journal_actions_${from}_${to}.csv"` } })
+      return xlsxResponse(lines.map(l => l.map(c => '"' + String(c).replace(/"/g, '""') + '"').join(';')).join('\r\n'), `journal_actions_${from}_${to}`, 'Journal')
     }
     const counts = new Map<string, number>(); for (const m of modules) { const k = m.action.split('.')[0]; counts.set(k, (counts.get(k) ?? 0) + m._count._all) }
     return NextResponse.json({

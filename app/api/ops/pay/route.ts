@@ -3,6 +3,7 @@ import { prisma } from '@/lib/prisma'
 import { opsAuth, fail, audit } from '@/lib/ops-auth'
 import { dayOf, dayBounds, attendanceKey } from '@/lib/ops-time'
 import { computePay, payCsv, type PayConfig } from '@/lib/ops-pay'
+import { xlsxResponse } from '@/lib/xlsx-response'
 
 const TZ = 3_600_000
 const localDay = (d: Date) => new Date(d.getTime() + TZ).toISOString().slice(0, 10)
@@ -38,8 +39,8 @@ export async function GET(req: NextRequest) {
       att.flatMap(a => { const d = byName.get(a.driverName); return d ? [{ driverId: d.id, day: a.date.toISOString().slice(0, 10), status: a.status }] : [] }),
       orders.flatMap(o => { const at = (o.deliveredAt ?? o.noShowAt) as Date; return drivers.filter(d => ordersOwner(d) === o.driverId).map(d => ({ driverId: d.id, day: localDay(at), status: o.status, onTime: o.status === 'DELIVERED' && at <= o.slotEnd })) }))
 
-    if (sp.get('format') === 'csv') {
-      return new NextResponse(payCsv(lines, `${from} → ${to}`), { headers: { 'Content-Type': 'text/csv; charset=utf-8', 'Content-Disposition': `attachment; filename="paie_livreurs_${from}_${to}.csv"` } })
+    if (sp.get('format') === 'xlsx') {
+      return xlsxResponse(payCsv(lines, `${from} → ${to}`), `paie_livreurs_${from}_${to}`, 'Paie')
     }
     const sum = (k: 'gross' | 'bonus' | 'deductions' | 'net') => Math.round(lines.reduce((s, l) => s + l[k], 0) * 100) / 100
     return NextResponse.json({ from, to, config: cfg, lines, totals: { gross: sum('gross'), bonus: sum('bonus'), deductions: sum('deductions'), net: sum('net'), delivered: lines.reduce((s, l) => s + l.delivered, 0) } })

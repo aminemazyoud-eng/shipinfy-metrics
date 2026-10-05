@@ -31,7 +31,7 @@ export default function JournalPage() {
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div><h1 className="text-xl font-bold text-gray-900 flex items-center gap-2"><ScrollText className="w-5 h-5 text-slate-700" />Journal des actions</h1>
           <p className="text-sm text-gray-500">Traçabilité : dispatch, pointage, paie, flotte, RH, encaissement et paramétrage — qui a fait quoi, et quand.</p></div>
-        <a href={`/api/ops/audit?${qs('&format=csv')}`} className="flex items-center gap-1.5 px-3 py-2 text-sm rounded-lg bg-slate-800 text-white"><Download className="w-4 h-4" />Export CSV</a>
+        <a href={`/api/ops/audit?${qs('&format=xlsx')}`} className="flex items-center gap-1.5 px-3 py-2 text-sm rounded-lg bg-slate-800 text-white"><Download className="w-4 h-4" />Export Excel</a>
       </div>
 
       <div className="flex flex-wrap items-end gap-3">

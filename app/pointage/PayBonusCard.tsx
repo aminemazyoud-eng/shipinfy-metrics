@@ -18,7 +18,7 @@ export default function PayBonusCard() {
       <div className="flex items-center justify-between flex-wrap gap-2">
         <div className="font-semibold text-gray-900 flex items-center gap-2"><Wallet className="w-4 h-4 text-teal-600" />Paie & bonus du mois {pay && <span className="text-xs font-normal text-gray-400">{pay.from} → {pay.to}</span>}</div>
         <div className="flex gap-2">
-          {pay && <a href={`/api/ops/pay?from=${pay.from}&to=${pay.to}&format=csv`} className="flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-lg bg-gray-100 border border-gray-200 text-gray-700"><Download className="w-3.5 h-3.5" />Fichier de paie (CSV)</a>}
+          {pay && <a href={`/api/ops/pay?from=${pay.from}&to=${pay.to}&format=xlsx`} className="flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-lg bg-gray-100 border border-gray-200 text-gray-700"><Download className="w-3.5 h-3.5" />Fichier de paie (Excel)</a>}
           <Link href="/operations/pointage" className="flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-lg border border-teal-300 text-teal-700">Règles & détail dans Opérations <ArrowRight className="w-3.5 h-3.5" /></Link>
         </div>
       </div>

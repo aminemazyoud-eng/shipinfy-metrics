@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { getSession, roleAtLeast } from '@/lib/auth'
+import { xlsxResponse } from '@/lib/xlsx-response'
 
 export const runtime = 'nodejs'
 
@@ -50,13 +51,7 @@ export async function GET(req: NextRequest) {
     const csv = lines.join('\n')
     const filename = `pointage_${month}.csv`
 
-    return new NextResponse(csv, {
-      status: 200,
-      headers: {
-        'Content-Type': 'text/csv; charset=utf-8',
-        'Content-Disposition': `attachment; filename="${filename}"`,
-      },
-    })
+    return xlsxResponse(csv, filename, 'Pointage')
   } catch (e) {
     console.error('[api/pointage/export GET]', e)
     return NextResponse.json({ error: 'Erreur serveur' }, { status: 500 })

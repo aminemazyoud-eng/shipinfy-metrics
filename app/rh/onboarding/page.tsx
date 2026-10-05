@@ -2,13 +2,14 @@
 import { useState, useEffect, useCallback, useMemo } from 'react'
 import Link from 'next/link'
 import { UserPlus, Car, Search, FileText, Pencil, Lock, GraduationCap, X, CheckCircle2 } from 'lucide-react'
+import RecruitBoard from './RecruitBoard'
 
 interface Person { code: string; firstName: string; lastName: string; jobType: 'chauffeur' | 'helper'; phone: string | null; cin: string | null; address: string | null; birthDate: string | null; hireDate: string | null; licenseNo: string | null
   contractType: string; status: string; onboardingStatus: string; trainingDone: boolean; quizScore: number | null; dailyRate: number; hubCode: string | null; hubName: string | null; city: string | null; vehicleId: string | null; vehiclePlate: string | null
   contractGeneratedAt: string | null; contractReady: boolean; licenseExpiry: string | null; licenseCategory: string | null; medicalVisitExpiry: string | null; driving: { ok: boolean; reasons: string[] } }
 interface Vehicle { id: string; plate: string; type: string; fuelType: string; brand: string | null; model: string | null; year: number | null; registrationNo: string | null; status: string; odometerKm: number; hubCode: string | null; hubName: string | null
   insuranceExpiry: string | null; technicalVisitExpiry: string | null; vignetteExpiry: string | null; insuranceDays: number | null; visitDays: number | null; vignetteDays: number | null; chauffeur: string | null; helper: string | null }
-type Tab = 'chauffeur' | 'helper' | 'vehicle'
+type Tab = 'chauffeur' | 'helper' | 'vehicle' | 'recrutement'
 type Form = Record<string, string>
 
 const STEPS: Record<string, { l: string; c: string }> = {
@@ -34,6 +35,7 @@ export default function OnboardingRhPage() {
     if (p.ok) { const j = await p.json(); setPeople(j.people); setCanEdit(j.canEdit) }
     if (v.ok) setVehicles((await v.json()).vehicles)
   }, [])
+  useEffect(() => { if (new URLSearchParams(window.location.search).get('tab') === 'recrutement') setTab('recrutement') }, [])
   useEffect(() => { load(); fetch('/api/ops/hubs').then(r => r.ok ? r.json() : null).then(j => j && setHubs(j.hubs)).catch(() => {}) }, [load])
 
   const list = useMemo(() => people.filter(p => p.jobType === tab && (!q || `${p.firstName} ${p.lastName} ${p.code} ${p.cin ?? ''}`.toLowerCase().includes(q.toLowerCase()))), [people, tab, q])
@@ -46,7 +48,7 @@ export default function OnboardingRhPage() {
     if (!modal) return
     const isPerson = modal.kind === 'person'
     const url = isPerson ? (modal.code ? `/api/rh/people/${modal.code}` : '/api/rh/people') : (modal.id ? `/api/rh/vehicles/${modal.id}` : '/api/rh/vehicles')
-    const body = isPerson ? { ...f, jobType: tab, trainingDone: !!f.trainingDone } : f
+    const body = isPerson ? { ...f, jobType: tab === 'recrutement' ? (f.jobType || 'chauffeur') : tab, trainingDone: !!f.trainingDone } : f
     const r = await fetch(url, { method: (isPerson ? modal.code : modal.id) ? 'PATCH' : 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) })
     const j = await r.json(); if (r.ok) { setModal(null); load() } else setErr(j.error || 'Erreur')
   }
@@ -57,18 +59,19 @@ export default function OnboardingRhPage() {
     </label>
   )
   const hubOpts = hubs.map(h => ({ v: h.code, l: h.name.replace('Marjane ', '') }))
-  const label = tab === 'chauffeur' ? 'chauffeur' : tab === 'helper' ? 'livreur / helper' : 'véhicule'
+  const kind = tab === 'recrutement' ? (f.jobType === 'helper' ? 'helper' : 'chauffeur') : tab
+  const label = tab === 'recrutement' ? 'candidat' : tab === 'chauffeur' ? 'chauffeur' : tab === 'helper' ? 'livreur / helper' : 'véhicule'
 
   return (
     <div className="p-4 md:p-6 space-y-4">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div><h1 className="text-xl font-bold text-gray-900 flex items-center gap-2"><UserPlus className="w-5 h-5 text-teal-600" />Onboarding — base du personnel & des véhicules</h1>
           <p className="text-sm text-gray-500">Équipe par véhicule : 1 chauffeur + 1 helper · seul l&apos;administrateur peut créer et modifier les fiches</p></div>
-        <div className="flex gap-2 text-xs"><Link href="/onboarding" className="px-3 py-1.5 border border-gray-300 rounded-lg bg-white">Parcours de recrutement (kanban)</Link><Link href="/academy" className="px-3 py-1.5 border border-gray-300 rounded-lg bg-white flex items-center gap-1"><GraduationCap className="w-3.5 h-3.5" />Academy</Link></div>
+        <div className="flex gap-2 text-xs"><Link href="/academy" className="px-3 py-1.5 border border-gray-300 rounded-lg bg-white flex items-center gap-1"><GraduationCap className="w-3.5 h-3.5" />Academy</Link></div>
       </div>
 
       <div className="flex flex-wrap items-center gap-2 border-b border-gray-200">
-        {([['chauffeur', 'Chauffeurs', people.filter(p => p.jobType === 'chauffeur').length], ['helper', 'Livreurs / Helpers', people.filter(p => p.jobType === 'helper').length], ['vehicle', 'Véhicules', vehicles.length]] as const).map(([k, l, n]) => (
+        {([['chauffeur', 'Chauffeurs', people.filter(p => p.jobType === 'chauffeur').length], ['helper', 'Livreurs / Helpers', people.filter(p => p.jobType === 'helper').length], ['vehicle', 'Véhicules', vehicles.length], ['recrutement', 'Recrutement', people.filter(p => p.onboardingStatus !== 'actif' && p.onboardingStatus !== 'inactif').length]] as const).map(([k, l, n]) => (
           <button key={k} onClick={() => setTab(k)} className={`px-4 py-2 text-sm border-b-2 -mb-px ${tab === k ? 'border-teal-600 text-teal-700 font-medium' : 'border-transparent text-gray-500'}`}>{l} <span className="text-xs text-gray-400">{n}</span></button>
         ))}
         <div className="ml-auto flex items-center gap-2 pb-1.5">
@@ -78,7 +81,9 @@ export default function OnboardingRhPage() {
         </div>
       </div>
 
-      {tab !== 'vehicle' ? (
+      {tab === 'recrutement' ? (
+        <RecruitBoard people={people.filter(p => !q || `${p.firstName} ${p.lastName} ${p.code} ${p.cin ?? ''}`.toLowerCase().includes(q.toLowerCase()))} canEdit={canEdit} onEdit={openPerson} onChanged={load} />
+      ) : tab !== 'vehicle' ? (
         <div className="bg-white border border-gray-200 rounded-xl overflow-x-auto">
           <table className="w-full text-sm">
             <thead><tr className="text-xs text-gray-500 text-left border-b border-gray-200">{['Code', 'Nom', 'CIN', 'Hub', 'Véhicule', 'Aptitude conduite', 'Contrat', 'Fixe / jour', 'Parcours d\'intégration', ''].map(h => <th key={h} className="p-2 font-medium first:pl-3 whitespace-nowrap">{h}</th>)}</tr></thead>
@@ -125,7 +130,8 @@ export default function OnboardingRhPage() {
             {modal.kind === 'person' ? (
               <div className="grid grid-cols-2 gap-3">
                 {field('firstName', 'Prénom')}{field('lastName', 'Nom')}{field('cin', 'CIN')}{field('phone', 'Téléphone')}{field('birthDate', 'Date de naissance', 'date')}{field('address', 'Adresse')}
-                {tab === 'chauffeur' && (<>{field('licenseNo', 'N° permis de conduire')}{field('licenseCategory', 'Catégorie du permis', 'text', [{ v: 'B', l: 'B (véhicule léger)' }, { v: 'C1', l: 'C1 (utilitaire > 3,5 t)' }, { v: 'C', l: 'C (poids lourd)' }, { v: 'A', l: 'A (moto)' }])}{field('licenseExpiry', "Expiration du permis", 'date')}</>)}{field('medicalVisitExpiry', 'Expiration visite médicale', 'date')}{field('hireDate', "Date d'embauche", 'date')}
+                {modal.code === undefined && tab === 'recrutement' && field('jobType', 'Poste', 'text', [{ v: 'chauffeur', l: 'Chauffeur' }, { v: 'helper', l: 'Livreur / helper' }])}
+                {kind === 'chauffeur' && (<>{field('licenseNo', 'N° permis de conduire')}{field('licenseCategory', 'Catégorie du permis', 'text', [{ v: 'B', l: 'B (véhicule léger)' }, { v: 'C1', l: 'C1 (utilitaire > 3,5 t)' }, { v: 'C', l: 'C (poids lourd)' }, { v: 'A', l: 'A (moto)' }])}{field('licenseExpiry', "Expiration du permis", 'date')}</>)}{field('medicalVisitExpiry', 'Expiration visite médicale', 'date')}{field('hireDate', "Date d'embauche", 'date')}
                 {field('contractType', 'Type de contrat', 'text', [{ v: 'CDD', l: 'CDD' }, { v: 'CDI', l: 'CDI' }, { v: 'Prestation', l: 'Prestation de services' }])}
                 {field('hubCode', 'Hub', 'text', hubOpts)}{field('vehicleId', 'Véhicule', 'text', vehicles.map(v => ({ v: v.id, l: v.plate })))}{field('dailyRate', 'Fixe / jour (MAD)', 'number')}
                 {modal.code && (<div className="col-span-2 border-t border-gray-100 pt-3 grid grid-cols-3 gap-3 items-end">

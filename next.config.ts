@@ -6,6 +6,7 @@ const nextConfig: NextConfig = {
   // Sous-modules supprimés ou fusionnés : les anciennes adresses redirigent vers leur remplaçant
   async redirects() {
     return [
+      { source: '/onboarding', destination: '/rh/onboarding?tab=recrutement', permanent: false },
       { source: '/dispatch',      destination: '/operations/dispatch',      permanent: false },
       { source: '/picking',       destination: '/operations',               permanent: false },
       { source: '/remuneration',  destination: '/rh/paie',                  permanent: false },

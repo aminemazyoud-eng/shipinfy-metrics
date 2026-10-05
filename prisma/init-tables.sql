@@ -964,3 +964,19 @@ ALTER TABLE "OpsOrder" ADD COLUMN IF NOT EXISTS "collectedBy" TEXT;
 ALTER TABLE "OpsOrder" ADD COLUMN IF NOT EXISTS "collectionMethod" TEXT;
 ALTER TABLE "OpsOrder" ADD COLUMN IF NOT EXISTS "collectionNote" TEXT;
 CREATE INDEX IF NOT EXISTS "OpsOrder_collectedAt_idx" ON "OpsOrder"("collectedAt");
+
+-- ═══ PLANNING JOURNALIER : qui travaille quel jour, depuis quel hub, à quelle heure (envoi WhatsApp en PDF) ═══════════
+CREATE TABLE IF NOT EXISTS "OpsPlanDay" (
+  "day" TEXT NOT NULL PRIMARY KEY, "status" TEXT NOT NULL DEFAULT 'draft', "publishedAt" TIMESTAMP(3), "publishedBy" TEXT,
+  "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP, "updatedAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+CREATE TABLE IF NOT EXISTS "OpsPlanLine" (
+  "id" TEXT NOT NULL PRIMARY KEY, "day" TEXT NOT NULL, "driverCode" TEXT NOT NULL, "hubCode" TEXT NOT NULL,
+  "departTime" TEXT NOT NULL DEFAULT '08:30', "slots" TEXT NOT NULL DEFAULT '', "note" TEXT, "demand" TEXT,
+  "sentAt" TIMESTAMP(3), "sentStatus" TEXT, "createdBy" TEXT,
+  "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP, "updatedAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+CREATE UNIQUE INDEX IF NOT EXISTS "OpsPlanLine_day_driverCode_key" ON "OpsPlanLine"("day", "driverCode");
+CREATE INDEX IF NOT EXISTS "OpsPlanLine_day_idx" ON "OpsPlanLine"("day");
+ALTER TABLE "OpsPlanDay" ENABLE ROW LEVEL SECURITY;
+ALTER TABLE "OpsPlanLine" ENABLE ROW LEVEL SECURITY;

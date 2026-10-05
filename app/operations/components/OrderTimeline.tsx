@@ -11,6 +11,7 @@ export const hhmm = (d: string | null) => (d ? new Date(d).toLocaleTimeString('f
 /** Heure d'une étape en pastille colorée (+ délai depuis l'étape précédente). */
 export function StepChip({ s, compact }: { s: Step; compact?: boolean }) {
   if (!s.at) return <span className="text-gray-300">—</span>
+  if (s.inferred) return <span className="inline-flex items-baseline border border-dashed border-gray-300 rounded-md px-1.5 py-0.5 text-xs text-gray-500 italic whitespace-nowrap" title={`${s.label} — heure estimée (non horodatée par la source)`}>≈ {hhmm(s.at)}</span>
   return (
     <span className={`inline-flex items-baseline gap-1 border rounded-md px-1.5 py-0.5 text-xs whitespace-nowrap ${TONE_CHIP[s.tone]}`} title={`${s.label} · ${new Date(s.at).toLocaleString('fr-FR', { timeZone: 'Africa/Casablanca' })}${s.delayMin != null ? ` · +${fmtDuration(s.delayMin)} après l'étape précédente` : ''}`}>
       <b className="font-semibold">{hhmm(s.at)}</b>{!compact && s.delayMin != null && <span className="text-[10px] opacity-75">+{fmtDuration(s.delayMin)}</span>}
@@ -29,7 +30,8 @@ export default function OrderTimeline({ steps, totalMin, slotLabel }: { steps: S
             <span className="absolute -left-[7px] top-1.5 w-3 h-3 rounded-full ring-2 ring-white" style={{ background: DOT[s.tone] }} />
             <div className="flex items-center gap-2 flex-wrap">
               <span className={`text-sm ${s.at ? 'text-gray-900 font-medium' : 'text-gray-300'}`}>{s.label}</span>
-              {s.at && <span className={`border rounded-md px-1.5 py-0.5 text-sm font-semibold ${TONE_CHIP[s.tone]}`}>{hhmm(s.at)}</span>}
+              {s.at && <span className={`border rounded-md px-1.5 py-0.5 text-sm font-semibold ${s.inferred ? 'bg-gray-50 text-gray-500 border-dashed border-gray-300 italic font-normal' : TONE_CHIP[s.tone]}`}>{s.inferred ? '≈ ' : ''}{hhmm(s.at)}</span>}
+              {s.inferred && <span className="text-[11px] text-gray-400">heure estimée (étape non horodatée par la source)</span>}
               {s.delayMin != null && <span className={`text-xs border rounded-md px-1.5 py-0.5 ${TONE_CHIP[s.tone]}`}>+{fmtDuration(s.delayMin)}</span>}
               {s.late ? <span className="text-xs border rounded-md px-1.5 py-0.5 bg-red-100 text-red-800 border-red-200">hors créneau {slotLabel ? `${slotLabel.replace('-', 'h–')}h ` : ''}+{fmtDuration(s.late)}</span> : null}
             </div>

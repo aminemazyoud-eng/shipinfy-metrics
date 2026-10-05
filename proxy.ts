@@ -15,6 +15,7 @@ const PUBLIC_PATHS = [
   '/api/auth/bootstrap',
   '/api/auth/forgot-password',
   '/api/auth/reset-password',
+  '/api/planning/pdf', // lien signé du planning envoyé par WhatsApp (jeton HMAC par jour + chauffeur)
 ]
 
 export function proxy(req: NextRequest) {

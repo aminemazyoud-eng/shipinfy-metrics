@@ -891,3 +891,32 @@ model OpsSetting {
   value     String
   updatedAt DateTime @updatedAt
 }
+
+// Planning journalier : une ligne par chauffeur (son coéquipier helper suit) — hub du jour, heure de départ, créneaux.
+model OpsPlanDay {
+  day         String    @id // YYYY-MM-DD
+  status      String    @default("draft") // draft | published
+  publishedAt DateTime?
+  publishedBy String?
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+}
+
+model OpsPlanLine {
+  id         String    @id @default(cuid())
+  day        String
+  driverCode String
+  hubCode    String
+  departTime String    @default("08:30")
+  slots      String    @default("") // "09-12,12-15"
+  note       String?
+  demand     String?   // JSON {slot: commandes prévues} pour le hub ce jour-là (figé à l'envoi)
+  sentAt     DateTime?
+  sentStatus String?
+  createdBy  String?
+  createdAt  DateTime  @default(now())
+  updatedAt  DateTime  @updatedAt
+
+  @@unique([day, driverCode])
+  @@index([day])
+}

@@ -67,6 +67,11 @@ export async function sendWhatsApp(to: string, message: string): Promise<boolean
       })
       responseCode = res.status
       ok = res.ok
+    } else if (provider === 'evolution') {
+      const base = (process.env.EVOLUTION_API_URL ?? '').replace(/\/$/, '')
+      const res = await fetch(`${base}/message/sendText/${process.env.EVOLUTION_INSTANCE ?? ''}`, { method: 'POST', headers: { apikey: process.env.EVOLUTION_API_KEY ?? '', 'Content-Type': 'application/json' }, body: JSON.stringify({ number: to.replace('+', ''), text: message }), signal: AbortSignal.timeout(10000) })
+      responseCode = res.status
+      ok = res.ok
     } else {
       console.warn('[whatsapp] provider inconnu:', provider)
       return false
@@ -130,4 +135,39 @@ export function formatShiftPlanning(driverName: string, slots: ShiftSlotLite[]):
     '',
     'Bonne livraison ! 🚀',
   ].join('\n')
+}
+
+// ─── Envoi d'un DOCUMENT (PDF) par lien public — planning journalier ─────────────────────────────
+// Providers : twilio (MediaUrl), meta (document.link), evolution (EVOLUTION_API_URL / EVOLUTION_API_KEY / EVOLUTION_INSTANCE).
+export const whatsappConfigured = () => !!process.env.WHATSAPP_PROVIDER
+
+export async function sendWhatsAppDocument(to: string, caption: string, url: string, filename: string): Promise<{ ok: boolean; error?: string }> {
+  const provider = process.env.WHATSAPP_PROVIDER
+  if (!provider) return { ok: false, error: 'WHATSAPP_PROVIDER non configuré' }
+  let ok = false, code: number | null = null, error: string | undefined
+  try {
+    if (provider === 'twilio') {
+      const sid = process.env.TWILIO_ACCOUNT_SID ?? '', token = process.env.TWILIO_AUTH_TOKEN ?? ''
+      const res = await fetch(`https://api.twilio.com/2010-04-01/Accounts/${sid}/Messages.json`, {
+        method: 'POST', headers: { Authorization: 'Basic ' + Buffer.from(`${sid}:${token}`).toString('base64'), 'Content-Type': 'application/x-www-form-urlencoded' },
+        body: new URLSearchParams({ From: process.env.TWILIO_WHATSAPP_FROM ?? '', To: `whatsapp:${to}`, Body: caption, MediaUrl: url }).toString(), signal: AbortSignal.timeout(15000),
+      })
+      code = res.status; ok = res.ok; if (!ok) error = (await res.text()).slice(0, 200)
+    } else if (provider === 'meta') {
+      const res = await fetch(`https://graph.facebook.com/v19.0/${process.env.META_WHATSAPP_PHONE_ID ?? ''}/messages`, {
+        method: 'POST', headers: { Authorization: `Bearer ${process.env.META_WHATSAPP_TOKEN ?? ''}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ messaging_product: 'whatsapp', to: to.replace('+', ''), type: 'document', document: { link: url, filename, caption } }), signal: AbortSignal.timeout(15000),
+      })
+      code = res.status; ok = res.ok; if (!ok) error = (await res.text()).slice(0, 200)
+    } else if (provider === 'evolution') {
+      const base = (process.env.EVOLUTION_API_URL ?? '').replace(/\/$/, ''), inst = process.env.EVOLUTION_INSTANCE ?? ''
+      const res = await fetch(`${base}/message/sendMedia/${inst}`, {
+        method: 'POST', headers: { apikey: process.env.EVOLUTION_API_KEY ?? '', 'Content-Type': 'application/json' },
+        body: JSON.stringify({ number: to.replace('+', ''), mediatype: 'document', mimetype: 'application/pdf', caption, media: url, fileName: filename }), signal: AbortSignal.timeout(20000),
+      })
+      code = res.status; ok = res.ok; if (!ok) error = (await res.text()).slice(0, 200)
+    } else error = `provider inconnu : ${provider}`
+  } catch (e) { error = e instanceof Error ? e.message : 'échec réseau' }
+  await prisma.n8NLog.create({ data: { eventType: 'whatsapp_planning', status: ok ? 'success' : 'error', responseCode: code ?? undefined, payload: `${to} ${filename}`.slice(0, 200) } }).catch(() => {})
+  return { ok, error }
 }

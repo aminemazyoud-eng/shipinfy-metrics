@@ -15,7 +15,7 @@ export async function GET(req: NextRequest, ctx: { params: Promise<{ id: string 
     })
     if (!o) return NextResponse.json({ error: 'Commande introuvable' }, { status: 404 })
     const tickets = await prisma.supportTicket.findMany({ where: { orderRef: { in: [o.externalId, o.reference ?? '__'] } }, orderBy: { createdAt: 'desc' }, select: { id: true, reference: true, subject: true, status: true, priority: true, createdAt: true } })
-    const { steps, totalMin } = buildSteps({ createdAt: o.createdAtSrc, events: o.events.map(e => ({ to: e.toStatus, at: e.at })), deliveredAt: o.deliveredAt, noShowAt: o.noShowAt, collectedAt: o.collectedAt, slotEnd: o.slotEnd })
+    const { steps, totalMin } = buildSteps({ createdAt: o.createdAtSrc, events: o.events.map(e => ({ to: e.toStatus, at: e.at, inferred: e.source === 'inferred' })), deliveredAt: o.deliveredAt, noShowAt: o.noShowAt, collectedAt: o.collectedAt, slotEnd: o.slotEnd })
     return NextResponse.json({
       steps, totalMin, collected: o.collectedAt ? { by: o.collectedBy, method: o.collectionMethod, amount: o.collectedAmount, note: o.collectionNote } : null,
       id: o.id, ref: o.reference || o.externalId, externalId: o.externalId, hubCode: o.hubCode, status: o.status, slotStart: o.slotStart, slotEnd: o.slotEnd, slotLabel: o.slotLabel,

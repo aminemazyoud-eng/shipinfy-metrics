@@ -1,903 +1,220 @@
 'use client'
-import { useState, useEffect, useCallback } from 'react'
-import {
-  Calendar, Plus, Users, ChevronLeft, ChevronRight,
-  Crown, Shield, X, Check, AlertTriangle, Clock,
-  MapPin, Trash2, Settings, RefreshCw, Star, MessageCircle, Loader2,
-} from 'lucide-react'
+import { useState, useEffect, useCallback, useMemo } from 'react'
+import { CalendarDays, ChevronLeft, ChevronRight, Send, FileText, Save, Wand2, Copy, X, ArrowRightLeft, CheckCircle2, AlertTriangle, MessageCircle, Trash2, Phone } from 'lucide-react'
+import type { ForecastResult } from '@/lib/ops-analytics'
 
-// ─── Types ────────────────────────────────────────────────────────────────────
+interface Drv { code: string; name: string; phone: string | null; phoneOk: boolean; homeHub: string | null; hub: string | null; vehicle: string | null; plate: string | null; helpers: { name: string; phoneOk: boolean }[]; attendance: string | null }
+interface Line { driverCode: string; hubCode: string; departTime: string; slots: string[]; note?: string | null; sentAt?: string | null; sentStatus?: string | null }
+interface Data { day: string; status: string; publishedAt: string | null; publishedBy: string | null; slots: string[]; whatsapp: boolean; hubs: { code: string; name: string; city: string }[]; drivers: Drv[]; lines: Line[]; prevLines: Line[]; prevDay: string }
+interface SendRes { code: string; name: string; role: string; phone: string | null; hub: string; status: 'sent' | 'failed' | 'no_phone' | 'manual'; error?: string; pdf: string; waLink?: string }
+interface SendOut { whatsapp: boolean; teams: number; sent: number; failed: number; noPhone: number; manual: number; results: SendRes[] }
 
-interface Assignment {
-  id:         string
-  driverName: string
-  scoreIA:    number | null
-  priority:   boolean
-  status:     string
-}
+const iso = (d: Date) => d.toISOString().slice(0, 10)
+const addDays = (day: string, n: number) => iso(new Date(Date.parse(day + 'T12:00:00Z') + n * 86_400_000))
+const longDay = (day: string) => new Date(day + 'T12:00:00Z').toLocaleDateString('fr-FR', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric', timeZone: 'UTC' })
+const st = (s: string) => `${s.slice(0, 2)}h–${s.slice(3)}h`
+const departFor = (slots: string[]) => { const h = Number((slots[0] ?? '09-12').slice(0, 2)); const m = h * 60 - 30; return `${String(Math.floor(m / 60)).padStart(2, '0')}:${String(m % 60).padStart(2, '0')}` }
+const tomorrow = () => iso(new Date(Date.now() + 86_400_000 + 3_600_000))
 
-interface ShiftSlot {
-  id:          string
-  zone:        string
-  date:        string
-  startTime:   string
-  endTime:     string
-  maxDrivers:  number
-  minDrivers:  number
-  premiumOnly: boolean
-  assignments: Assignment[]
-}
+// Opérations → Shifts & Planning : planning JOUR PAR JOUR, sur les mêmes créneaux que le calcul des prévisions.
+// Chaque équipe (chauffeur + helper) est affectée au hub du jour (éventuellement ≠ hub d'origine), avec heure de départ ; envoi du PDF par WhatsApp.
+export default function PlanningPage() {
+  const [day, setDay] = useState(tomorrow())
+  const [data, setData] = useState<Data | null>(null)
+  const [fc, setFc] = useState<ForecastResult | null>(null)
+  const [lines, setLines] = useState<Record<string, Line>>({})
+  const [dirty, setDirty] = useState(false)
+  const [busy, setBusy] = useState(false)
+  const [msg, setMsg] = useState<{ ok: boolean; s: string } | null>(null)
+  const [out, setOut] = useState<SendOut | null>(null)
+  const [drag, setDrag] = useState<string | null>(null)
+  const [over, setOver] = useState<string | null>(null)
 
-interface ScoreRecord {
-  driverName:  string
-  score:       number
-}
+  const load = useCallback(async (d: string) => {
+    setData(null); setFc(null); setMsg(null)
+    const r = await fetch(`/api/ops/planning?day=${d}`); if (!r.ok) { setMsg({ ok: false, s: 'Chargement impossible' }); return }
+    const j: Data = await r.json(); setData(j); setLines(Object.fromEntries(j.lines.map(l => [l.driverCode, l]))); setDirty(false)
+    fetch(`/api/ops/forecast?day=${d}`).then(x => x.ok ? x.json() : null).then(f => f && setFc(f)).catch(() => {})
+  }, [])
+  useEffect(() => { load(day) }, [day, load])
 
-// ─── Helpers ──────────────────────────────────────────────────────────────────
+  const drivers = data?.drivers ?? []
+  const byCode = useMemo(() => new Map(drivers.map(d => [d.code, d])), [drivers])
+  const slots = data?.slots ?? []
+  const set = (code: string, patch: Partial<Line>) => { setLines(l => ({ ...l, [code]: { ...(l[code] ?? { driverCode: code, hubCode: '', departTime: departFor(slots), slots: [...slots] }), ...patch } as Line })); setDirty(true) }
+  const assign = (code: string, hub: string) => set(code, { hubCode: hub })
+  const remove = (code: string) => { setLines(l => { const n = { ...l }; delete n[code]; return n }); setDirty(true) }
+  const toggleSlot = (code: string, s: string) => { const cur = lines[code]?.slots ?? []; set(code, { slots: cur.includes(s) ? cur.filter(x => x !== s) : [...cur, s].sort() }) }
 
-const DAYS_FR = ['Dim', 'Lun', 'Mar', 'Mer', 'Jeu', 'Ven', 'Sam']
-const MONTHS_FR = ['Jan','Fév','Mar','Avr','Mai','Jun','Jul','Aoû','Sep','Oct','Nov','Déc']
+  const prefill = () => {
+    const n = { ...lines }
+    for (const d of drivers) if (!n[d.code] && d.attendance !== 'leave' && d.attendance !== 'absent') { const h = d.homeHub ?? d.hub; if (h) n[d.code] = { driverCode: d.code, hubCode: h, departTime: departFor(slots), slots: [...slots] } }
+    setLines(n); setDirty(true)
+  }
+  const copyPrev = () => { if (!data) return; setLines(Object.fromEntries(data.prevLines.filter(l => byCode.has(l.driverCode)).map(l => [l.driverCode, { ...l }]))); setDirty(true) }
 
-function getMondayOfWeek(d: Date): Date {
-  const day = d.getDay()
-  const diff = d.getDate() - day + (day === 0 ? -6 : 1)
-  const mon = new Date(d)
-  mon.setDate(diff)
-  mon.setHours(0, 0, 0, 0)
-  return mon
-}
-
-function addDays(d: Date, n: number): Date {
-  const r = new Date(d)
-  r.setDate(r.getDate() + n)
-  return r
-}
-
-function fmtDate(d: Date): string {
-  return d.toISOString().slice(0, 10)
-}
-
-function scoreColor(s: number | null) {
-  if (s === null) return 'text-gray-400'
-  if (s >= 80) return 'text-green-600'
-  if (s >= 60) return 'text-orange-500'
-  return 'text-red-500'
-}
-
-function scoreBg(s: number | null) {
-  if (s === null) return 'bg-gray-100 text-gray-500'
-  if (s >= 80) return 'bg-green-100 text-green-700'
-  if (s >= 60) return 'bg-orange-100 text-orange-700'
-  return 'bg-red-100 text-red-600'
-}
-
-function fillStatus(assigned: number, min: number, max: number) {
-  if (assigned >= max)  return { label: 'Complet',     color: 'bg-green-100 text-green-700' }
-  if (assigned >= min)  return { label: 'OK',          color: 'bg-blue-100 text-blue-700'   }
-  if (assigned === 0)   return { label: 'Vide',        color: 'bg-gray-100 text-gray-500'   }
-  return                       { label: 'Incomplet',   color: 'bg-orange-100 text-orange-700' }
-}
-
-// ─── Create Slot Modal ────────────────────────────────────────────────────────
-
-const ZONES_PRESET = ['Casablanca Nord', 'Casablanca Sud', 'Rabat', 'Marrakech', 'Agadir', 'Tanger', 'Fès']
-
-function CreateSlotModal({ date, onClose, onCreated }: {
-  date:      string
-  onClose:   () => void
-  onCreated: (slot: ShiftSlot) => void
-}) {
-  const [form, setForm] = useState({
-    zone: '', customZone: '', date, startTime: '08:00', endTime: '14:00',
-    maxDrivers: 5, minDrivers: 2, premiumOnly: false,
-  })
-  const [loading, setLoading] = useState(false)
-  const [err, setErr]         = useState('')
-
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault()
-    setLoading(true); setErr('')
-    const zone = form.zone === '__custom' ? form.customZone : form.zone
-    const res = await fetch('/api/shifts', {
-      method: 'POST', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ ...form, zone }),
-    })
-    const data = await res.json()
-    if (!res.ok) { setErr(data.error ?? 'Erreur'); setLoading(false); return }
-    onCreated(data)
+  const save = async (): Promise<boolean> => {
+    setBusy(true); setMsg(null)
+    try {
+      const r = await fetch('/api/ops/planning', { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ day, lines: Object.values(lines).filter(l => l.hubCode) }) }); const j = await r.json()
+      if (!r.ok) { setMsg({ ok: false, s: j.error || 'Erreur' }); return false }
+      setMsg({ ok: true, s: `Planning enregistré — ${j.saved} équipe(s)` }); await load(day); return true
+    } finally { setBusy(false) }
+  }
+  const send = async (codes?: string[]) => {
+    const n = codes?.length ?? Object.values(lines).filter(l => l.hubCode).length
+    if (!n) { setMsg({ ok: false, s: 'Aucune équipe planifiée' }); return }
+    if (!window.confirm(`Envoyer le planning du ${longDay(day)} (${n} équipe(s)) en PDF aux chauffeurs et helpers ?`)) return
+    if (dirty && !(await save())) return
+    setBusy(true); setMsg(null)
+    try {
+      const r = await fetch('/api/ops/planning/send', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ day, driverCodes: codes }) }); const j = await r.json()
+      if (!r.ok) { setMsg({ ok: false, s: j.error || 'Envoi impossible' }); return }
+      setOut(j); await load(day)
+    } finally { setBusy(false) }
   }
 
-  return (
-    <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/40 backdrop-blur-sm sm:p-4">
-      <div className="bg-white rounded-t-2xl sm:rounded-2xl shadow-2xl w-full sm:max-w-md">
-        <div className="flex items-center justify-between px-5 py-4 border-b border-gray-100">
-          <span className="text-sm font-bold text-gray-800">Nouveau créneau — {date}</span>
-          <button onClick={onClose} className="w-8 h-8 flex items-center justify-center rounded-full bg-gray-100 hover:bg-gray-200">
-            <X size={14} className="text-gray-500" />
-          </button>
+  // demande prévue vs équipes planifiées sur chaque créneau
+  const perDriver = fc?.perDriverPerSlot ?? 3
+  const teamsAt = (hub: string, slot: string) => Object.values(lines).filter(l => l.hubCode === hub && l.slots.includes(slot)).length
+  const planned = Object.values(lines).filter(l => l.hubCode)
+  const unplanned = drivers.filter(d => !lines[d.code]?.hubCode)
+  const hubName = (c: string | null) => data?.hubs.find(h => h.code === c)?.name.replace('Marjane ', '') ?? c ?? '—'
+  const sentAll = planned.length > 0 && planned.every(l => l.sentAt)
+  const toResend = planned.filter(l => !l.sentAt).length
+
+  const card = (d: Drv) => {
+    const l = lines[d.code]; const away = l && d.homeHub && l.hubCode !== d.homeHub
+    return (
+      <div key={d.code} draggable onDragStart={e => { setDrag(d.code); e.dataTransfer.setData('text/plain', d.code) }} onDragEnd={() => { setDrag(null); setOver(null) }} className={`bg-white rounded-lg border p-2.5 shadow-sm cursor-grab active:cursor-grabbing ${drag === d.code ? 'opacity-40' : ''} ${away ? 'border-amber-300' : 'border-gray-200'}`}>
+        <div className="flex items-start justify-between gap-1">
+          <div className="min-w-0"><div className="text-sm font-medium text-gray-900 truncate">{d.name} <span className="text-[10px] text-gray-400 font-normal">{d.code}</span></div>
+            <div className="text-[11px] text-gray-400 truncate">{d.vehicle ?? ''} {d.plate ?? ''}{d.helpers.length ? ` · + ${d.helpers.map(h => h.name).join(', ')}` : ''}</div></div>
+          {l && <button onClick={() => remove(d.code)} className="p-1 text-gray-300 hover:text-red-500" title="Retirer du planning"><Trash2 className="w-3.5 h-3.5" /></button>}
         </div>
-        <form onSubmit={handleSubmit} className="p-5 space-y-4">
-          <div>
-            <label className="block text-xs font-medium text-gray-600 mb-1">Zone *</label>
-            <select
-              value={form.zone}
-              onChange={e => setForm(f => ({ ...f, zone: e.target.value }))}
-              className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-              required
-            >
-              <option value="">Sélectionner…</option>
-              {ZONES_PRESET.map(z => <option key={z} value={z}>{z}</option>)}
-              <option value="__custom">Autre zone…</option>
-            </select>
-            {form.zone === '__custom' && (
-              <input
-                value={form.customZone}
-                onChange={e => setForm(f => ({ ...f, customZone: e.target.value }))}
-                className="mt-2 w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-                placeholder="Nom de la zone"
-                required
-              />
+        <div className="flex flex-wrap gap-1 mt-1.5">
+          {away && <span className="text-[10px] px-1.5 py-0.5 rounded bg-amber-100 text-amber-800 flex items-center gap-1"><ArrowRightLeft className="w-3 h-3" />vient de {hubName(d.homeHub)}</span>}
+          {(d.attendance === 'leave' || d.attendance === 'absent') && <span className="text-[10px] px-1.5 py-0.5 rounded bg-red-100 text-red-700">{d.attendance === 'leave' ? 'en congé' : 'absent'}</span>}
+          {!d.phoneOk && <span className="text-[10px] px-1.5 py-0.5 rounded bg-red-50 text-red-600 flex items-center gap-1"><Phone className="w-3 h-3" />n° manquant</span>}
+          {d.helpers.some(h => !h.phoneOk) && <span className="text-[10px] px-1.5 py-0.5 rounded bg-red-50 text-red-600">helper sans n°</span>}
+          {l?.sentAt ? <span className="text-[10px] px-1.5 py-0.5 rounded bg-green-100 text-green-700 flex items-center gap-1"><CheckCircle2 className="w-3 h-3" />{l.sentStatus === 'partial' ? 'envoi partiel' : l.sentStatus === 'manual' ? 'lien généré' : 'envoyé'}</span> : l && data?.status === 'published' ? <span className="text-[10px] px-1.5 py-0.5 rounded bg-blue-100 text-blue-700">à (ré)envoyer</span> : null}
+        </div>
+        {l ? (
+          <div className="mt-2 space-y-1.5">
+            <div className="flex items-center gap-1.5 text-xs text-gray-600">Départ <input type="time" value={l.departTime} onChange={e => set(d.code, { departTime: e.target.value })} className="border border-gray-300 rounded px-1 py-0.5 text-xs" />
+              <select value={l.hubCode} onChange={e => assign(d.code, e.target.value)} className="ml-auto border border-gray-300 rounded px-1 py-0.5 text-xs bg-white max-w-28">{data?.hubs.map(h => <option key={h.code} value={h.code}>{h.name.replace('Marjane ', '')}</option>)}</select></div>
+            <div className="flex flex-wrap gap-1">{slots.map(s => <button key={s} onClick={() => toggleSlot(d.code, s)} className={`text-[10px] px-1.5 py-0.5 rounded border ${l.slots.includes(s) ? 'bg-emerald-600 text-white border-emerald-600' : 'bg-white text-gray-400 border-gray-200'}`}>{st(s)}</button>)}</div>
+            <input value={l.note ?? ''} onChange={e => set(d.code, { note: e.target.value })} placeholder="Consigne (optionnel)" className="w-full border border-gray-200 rounded px-1.5 py-0.5 text-xs" />
+            {l.sentAt !== undefined && !dirty && l.hubCode && (
+              <div className="flex gap-1.5 pt-0.5">
+                <a href={`/api/ops/planning/pdf?day=${day}&driver=${d.code}`} target="_blank" className="flex-1 text-center text-[11px] px-2 py-1 rounded border border-gray-300 hover:bg-gray-50 flex items-center justify-center gap-1"><FileText className="w-3 h-3" />PDF</a>
+                <button disabled={busy} onClick={() => send([d.code])} className="flex-1 text-[11px] px-2 py-1 rounded bg-green-600 text-white flex items-center justify-center gap-1 disabled:opacity-40"><MessageCircle className="w-3 h-3" />WhatsApp</button>
+              </div>
             )}
           </div>
-
-          <div className="grid grid-cols-2 gap-3">
-            <div>
-              <label className="block text-xs font-medium text-gray-600 mb-1">Début</label>
-              <input type="time" value={form.startTime}
-                onChange={e => setForm(f => ({ ...f, startTime: e.target.value }))}
-                className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
-            </div>
-            <div>
-              <label className="block text-xs font-medium text-gray-600 mb-1">Fin</label>
-              <input type="time" value={form.endTime}
-                onChange={e => setForm(f => ({ ...f, endTime: e.target.value }))}
-                className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
-            </div>
-            <div>
-              <label className="block text-xs font-medium text-gray-600 mb-1">Min livreurs</label>
-              <input type="number" min={1} max={20} value={form.minDrivers}
-                onChange={e => setForm(f => ({ ...f, minDrivers: +e.target.value }))}
-                className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
-            </div>
-            <div>
-              <label className="block text-xs font-medium text-gray-600 mb-1">Max livreurs</label>
-              <input type="number" min={1} max={50} value={form.maxDrivers}
-                onChange={e => setForm(f => ({ ...f, maxDrivers: +e.target.value }))}
-                className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
-            </div>
-          </div>
-
-          <label className="flex items-center gap-2 cursor-pointer">
-            <input type="checkbox" checked={form.premiumOnly}
-              onChange={e => setForm(f => ({ ...f, premiumOnly: e.target.checked }))}
-              className="w-4 h-4 rounded border-gray-300 text-blue-600" />
-            <span className="text-sm text-gray-700">Slot premium (Academy requis, Score IA ≥ 60)</span>
-            <Crown size={13} className="text-amber-500" />
-          </label>
-
-          {err && <p className="text-xs text-red-600">{err}</p>}
-          <div className="flex gap-2 pt-1">
-            <button type="button" onClick={onClose} className="flex-1 py-2 rounded-lg border border-gray-200 text-sm text-gray-600 hover:bg-gray-50">Annuler</button>
-            <button type="submit" disabled={loading} className="flex-1 py-2 rounded-lg bg-blue-600 text-white text-sm font-semibold hover:bg-blue-700 disabled:opacity-60">
-              {loading ? 'Création…' : 'Créer le créneau'}
-            </button>
-          </div>
-        </form>
+        ) : (
+          <div className="mt-2"><select value="" onChange={e => e.target.value && assign(d.code, e.target.value)} className="w-full border border-gray-300 rounded px-1.5 py-1 text-xs bg-white"><option value="">Affecter à un hub…</option>{data?.hubs.map(h => <option key={h.code} value={h.code}>{h.name.replace('Marjane ', '')}{h.code === d.homeHub ? ' (hub d’origine)' : ''}</option>)}</select></div>
+        )}
       </div>
+    )
+  }
+
+  const col = (id: string, title: string, sub: string | undefined, count: number, children: React.ReactNode) => (
+    <div key={id} onDragOver={e => { e.preventDefault(); setOver(id) }} onDragLeave={() => setOver(o => (o === id ? null : o))} onDrop={e => { e.preventDefault(); setOver(null); const c = drag ?? e.dataTransfer.getData('text/plain'); setDrag(null); if (c) (id === '__none' ? remove(c) : assign(c, id)) }}
+      className={`w-64 shrink-0 rounded-xl border bg-gray-50 ${over === id ? 'border-purple-500 ring-2 ring-purple-200' : 'border-gray-200'}`}>
+      <div className="px-3 py-2 border-b border-gray-200 flex items-center justify-between"><div><div className="text-sm font-semibold text-gray-800">{title}</div>{sub && <div className="text-[10px] text-gray-400">{sub}</div>}</div><span className="text-xs font-semibold px-2 py-0.5 rounded-full bg-white border border-gray-200">{count}</span></div>
+      <div className="p-2 space-y-2 max-h-[640px] overflow-y-auto min-h-20">{children}</div>
     </div>
   )
-}
-
-// ─── Assign Driver Modal ──────────────────────────────────────────────────────
-
-function AssignModal({ slot, scores, onClose, onUpdated }: {
-  slot:      ShiftSlot
-  scores:    ScoreRecord[]
-  onClose:   () => void
-  onUpdated: (slot: ShiftSlot) => void
-}) {
-  const [search, setSearch]   = useState('')
-  const [loading, setLoading] = useState<string | null>(null)
-  const [err, setErr]         = useState('')
-
-  const assigned = new Set(slot.assignments.map(a => a.driverName))
-  const filtered = scores
-    .filter(s => s.driverName.toLowerCase().includes(search.toLowerCase()) && !assigned.has(s.driverName))
-    .sort((a, b) => b.score - a.score)
-
-  const handleAssign = async (driverName: string) => {
-    setLoading(driverName); setErr('')
-    const res  = await fetch(`/api/shifts/${slot.id}/assign`, {
-      method: 'POST', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ driverName }),
-    })
-    const data = await res.json()
-    setLoading(null)
-    if (!res.ok) { setErr(data.error ?? 'Erreur'); return }
-    onUpdated(data)
-  }
-
-  const handleUnassign = async (driverName: string) => {
-    setLoading(driverName)
-    const res  = await fetch(`/api/shifts/${slot.id}/assign?driverName=${encodeURIComponent(driverName)}`, { method: 'DELETE' })
-    const data = await res.json()
-    setLoading(null)
-    if (res.ok) onUpdated(data)
-  }
 
   return (
-    <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/40 backdrop-blur-sm sm:p-4">
-      <div className="bg-white rounded-t-2xl sm:rounded-2xl shadow-2xl w-full sm:max-w-lg max-h-[85vh] flex flex-col">
-        <div className="flex items-center justify-between px-5 py-4 border-b border-gray-100">
-          <div>
-            <span className="text-sm font-bold text-gray-800">Assigner des livreurs</span>
-            <p className="text-xs text-gray-400 mt-0.5">{slot.zone} — {new Date(slot.date).toLocaleDateString('fr-FR')} {slot.startTime}–{slot.endTime}</p>
-          </div>
-          <button onClick={onClose} className="w-8 h-8 flex items-center justify-center rounded-full bg-gray-100">
-            <X size={14} className="text-gray-500" />
-          </button>
+    <div className="p-4 md:p-6 space-y-4">
+      <div className="flex flex-wrap items-start justify-between gap-3">
+        <div><h1 className="text-xl font-bold text-gray-900 flex items-center gap-2"><CalendarDays className="w-5 h-5 text-purple-600" />Shifts & Planning</h1>
+          <p className="text-sm text-gray-500">Planning jour par jour — chaque équipe (chauffeur + helper) est affectée au hub du jour, avec son heure de départ. Créneaux identiques aux prévisions.</p></div>
+        <div className="flex flex-wrap items-center gap-2">
+          <button onClick={() => setDay(addDays(day, -1))} className="p-2 border border-gray-300 rounded-lg bg-white"><ChevronLeft className="w-4 h-4" /></button>
+          <input type="date" value={day} onChange={e => e.target.value && setDay(e.target.value)} className="border border-gray-300 rounded-lg px-2 py-1.5 text-sm" />
+          <button onClick={() => setDay(addDays(day, 1))} className="p-2 border border-gray-300 rounded-lg bg-white"><ChevronRight className="w-4 h-4" /></button>
+          <button onClick={() => setDay(tomorrow())} className="px-3 py-1.5 text-sm border border-gray-300 rounded-lg bg-white">Demain</button>
         </div>
+      </div>
 
-        {/* Currently assigned */}
-        {slot.assignments.length > 0 && (
-          <div className="px-5 pt-3 pb-2">
-            <p className="text-xs font-bold text-gray-500 uppercase tracking-wide mb-2">Assignés ({slot.assignments.length}/{slot.maxDrivers})</p>
-            <div className="flex flex-wrap gap-1.5">
-              {slot.assignments.map(a => (
-                <div key={a.id} className={`flex items-center gap-1.5 px-2 py-1 rounded-lg text-xs font-medium ${a.priority ? 'bg-amber-50 text-amber-700 border border-amber-200' : 'bg-gray-100 text-gray-700'}`}>
-                  {a.priority && <Crown size={10} className="text-amber-500" />}
-                  <span>{a.driverName}</span>
-                  {a.scoreIA !== null && <span className={`font-bold ${scoreColor(a.scoreIA)}`}>{Math.round(a.scoreIA)}</span>}
-                  <button onClick={() => handleUnassign(a.driverName)} disabled={loading === a.driverName}
-                    className="ml-0.5 text-gray-400 hover:text-red-500 transition-colors">
-                    <X size={11} />
-                  </button>
+      <div className="flex flex-wrap items-center gap-2">
+        <div className="text-base font-semibold text-gray-800 capitalize mr-2">{longDay(day)}</div>
+        {data && <span className={`text-xs px-2 py-1 rounded-full ${data.status === 'published' ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-600'}`}>{data.status === 'published' ? `Publié${data.publishedAt ? ` le ${new Date(data.publishedAt).toLocaleString('fr-FR', { timeZone: 'Africa/Casablanca', day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' })}` : ''}${data.publishedBy ? ` par ${data.publishedBy}` : ''}` : 'Brouillon'}</span>}
+        {data && data.status === 'published' && toResend > 0 && <span className="text-xs px-2 py-1 rounded-full bg-blue-100 text-blue-700">{toResend} équipe(s) modifiée(s) à renvoyer</span>}
+        {dirty && <span className="text-xs px-2 py-1 rounded-full bg-amber-100 text-amber-800">modifications non enregistrées</span>}
+        <div className="ml-auto flex flex-wrap gap-2">
+          <button onClick={prefill} className="flex items-center gap-1.5 px-3 py-1.5 text-sm border border-gray-300 rounded-lg bg-white"><Wand2 className="w-4 h-4" />Pré-remplir (hubs d&apos;origine)</button>
+          <button onClick={copyPrev} disabled={!data?.prevLines.length} className="flex items-center gap-1.5 px-3 py-1.5 text-sm border border-gray-300 rounded-lg bg-white disabled:opacity-40" title={`Copier le planning du ${data?.prevDay ?? ''}`}><Copy className="w-4 h-4" />Copier la veille</button>
+          <button onClick={save} disabled={busy || !dirty} className="flex items-center gap-1.5 px-3 py-1.5 text-sm rounded-lg bg-gray-900 text-white disabled:opacity-40"><Save className="w-4 h-4" />Enregistrer</button>
+          <a href={`/api/ops/planning/pdf?day=${day}`} target="_blank" className={`flex items-center gap-1.5 px-3 py-1.5 text-sm border border-gray-300 rounded-lg bg-white ${dirty || !planned.length ? 'pointer-events-none opacity-40' : ''}`}><FileText className="w-4 h-4" />PDF du jour</a>
+          <button onClick={() => send()} disabled={busy || !planned.length} className="flex items-center gap-1.5 px-3 py-1.5 text-sm rounded-lg bg-green-600 text-white disabled:opacity-40"><Send className="w-4 h-4" />{sentAll ? 'Renvoyer' : 'Envoyer'} sur WhatsApp</button>
+        </div>
+      </div>
+      {msg && <div className={`text-sm rounded-lg p-2.5 border ${msg.ok ? 'bg-green-50 border-green-200 text-green-800' : 'bg-red-50 border-red-200 text-red-700'}`}>{msg.s}</div>}
+      {data && !data.whatsapp && <div className="text-xs rounded-lg p-2.5 border border-amber-200 bg-amber-50 text-amber-800 flex gap-2"><AlertTriangle className="w-4 h-4 shrink-0" />WhatsApp n&apos;est pas encore relié (variable WHATSAPP_PROVIDER). L&apos;envoi génère alors, pour chaque personne, un bouton « Ouvrir WhatsApp » avec le message et le lien du PDF — il suffit de cliquer.</div>}
+
+      {/* Prévu vs équipes planifiées */}
+      {data && (
+        <div className="bg-white border border-gray-200 rounded-xl overflow-x-auto">
+          <table className="w-full text-sm">
+            <thead><tr className="text-xs text-gray-500 border-b border-gray-200"><th className="text-left p-2.5 font-medium">Hub</th>{slots.map(s => <th key={s} className="p-2 font-medium whitespace-nowrap">{st(s)}</th>)}<th className="p-2 font-medium">Équipes</th></tr></thead>
+            <tbody>
+              {data.hubs.map(h => {
+                const f = fc?.hubs.find(x => x.code === h.code); const teams = planned.filter(l => l.hubCode === h.code).length
+                return (
+                  <tr key={h.code} className="border-b border-gray-100">
+                    <td className="p-2.5"><div className="font-medium text-gray-900">{h.name.replace('Marjane ', '')}</div><div className="text-[11px] text-gray-400">{h.city}</div></td>
+                    {slots.map(s => {
+                      const exp = f?.cells[s]?.expected ?? null, n = teamsAt(h.code, s), cap = n * perDriver
+                      const tone = exp == null ? 'bg-gray-50 text-gray-300' : exp === 0 ? 'bg-gray-50 text-gray-400' : cap >= exp ? (exp / Math.max(cap, 1) >= 0.7 ? 'bg-amber-100 text-amber-900' : 'bg-green-50 text-green-800') : 'bg-red-100 text-red-800 font-semibold'
+                      return <td key={s} className="p-1"><div className={`rounded-md py-1 text-center text-xs ${tone}`} title={`${exp ?? '…'} commandes prévues · ${n} équipe(s) × ${perDriver} = capacité ${cap}`}><b className="text-sm">{exp ?? '…'}</b> prévues<div className="text-[10px] opacity-70">{n} éq. · cap. {cap}{exp != null && exp > cap ? ` · manque ${Math.ceil((exp - cap) / perDriver)}` : ''}</div></div></td>
+                    })}
+                    <td className="p-2 text-center font-semibold">{teams}</td>
+                  </tr>
+                )
+              })}
+            </tbody>
+          </table>
+        </div>
+      )}
+
+      {/* Tableau de planning : un hub = une colonne ; glisser une équipe d'un hub à l'autre */}
+      {!data ? <div className="text-sm text-gray-400">Chargement…</div> : (
+        <div className="flex gap-3 overflow-x-auto pb-3">
+          {col('__none', 'Non planifiés', 'ne travaillent pas ce jour', unplanned.length, <>{unplanned.map(card)}{!unplanned.length && <div className="text-xs text-gray-300 text-center py-6">Tout le monde est planifié</div>}</>)}
+          {data.hubs.map(h => {
+            const list = planned.filter(l => l.hubCode === h.code).sort((a, b) => a.departTime.localeCompare(b.departTime))
+            return col(h.code, h.name.replace('Marjane ', ''), h.city, list.length, <>{list.map(l => byCode.get(l.driverCode)).filter((d): d is Drv => !!d).map(card)}{!list.length && <div className="text-xs text-gray-300 text-center py-6">Glissez des équipes ici</div>}</>)
+          })}
+        </div>
+      )}
+
+      {out && (
+        <div className="fixed inset-0 bg-black/40 z-50 flex items-center justify-center p-4" onClick={() => setOut(null)}>
+          <div className="bg-white rounded-xl w-full max-w-2xl max-h-[88vh] overflow-y-auto p-5" onClick={e => e.stopPropagation()}>
+            <div className="flex justify-between items-center mb-2"><div className="font-semibold text-gray-900">Envoi du planning — {out.teams} équipe(s)</div><button onClick={() => setOut(null)}><X className="w-5 h-5" /></button></div>
+            <div className="flex flex-wrap gap-2 text-xs mb-3">
+              {out.whatsapp ? <><span className="px-2 py-1 rounded-full bg-green-100 text-green-700">{out.sent} envoyé(s)</span>{out.failed > 0 && <span className="px-2 py-1 rounded-full bg-red-100 text-red-700">{out.failed} échec(s)</span>}</> : <span className="px-2 py-1 rounded-full bg-amber-100 text-amber-800">{out.manual} message(s) prêt(s) — cliquez « Ouvrir WhatsApp » pour chacun</span>}
+              {out.noPhone > 0 && <span className="px-2 py-1 rounded-full bg-red-100 text-red-700">{out.noPhone} sans numéro</span>}
+            </div>
+            <div className="border border-gray-100 rounded-lg divide-y divide-gray-100">
+              {out.results.map(r => (
+                <div key={r.code} className="flex items-center gap-2 px-3 py-2 text-sm">
+                  <div className="flex-1 min-w-0"><div className="truncate">{r.name} <span className="text-[11px] text-gray-400">{r.role === 'chauffeur' ? 'chauffeur' : 'helper'} · {r.hub.replace('Marjane ', '')}</span></div><div className="text-[11px] text-gray-400">{r.phone ?? 'aucun numéro valide'}{r.error ? ` — ${r.error}` : ''}</div></div>
+                  {r.status === 'sent' && <span className="text-xs text-green-700 flex items-center gap-1"><CheckCircle2 className="w-3.5 h-3.5" />envoyé</span>}
+                  {r.status === 'failed' && <span className="text-xs text-red-600">échec</span>}
+                  {r.status === 'no_phone' && <span className="text-xs text-red-600">pas de n°</span>}
+                  {r.status === 'manual' && r.waLink && <a href={r.waLink} target="_blank" className="text-xs px-2.5 py-1 rounded-lg bg-green-600 text-white flex items-center gap-1"><MessageCircle className="w-3.5 h-3.5" />Ouvrir WhatsApp</a>}
+                  <a href={r.pdf} target="_blank" className="text-xs px-2 py-1 rounded-lg border border-gray-300 flex items-center gap-1"><FileText className="w-3.5 h-3.5" />PDF</a>
                 </div>
               ))}
             </div>
           </div>
-        )}
-
-        {/* Search + list */}
-        <div className="px-5 py-2 border-t border-gray-100">
-          <input
-            value={search}
-            onChange={e => setSearch(e.target.value)}
-            placeholder="Rechercher un livreur…"
-            className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-          />
-        </div>
-
-        {err && <p className="px-5 text-xs text-red-600">{err}</p>}
-
-        <div className="flex-1 overflow-y-auto px-5 pb-4 space-y-1.5">
-          {filtered.length === 0 ? (
-            <p className="text-xs text-gray-400 py-4 text-center italic">
-              {scores.length === 0 ? 'Calculez les Scores IA d\'abord (/score-ia)' : 'Aucun livreur disponible'}
-            </p>
-          ) : (
-            filtered.map(s => (
-              <div key={s.driverName} className="flex items-center gap-3 p-2.5 rounded-xl hover:bg-gray-50 border border-gray-100">
-                <div className="flex-1 min-w-0">
-                  <p className="text-sm font-semibold text-gray-800 truncate">{s.driverName}</p>
-                  <p className="text-[10px] text-gray-400">Score IA actuel</p>
-                </div>
-                <span className={`text-xs font-bold px-2 py-0.5 rounded-full ${scoreBg(s.score)}`}>
-                  {s.score >= 80 && <Crown size={9} className="inline mr-0.5" />}
-                  {Math.round(s.score)}
-                </span>
-                <button
-                  onClick={() => handleAssign(s.driverName)}
-                  disabled={loading === s.driverName || slot.assignments.length >= slot.maxDrivers}
-                  className="px-3 py-1.5 bg-blue-600 text-white text-xs font-semibold rounded-lg hover:bg-blue-700 disabled:opacity-40 transition-colors"
-                >
-                  {loading === s.driverName ? '…' : 'Assigner'}
-                </button>
-              </div>
-            ))
-          )}
-        </div>
-      </div>
-    </div>
-  )
-}
-
-// ─── Slot Card ────────────────────────────────────────────────────────────────
-
-function SlotCard({ slot, scores, onUpdated, onDelete }: {
-  slot:      ShiftSlot
-  scores:    ScoreRecord[]
-  onUpdated: (s: ShiftSlot) => void
-  onDelete:  (id: string) => void
-}) {
-  const [showAssign, setShowAssign] = useState(false)
-  const status = fillStatus(slot.assignments.length, slot.minDrivers, slot.maxDrivers)
-  const topScore = slot.assignments.reduce((mx, a) => Math.max(mx, a.scoreIA ?? 0), 0)
-
-  return (
-    <>
-      {showAssign && (
-        <AssignModal
-          slot={slot} scores={scores}
-          onClose={() => setShowAssign(false)}
-          onUpdated={s => { onUpdated(s); setShowAssign(false) }}
-        />
-      )}
-      <div className="bg-white rounded-xl border border-gray-200 p-3 hover:shadow-sm transition-shadow">
-        {/* Header */}
-        <div className="flex items-start justify-between gap-2 mb-2">
-          <div className="flex-1 min-w-0">
-            <div className="flex items-center gap-1.5">
-              <Clock size={11} className="text-blue-500 flex-shrink-0" />
-              <span className="text-xs font-bold text-gray-800">{slot.startTime}–{slot.endTime}</span>
-              {slot.premiumOnly && <Crown size={11} className="text-amber-500" />}
-            </div>
-            <div className="flex items-center gap-1 mt-0.5">
-              <span className={`text-[10px] font-semibold px-1.5 py-0.5 rounded-md ${status.color}`}>{status.label}</span>
-              <span className="text-[10px] text-gray-400">{slot.assignments.length}/{slot.maxDrivers}</span>
-            </div>
-          </div>
-          <button onClick={() => onDelete(slot.id)} className="text-gray-200 hover:text-red-400 transition-colors flex-shrink-0">
-            <Trash2 size={12} />
-          </button>
-        </div>
-
-        {/* Assigned avatars */}
-        {slot.assignments.length > 0 ? (
-          <div className="flex flex-wrap gap-1 mb-2">
-            {slot.assignments.map(a => (
-              <div
-                key={a.id}
-                title={`${a.driverName} — Score: ${a.scoreIA !== null ? Math.round(a.scoreIA) : '?'}`}
-                className={`flex items-center gap-1 px-1.5 py-0.5 rounded-md text-[10px] font-medium ${a.priority ? 'bg-amber-50 text-amber-700' : 'bg-gray-100 text-gray-600'}`}
-              >
-                {a.priority && <Crown size={8} className="text-amber-500" />}
-                <span className="truncate max-w-[80px]">{a.driverName.split(' ')[0]}</span>
-              </div>
-            ))}
-          </div>
-        ) : (
-          <p className="text-[10px] text-gray-300 italic mb-2">Aucun livreur</p>
-        )}
-
-        {/* Min warning */}
-        {slot.assignments.length < slot.minDrivers && slot.assignments.length > 0 && (
-          <div className="flex items-center gap-1 mb-2 text-[10px] text-orange-600">
-            <AlertTriangle size={10} />
-            <span>Min {slot.minDrivers} requis</span>
-          </div>
-        )}
-
-        <button
-          onClick={() => setShowAssign(true)}
-          className="w-full py-1.5 bg-blue-50 text-blue-700 text-[11px] font-semibold rounded-lg hover:bg-blue-100 transition-colors flex items-center justify-center gap-1"
-        >
-          <Plus size={11} /> Assigner
-        </button>
-      </div>
-    </>
-  )
-}
-
-// ─── Conflict detection ───────────────────────────────────────────────────────
-
-function detectConflicts(slots: ShiftSlot[]): string[] {
-  // Find drivers assigned to 2+ slots that overlap on the same day/time
-  const conflicts: string[] = []
-  const byDriver = new Map<string, ShiftSlot[]>()
-  for (const slot of slots) {
-    for (const a of slot.assignments) {
-      if (!byDriver.has(a.driverName)) byDriver.set(a.driverName, [])
-      byDriver.get(a.driverName)!.push(slot)
-    }
-  }
-  for (const [driver, driverSlots] of byDriver.entries()) {
-    for (let i = 0; i < driverSlots.length; i++) {
-      for (let j = i + 1; j < driverSlots.length; j++) {
-        const a = driverSlots[i]
-        const b = driverSlots[j]
-        if (a.date.slice(0, 10) !== b.date.slice(0, 10)) continue
-        // Check time overlap
-        const aStart = a.startTime, aEnd = a.endTime
-        const bStart = b.startTime, bEnd = b.endTime
-        if (aStart < bEnd && bStart < aEnd) {
-          if (!conflicts.includes(driver)) conflicts.push(driver)
-        }
-      }
-    }
-  }
-  return conflicts
-}
-
-// ─── Calendar cell fill color ─────────────────────────────────────────────────
-
-function calSlotColor(assigned: number, min: number, max: number): string {
-  if (assigned >= max)  return 'bg-green-100 border-green-300 text-green-800'
-  if (assigned >= min)  return 'bg-blue-50 border-blue-200 text-blue-800'
-  if (assigned === 0)   return 'bg-red-50 border-red-200 text-red-700'
-  return 'bg-orange-50 border-orange-200 text-orange-800'
-}
-
-// ─── Tab: Planning ────────────────────────────────────────────────────────────
-
-type PlanView = 'list' | 'calendar'
-
-function PlanningTab() {
-  const [weekStart, setWeekStart] = useState(() => getMondayOfWeek(new Date()))
-  const [slots, setSlots]         = useState<ShiftSlot[]>([])
-  const [scores, setScores]       = useState<ScoreRecord[]>([])
-  const [loading, setLoading]     = useState(false)
-  const [createDate, setCreateDate] = useState<string | null>(null)
-  const [zoneFilter, setZoneFilter] = useState('all')
-  const [planView, setPlanView]     = useState<PlanView>('calendar')
-  const [showWhatsApp, setShowWhatsApp] = useState(false)
-  const [waSending, setWaSending]       = useState(false)
-  const [waResult, setWaResult]         = useState<string | null>(null)
-
-  const weekDays = Array.from({ length: 7 }, (_, i) => addDays(weekStart, i))
-  const zones    = ['all', ...Array.from(new Set(slots.map(s => s.zone))).sort()]
-
-  const load = useCallback(async () => {
-    setLoading(true)
-    try {
-      const [slotsRes, scoresRes] = await Promise.all([
-        fetch(`/api/shifts?week=${fmtDate(weekStart)}`),
-        fetch('/api/score-ia'),
-      ])
-      const [slotsData, scoresData] = await Promise.all([slotsRes.json(), scoresRes.json()])
-      if (Array.isArray(slotsData))  setSlots(slotsData)
-      if (Array.isArray(scoresData)) setScores(scoresData)
-    } finally { setLoading(false) }
-  }, [weekStart])
-
-  useEffect(() => { load() }, [load])
-
-  const slotsForDay = (date: Date) => {
-    const d = fmtDate(date)
-    return slots.filter(s => {
-      const sd = s.date.slice(0, 10)
-      return sd === d && (zoneFilter === 'all' || s.zone === zoneFilter)
-    })
-  }
-
-  const handleSlotCreated = (slot: ShiftSlot) => {
-    setSlots(prev => [...prev, slot])
-    setCreateDate(null)
-  }
-
-  const handleSlotUpdated = (updated: ShiftSlot) => {
-    setSlots(prev => prev.map(s => s.id === updated.id ? updated : s))
-  }
-
-  const handleDelete = async (id: string) => {
-    if (!confirm('Supprimer ce créneau ?')) return
-    setSlots(prev => prev.filter(s => s.id !== id))
-    await fetch(`/api/shifts/${id}`, { method: 'DELETE' })
-  }
-
-  // Summary
-  const totalSlots    = slots.length
-  const totalAssigned = slots.reduce((s, slot) => s + slot.assignments.length, 0)
-  const slotsOk       = slots.filter(s => s.assignments.length >= s.minDrivers).length
-  const priorityCount = slots.reduce((s, slot) => s + slot.assignments.filter(a => a.priority).length, 0)
-  const conflicts     = detectConflicts(slots)
-
-  const driversInWeek = Array.from(new Set(slots.flatMap(s => s.assignments.map(a => a.driverName))))
-
-  const sendWhatsApp = async () => {
-    setWaSending(true); setWaResult(null)
-    try {
-      const res = await fetch('/api/shifts/notify-whatsapp', {
-        method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ week: fmtDate(weekStart) }),
-      })
-      const data = await res.json()
-      if (!res.ok) { setWaResult(data.error ?? 'Erreur'); return }
-      setWaResult(`${data.sent} planning(s) envoyé(s), ${data.failed} erreur(s)`)
-    } catch {
-      setWaResult('Erreur réseau')
-    } finally { setWaSending(false) }
-  }
-
-  return (
-    <div className="space-y-4">
-      {/* Conflict alert */}
-      {conflicts.length > 0 && (
-        <div className="flex items-center gap-2 bg-red-50 border border-red-200 rounded-xl px-4 py-2">
-          <AlertTriangle size={15} className="text-red-500 flex-shrink-0" />
-          <span className="text-sm font-semibold text-red-700">
-            {conflicts.length} conflit{conflicts.length > 1 ? 's' : ''} détecté{conflicts.length > 1 ? 's' : ''} :
-          </span>
-          <span className="text-sm text-red-600">{conflicts.join(', ')}</span>
         </div>
       )}
-
-      {/* Summary cards */}
-      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-        {[
-          { label: 'Créneaux semaine', value: totalSlots,    bg: 'bg-blue-50',   color: 'text-blue-700'  },
-          { label: 'Livreurs assignés', value: totalAssigned, bg: 'bg-green-50',  color: 'text-green-700' },
-          { label: 'Créneaux OK',       value: slotsOk,       bg: 'bg-purple-50', color: 'text-purple-700'},
-          { label: 'Score ≥ 80 (⭐)',   value: priorityCount, bg: 'bg-amber-50',  color: 'text-amber-700' },
-        ].map(c => (
-          <div key={c.label} className={`${c.bg} rounded-xl p-3`}>
-            <p className={`text-2xl font-black ${c.color}`}>{c.value}</p>
-            <p className="text-xs text-gray-500 mt-0.5">{c.label}</p>
-          </div>
-        ))}
-      </div>
-
-      {/* Week navigation + zone filter + view toggle */}
-      <div className="flex flex-wrap items-center gap-3">
-        <div className="flex items-center gap-2 bg-white rounded-xl border border-gray-200 px-3 py-2">
-          <button onClick={() => setWeekStart(d => addDays(d, -7))} className="text-gray-400 hover:text-gray-700">
-            <ChevronLeft size={16} />
-          </button>
-          <span className="text-sm font-semibold text-gray-700 min-w-[140px] text-center">
-            {weekDays[0].getDate()} {MONTHS_FR[weekDays[0].getMonth()]} — {weekDays[6].getDate()} {MONTHS_FR[weekDays[6].getMonth()]}
-          </span>
-          <button onClick={() => setWeekStart(d => addDays(d, 7))} className="text-gray-400 hover:text-gray-700">
-            <ChevronRight size={16} />
-          </button>
-        </div>
-
-        {zones.length > 1 && (
-          <div className="flex gap-1.5 flex-wrap">
-            {zones.map(z => (
-              <button
-                key={z}
-                onClick={() => setZoneFilter(z)}
-                className={[
-                  'px-3 py-1.5 rounded-xl text-xs font-semibold transition-colors',
-                  zoneFilter === z ? 'bg-blue-600 text-white' : 'bg-gray-100 text-gray-600 hover:bg-gray-200',
-                ].join(' ')}
-              >
-                {z === 'all' ? 'Toutes les zones' : z}
-              </button>
-            ))}
-          </div>
-        )}
-
-        <div className="ml-auto flex items-center gap-2">
-          <button
-            onClick={() => { setWaResult(null); setShowWhatsApp(true) }}
-            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold bg-green-50 text-green-700 border border-green-200 hover:bg-green-100 transition-colors"
-          >
-            <MessageCircle size={13} /> Envoyer plannings WhatsApp
-          </button>
-          {/* View toggle */}
-          <div className="flex border border-gray-200 rounded-lg overflow-hidden text-xs">
-            <button
-              onClick={() => setPlanView('calendar')}
-              className={`px-3 py-1.5 font-medium transition flex items-center gap-1 ${planView === 'calendar' ? 'bg-blue-600 text-white' : 'text-gray-600 hover:bg-gray-50'}`}
-            >
-              <Calendar size={12} /> Calendrier
-            </button>
-            <button
-              onClick={() => setPlanView('list')}
-              className={`px-3 py-1.5 font-medium transition flex items-center gap-1 ${planView === 'list' ? 'bg-blue-600 text-white' : 'text-gray-600 hover:bg-gray-50'}`}
-            >
-              <Users size={12} /> Liste
-            </button>
-          </div>
-          <button onClick={load} className="text-gray-400 hover:text-blue-600 transition-colors">
-            <RefreshCw size={15} className={loading ? 'animate-spin' : ''} />
-          </button>
-        </div>
-      </div>
-
-      {/* Calendar view */}
-      {planView === 'calendar' && (
-        <div className="overflow-x-auto">
-          <div className="grid grid-cols-7 gap-1 min-w-[700px]">
-            {weekDays.map((day, i) => {
-              const daySlots = slotsForDay(day)
-              const isToday  = fmtDate(day) === fmtDate(new Date())
-              return (
-                <div key={i} className="flex flex-col gap-1">
-                  {/* Day header */}
-                  <div className={[
-                    'text-center py-2 rounded-xl text-xs font-bold',
-                    isToday ? 'bg-blue-600 text-white' : 'bg-gray-50 text-gray-500',
-                  ].join(' ')}>
-                    <div>{DAYS_FR[day.getDay()]}</div>
-                    <div className={isToday ? 'text-blue-100 text-[10px]' : 'text-gray-400 text-[10px]'}>{day.getDate()}/{day.getMonth()+1}</div>
-                  </div>
-                  {/* Compact calendar cells */}
-                  <div className="flex flex-col gap-1 min-h-[80px]">
-                    {daySlots.length === 0 ? (
-                      <button
-                        onClick={() => setCreateDate(fmtDate(day))}
-                        className="flex-1 min-h-[60px] border border-dashed border-gray-200 rounded-xl text-gray-300 hover:border-blue-400 hover:text-blue-400 hover:bg-blue-50 transition-colors text-[10px] flex flex-col items-center justify-center gap-0.5"
-                      >
-                        <Plus size={11} />
-                        <span>Ajouter</span>
-                      </button>
-                    ) : (
-                      <>
-                        {daySlots.map(slot => {
-                          const assigned = slot.assignments.length
-                          const cellColor = calSlotColor(assigned, slot.minDrivers, slot.maxDrivers)
-                          const hasConflict = slot.assignments.some(a => conflicts.includes(a.driverName))
-                          return (
-                            <div key={slot.id} className={`rounded-lg border px-2 py-1.5 text-[10px] ${cellColor} ${hasConflict ? 'ring-2 ring-red-400' : ''}`}>
-                              <div className="font-bold truncate">{slot.startTime}–{slot.endTime}</div>
-                              <div className="truncate text-[9px] opacity-75">{slot.zone}</div>
-                              <div className="flex items-center gap-1 mt-0.5">
-                                <Users size={8} />
-                                <span className="font-semibold">{assigned}/{slot.maxDrivers}</span>
-                                {hasConflict && <AlertTriangle size={8} className="text-red-500 ml-auto" />}
-                              </div>
-                            </div>
-                          )
-                        })}
-                        <button
-                          onClick={() => setCreateDate(fmtDate(day))}
-                          className="w-full py-1 border border-dashed border-gray-200 rounded-lg text-gray-300 hover:border-blue-400 hover:text-blue-400 hover:bg-blue-50 transition-colors text-[10px] flex items-center justify-center gap-0.5"
-                        >
-                          <Plus size={9} /> Créneau
-                        </button>
-                      </>
-                    )}
-                  </div>
-                </div>
-              )
-            })}
-          </div>
-        </div>
-      )}
-
-      {/* List view (original grid) */}
-      {planView === 'list' && (
-      <div className="overflow-x-auto">
-        <div className="grid grid-cols-7 gap-2 min-w-[700px]">
-          {weekDays.map((day, i) => {
-            const daySlots  = slotsForDay(day)
-            const isToday   = fmtDate(day) === fmtDate(new Date())
-            return (
-              <div key={i} className="flex flex-col gap-2">
-                {/* Day header */}
-                <div className={[
-                  'text-center py-2 rounded-xl text-xs font-bold',
-                  isToday ? 'bg-blue-600 text-white' : 'bg-gray-50 text-gray-500',
-                ].join(' ')}>
-                  <div>{DAYS_FR[day.getDay()]}</div>
-                  <div className={isToday ? 'text-blue-100' : 'text-gray-400'}>{day.getDate()}</div>
-                </div>
-
-                {/* Slots */}
-                <div className="flex flex-col gap-1.5">
-                  {daySlots.map(slot => (
-                    <SlotCard
-                      key={slot.id}
-                      slot={slot}
-                      scores={scores}
-                      onUpdated={handleSlotUpdated}
-                      onDelete={handleDelete}
-                    />
-                  ))}
-                  {/* Add slot button */}
-                  <button
-                    onClick={() => setCreateDate(fmtDate(day))}
-                    className="w-full py-2 border border-dashed border-gray-200 rounded-xl text-gray-300 hover:border-blue-400 hover:text-blue-500 hover:bg-blue-50 transition-colors text-xs flex items-center justify-center gap-1"
-                  >
-                    <Plus size={12} /> Créneau
-                  </button>
-                </div>
-              </div>
-            )
-          })}
-        </div>
-      </div>
-      )}
-
-      {createDate && (
-        <CreateSlotModal
-          date={createDate}
-          onClose={() => setCreateDate(null)}
-          onCreated={handleSlotCreated}
-        />
-      )}
-
-      {showWhatsApp && (
-        <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/40 backdrop-blur-sm sm:p-4">
-          <div className="bg-white rounded-t-2xl sm:rounded-2xl shadow-2xl w-full sm:max-w-md">
-            <div className="flex items-center justify-between px-5 py-4 border-b border-gray-100">
-              <span className="text-sm font-bold text-gray-800 flex items-center gap-2">
-                <MessageCircle size={15} className="text-green-600" /> Envoyer les plannings WhatsApp
-              </span>
-              <button onClick={() => setShowWhatsApp(false)} className="w-8 h-8 flex items-center justify-center rounded-full bg-gray-100 hover:bg-gray-200">
-                <X size={14} className="text-gray-500" />
-              </button>
-            </div>
-            <div className="p-5 space-y-3">
-              <p className="text-sm text-gray-600">
-                Semaine du <strong>{weekDays[0].getDate()} {MONTHS_FR[weekDays[0].getMonth()]}</strong> au{' '}
-                <strong>{weekDays[6].getDate()} {MONTHS_FR[weekDays[6].getMonth()]}</strong>
-              </p>
-              <p className="text-sm text-gray-600">
-                <strong>{driversInWeek.length}</strong> livreur(s) concerné(s) par le planning actuel.
-              </p>
-              {waResult && (
-                <div className="px-3 py-2 rounded-lg text-sm font-medium bg-blue-50 text-blue-700 border border-blue-200">
-                  {waResult}
-                </div>
-              )}
-              <div className="flex gap-2 pt-1">
-                <button
-                  onClick={() => setShowWhatsApp(false)}
-                  className="flex-1 py-2 rounded-lg border border-gray-200 text-sm text-gray-600 hover:bg-gray-50"
-                >
-                  Fermer
-                </button>
-                <button
-                  onClick={sendWhatsApp}
-                  disabled={waSending || driversInWeek.length === 0}
-                  className="flex-1 py-2 rounded-lg bg-green-600 text-white text-sm font-semibold hover:bg-green-700 disabled:opacity-60 flex items-center justify-center gap-2"
-                >
-                  {waSending && <Loader2 size={14} className="animate-spin" />}
-                  Confirmer l&apos;envoi
-                </button>
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
-    </div>
-  )
-}
-
-// ─── Tab: Règles ──────────────────────────────────────────────────────────────
-
-function ReglesTab() {
-  const [slots, setSlots]   = useState<ShiftSlot[]>([])
-  const [loading, setLoading] = useState(true)
-
-  useEffect(() => {
-    fetch('/api/shifts')
-      .then(r => r.json())
-      .then((d: unknown) => { if (Array.isArray(d)) setSlots(d) })
-      .catch(() => {})
-      .finally(() => setLoading(false))
-  }, [])
-
-  // Stats no_show
-  const noShows = slots.reduce((s, slot) =>
-    s + slot.assignments.filter(a => a.status === 'no_show').length, 0)
-  const confirmed = slots.reduce((s, slot) =>
-    s + slot.assignments.filter(a => a.status === 'confirmed').length, 0)
-  const assigned  = slots.reduce((s, slot) =>
-    s + slot.assignments.filter(a => a.status === 'assigned').length, 0)
-
-  const handleRebalance = async () => {
-    const zones = [...new Set(slots.map(s => s.zone))]
-    for (const zone of zones) {
-      await fetch('/api/shifts/rebalance', {
-        method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ zone, date: new Date().toISOString().slice(0, 10) }),
-      })
-    }
-    alert('Rééquilibrage effectué pour toutes les zones aujourd\'hui.')
-  }
-
-  return (
-    <div className="space-y-5">
-      {/* Status breakdown */}
-      <div className="grid grid-cols-3 gap-3">
-        {[
-          { label: 'Assignés',  value: assigned,  bg: 'bg-blue-50',   color: 'text-blue-700' },
-          { label: 'Confirmés', value: confirmed, bg: 'bg-green-50',  color: 'text-green-700'},
-          { label: 'No-show',   value: noShows,   bg: 'bg-red-50',    color: 'text-red-700'  },
-        ].map(c => (
-          <div key={c.label} className={`${c.bg} rounded-xl p-4 text-center`}>
-            <p className={`text-2xl font-black ${c.color}`}>{c.value}</p>
-            <p className="text-xs text-gray-500 mt-0.5">{c.label}</p>
-          </div>
-        ))}
-      </div>
-
-      {/* Priorisation rules */}
-      <div className="bg-white rounded-2xl border border-gray-200 p-4">
-        <p className="text-xs font-bold text-gray-500 uppercase tracking-wide mb-3 flex items-center gap-1.5">
-          <Star size={12} className="text-amber-500" /> Règles de priorisation (Score IA)
-        </p>
-        <div className="space-y-2">
-          {[
-            { score: '≥ 80',  color: 'bg-green-100 text-green-700', access: 'Accès 48h à l\'avance (priorité maximum)', icon: <Crown size={12} className="text-amber-500" /> },
-            { score: '60–79', color: 'bg-blue-100 text-blue-700',   access: 'Accès standard 24h à l\'avance', icon: <Shield size={12} className="text-blue-500" /> },
-            { score: '< 60',  color: 'bg-red-100 text-red-600',     access: 'Accès limité 12h à l\'avance uniquement', icon: <AlertTriangle size={12} className="text-red-400" /> },
-          ].map(r => (
-            <div key={r.score} className="flex items-center gap-3 p-2.5 rounded-xl bg-gray-50">
-              {r.icon}
-              <span className={`text-xs font-bold px-2 py-0.5 rounded-full ${r.color}`}>Score {r.score}</span>
-              <span className="text-xs text-gray-600">{r.access}</span>
-            </div>
-          ))}
-        </div>
-      </div>
-
-      {/* Rééquilibrage */}
-      <div className="bg-white rounded-2xl border border-gray-200 p-4">
-        <p className="text-xs font-bold text-gray-500 uppercase tracking-wide mb-2 flex items-center gap-1.5">
-          <Settings size={12} /> Algorithme équilibrage zones
-        </p>
-        <p className="text-xs text-gray-500 mb-3">
-          Si une zone dépasse son maxDrivers, l'algorithme retire les livreurs avec le Score IA le plus bas pour garantir un revenu minimum décent aux autres.
-        </p>
-        <button
-          onClick={handleRebalance}
-          className="flex items-center gap-2 px-4 py-2 bg-orange-50 text-orange-700 border border-orange-200 rounded-xl text-sm font-semibold hover:bg-orange-100 transition-colors"
-        >
-          <RefreshCw size={14} /> Rééquilibrer toutes les zones (aujourd'hui)
-        </button>
-      </div>
-
-      {/* Slots premium */}
-      <div className="bg-white rounded-2xl border border-gray-200 p-4">
-        <p className="text-xs font-bold text-gray-500 uppercase tracking-wide mb-3 flex items-center gap-1.5">
-          <Crown size={12} className="text-amber-500" /> Slots Premium (Academy obligatoire)
-        </p>
-        {loading ? (
-          <p className="text-xs text-gray-400">Chargement…</p>
-        ) : slots.filter(s => s.premiumOnly).length === 0 ? (
-          <p className="text-xs text-gray-400 italic">Aucun slot premium configuré. Créez un créneau avec l'option Premium.</p>
-        ) : (
-          <div className="space-y-2">
-            {slots.filter(s => s.premiumOnly).map(s => (
-              <div key={s.id} className="flex items-center gap-2 p-2 bg-amber-50 rounded-xl border border-amber-100">
-                <Crown size={12} className="text-amber-500 flex-shrink-0" />
-                <span className="text-xs font-semibold text-amber-800">{s.zone}</span>
-                <span className="text-xs text-amber-600">{new Date(s.date).toLocaleDateString('fr-FR')} — {s.startTime}–{s.endTime}</span>
-                <span className="ml-auto text-xs text-amber-600">{s.assignments.length}/{s.maxDrivers}</span>
-              </div>
-            ))}
-          </div>
-        )}
-      </div>
-    </div>
-  )
-}
-
-// ─── Main Page ────────────────────────────────────────────────────────────────
-
-type Tab = 'planning' | 'regles'
-
-export default function ShiftsPage() {
-  const [tab, setTab] = useState<Tab>('planning')
-
-  return (
-    <div className="p-4 sm:p-6 max-w-6xl mx-auto space-y-5">
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-xl font-black text-gray-900 flex items-center gap-2">
-            <Calendar size={20} className="text-blue-600" />
-            Shifts & Planning
-          </h1>
-          <p className="text-sm text-gray-400 mt-0.5">Gestion des créneaux livreurs par zone — priorisation Score IA</p>
-        </div>
-      </div>
-
-      {/* Tabs */}
-      <div className="flex gap-1 bg-gray-100 p-1 rounded-xl w-fit">
-        {[
-          { key: 'planning' as Tab, label: 'Planning', icon: <Calendar size={13} /> },
-          { key: 'regles'   as Tab, label: 'Règles & Config', icon: <Settings size={13} /> },
-        ].map(t => (
-          <button
-            key={t.key}
-            onClick={() => setTab(t.key)}
-            className={[
-              'flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-medium transition-colors',
-              tab === t.key ? 'bg-white text-blue-700 shadow-sm' : 'text-gray-500 hover:text-gray-700',
-            ].join(' ')}
-          >
-            {t.icon} {t.label}
-          </button>
-        ))}
-      </div>
-
-      {tab === 'planning' && <PlanningTab />}
-      {tab === 'regles'   && <ReglesTab />}
     </div>
   )
 }

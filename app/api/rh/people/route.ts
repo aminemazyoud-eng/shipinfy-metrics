@@ -47,7 +47,7 @@ export async function POST(req: NextRequest) {
         contractType: ['CDI', 'CDD', 'Prestation'].includes(String(b.contractType)) ? String(b.contractType) : 'CDD', hireDate: b.hireDate ? new Date(String(b.hireDate)) : null,
         hubId: hub?.id ?? null, homeHubId: hub?.id ?? null, vehicleId: b.vehicleId ? String(b.vehicleId) : null,
         dailyRate: b.dailyRate !== undefined && b.dailyRate !== '' ? Number(b.dailyRate) : jobType === 'helper' ? cfg.helperDailyRate : cfg.dailyRate,
-        onboardingStatus: 'prospect', trainingDone: false, status: 'active',
+        onboardingStatus: 'prospect', trainingDone: false, status: 'off', // candidat : ni dispatché ni planifié tant que le parcours n'est pas terminé
       },
     })
     await audit(auth.session, 'rh.person_create', 'driver', p.code, { name: `${p.firstName} ${p.lastName}`, jobType })

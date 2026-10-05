@@ -26,12 +26,12 @@ export async function GET(req: NextRequest) {
       }
       const [rows, agg] = await Promise.all([
         prisma.opsOrder.findMany({ where, orderBy: { collectedAt: 'desc' }, take: sp.get('format') === 'xlsx' ? 20000 : 100, skip: sp.get('format') === 'xlsx' ? 0 : offset,
-          select: { id: true, externalId: true, reference: true, hubCode: true, slotLabel: true, slotEnd: true, district: true, customerName: true, collectedAmount: true, deliveredAt: true, noShowAt: true, createdAtSrc: true, collectedAt: true, collectedBy: true, collectionMethod: true, events: { select: { toStatus: true, at: true } }, driver: { select: { firstName: true, lastName: true } } } }),
+          select: { id: true, externalId: true, reference: true, hubCode: true, slotLabel: true, slotEnd: true, district: true, customerName: true, collectedAmount: true, deliveredAt: true, noShowAt: true, createdAtSrc: true, collectedAt: true, collectedBy: true, collectionMethod: true, events: { select: { toStatus: true, at: true, source: true } }, driver: { select: { firstName: true, lastName: true } } } }),
         prisma.opsOrder.aggregate({ where, _count: { _all: true }, _sum: { collectedAmount: true } }),
       ])
       const out = rows.map(r => ({ id: r.id, ref: r.reference || r.externalId, hubCode: r.hubCode, slot: r.slotLabel, district: r.district, customer: r.customerName, driver: r.driver ? `${r.driver.firstName} ${r.driver.lastName}` : null,
         amount: r.collectedAmount ?? 0, deliveredAt: r.deliveredAt, collectedAt: r.collectedAt, collectedBy: r.collectedBy, method: r.collectionMethod, onTime: r.deliveredAt ? r.deliveredAt <= r.slotEnd : null,
-        ...buildSteps({ createdAt: r.createdAtSrc, events: r.events.map(e => ({ to: e.toStatus, at: e.at })), deliveredAt: r.deliveredAt, noShowAt: r.noShowAt, collectedAt: r.collectedAt, slotEnd: r.slotEnd }) }))
+        ...buildSteps({ createdAt: r.createdAtSrc, events: r.events.map(e => ({ to: e.toStatus, at: e.at, inferred: e.source === 'inferred' })), deliveredAt: r.deliveredAt, noShowAt: r.noShowAt, collectedAt: r.collectedAt, slotEnd: r.slotEnd }) }))
       if (sp.get('format') === 'xlsx') {
         const head = ['Référence', 'Hub', 'Créneau', 'Livreur', 'Client', 'Quartier', 'Livrée le', 'Encaissée le', 'Encaissée par', 'Mode', 'Montant (MAD)']
         const iso = (d: Date | null) => (d ? d.toISOString().replace('T', ' ').slice(0, 16) : '')

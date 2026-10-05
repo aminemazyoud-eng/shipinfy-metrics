@@ -57,6 +57,7 @@ export interface OpsSyncResult {
   durationMs: number
 }
 
+import { fillChain } from '@/lib/ops-chain'
 const RANK: Record<string, number> = { READY_PICKUP: 0, ASSIGNED: 1, IN_TRANSPORT: 2, START_DELIVERY: 3, DELIVERED: 4, NO_SHOW: 4 }
 const PAGE_SIZE = 1000
 const MAX_PAGES = 30
@@ -71,7 +72,7 @@ export const opsSyncConfig = () => ({
 })
 
 /** Étapes franchies par une commande, avec l'horodatage source — sert à reconstruire l'historique. */
-function stageEvents(o: BoOrder): { status: string; at: Date }[] {
+function stageEvents(o: BoOrder): { status: string; at: Date; inferred?: boolean }[] {
   const out: { status: string; at: Date }[] = []
   const push = (status: string, v?: string | null) => { if (v) out.push({ status, at: new Date(v) }) }
   push('READY_PICKUP', o.createdAt)
@@ -80,7 +81,7 @@ function stageEvents(o: BoOrder): { status: string; at: Date }[] {
   push('START_DELIVERY', o.startDeliveryAt)
   push('DELIVERED', o.deliveredAt)
   push('NO_SHOW', o.noShowAt)
-  return out
+  return fillChain(out, o.status) // jamais d'étape sautée : les étapes absentes de la source sont reconstituées (estimées)
 }
 
 export async function runOpsSync(opts: { full?: boolean } = {}): Promise<OpsSyncResult> {
@@ -115,7 +116,7 @@ export async function runOpsSync(opts: { full?: boolean } = {}): Promise<OpsSync
 
       const toCreate: Prisma.OpsOrderCreateManyInput[] = []
       const updates: ReturnType<typeof prisma.opsOrder.update>[] = []
-      const events: { orderId?: string; externalId: string; fromStatus: string | null; toStatus: string; at: Date }[] = []
+      const events: { orderId?: string; externalId: string; fromStatus: string | null; toStatus: string; at: Date; inferred?: boolean }[] = []
 
       for (const o of body.data) {
         const data = {
@@ -130,13 +131,13 @@ export async function runOpsSync(opts: { full?: boolean } = {}): Promise<OpsSync
         const bind = o.courierRef ? driverByCode.get(o.courierRef) ?? null : null
         if (!prev) {
           toCreate.push({ source, externalId: o.id, ...data, driverId: bind })
-          for (const s of stageEvents(o)) events.push({ externalId: o.id, fromStatus: null, toStatus: s.status, at: s.at })
+          for (const s of stageEvents(o)) events.push({ externalId: o.id, fromStatus: null, toStatus: s.status, at: s.at, inferred: s.inferred })
         } else {
           updates.push(prisma.opsOrder.update({ where: { id: prev.id }, data: { ...data, ...(prev.driverId ? {} : { driverId: bind }) } }))
           if (prev.status !== o.status) {
             const from = RANK[prev.status] ?? -1, to = RANK[o.status] ?? -1
             const stages = to > from ? stageEvents(o).filter(s => (RANK[s.status] ?? -1) > from && (RANK[s.status] ?? -1) <= to) : []
-            if (stages.length) for (const s of stages) events.push({ orderId: prev.id, externalId: o.id, fromStatus: prev.status, toStatus: s.status, at: s.at })
+            if (stages.length) for (const s of stages) events.push({ orderId: prev.id, externalId: o.id, fromStatus: prev.status, toStatus: s.status, at: s.at, inferred: s.inferred })
             else events.push({ orderId: prev.id, externalId: o.id, fromStatus: prev.status, toStatus: o.status, at: new Date(o.updatedAt) })
           }
         }
@@ -156,7 +157,7 @@ export async function runOpsSync(opts: { full?: boolean } = {}): Promise<OpsSync
         }
         const rows = events.flatMap(e => {
           const orderId = e.orderId ?? idMap.get(e.externalId)
-          return orderId ? [{ orderId, fromStatus: e.fromStatus, toStatus: e.toStatus, at: e.at, source: 'sync' }] : []
+          return orderId ? [{ orderId, fromStatus: e.fromStatus, toStatus: e.toStatus, at: e.at, source: e.inferred ? 'inferred' : 'sync' }] : []
         })
         for (let i = 0; i < rows.length; i += 1000) await prisma.opsOrderEvent.createMany({ data: rows.slice(i, i + 1000) })
         res.events += rows.length

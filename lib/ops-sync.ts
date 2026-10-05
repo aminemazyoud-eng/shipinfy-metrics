@@ -166,6 +166,10 @@ export async function runOpsSync(opts: { full?: boolean } = {}): Promise<OpsSync
       if (!body.hasMore) break
     }
 
+    // Performance et Cockpit lisent la même donnée : on recopie OpsOrder dans le rapport LIVE quand la synchro a apporté des changements
+    if (res.created + res.updated > 0) {
+      try { const { refreshLiveReport } = await import('@/lib/ops-live-report'); await refreshLiveReport() } catch (e) { console.warn('[ops-sync] rapport LIVE non rafraîchi:', e) }
+    }
     res.ok = true
     res.cursor = cursor
     res.durationMs = Date.now() - t0

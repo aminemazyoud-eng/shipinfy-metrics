@@ -140,7 +140,11 @@ export async function POST(req: Request) {
       created.push(name)
     }
 
-    return NextResponse.json({ calculated: created.length, drivers: created })
+    // Une seule source de vérité : on retire les scores de livreurs absents du rapport utilisé (anciens imports Excel, par ex.)
+    let purged = 0
+    if (created.length > 0) purged = (await prisma.reliabilityScore.deleteMany({ where: { driverName: { notIn: created } } })).count
+
+    return NextResponse.json({ calculated: created.length, drivers: created, purged, reportId: report.id })
   } catch (e) {
     return NextResponse.json({ error: String(e) }, { status: 500 })
   }

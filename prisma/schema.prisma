@@ -370,6 +370,10 @@ model DriverAttendance {
   workedMinutes Int?
   lateMinutes   Int?
   plannedDepart String?
+  checkInLat       Float?
+  checkInLng       Float?
+  checkInDistanceM Int?
+  checkInGeoOk     Boolean?
 }
 
 model SupportTicket {
@@ -669,6 +673,8 @@ model OpsDriver {
 
   @@index([hubId])
   @@index([tenantId])
+  tokenVersion  Int         @default(1) // incrémenter pour révoquer les liens de l'application livreur
+  lang          String      @default("fr") // fr | ar
 }
 
 model OpsOrder {
@@ -723,6 +729,10 @@ model OpsOrder {
   otpAttempts      Int           @default(0)
   otpVerifiedAt    DateTime?
   otpVerifiedBy    String?
+  deliveredLat     Float?
+  deliveredLng     Float?
+  deliveryDistanceM Int?
+  deliveryGeoOk    Boolean?
 }
 
 model OpsOrderEvent {
@@ -1062,5 +1072,40 @@ model OpsCustomerNotif {
   createdAt DateTime @default(now())
 
   @@unique([orderId, kind, channel])
+  @@index([createdAt])
+}
+
+// ─── SPRINT 20 — application livreur ─────────────────────────────────────────
+model OpsDriverAction {
+  id         String    @id // identifiant généré par le téléphone (idempotence)
+  driverCode String
+  orderId    String?
+  type       String    // accept | start | deliver | noshow | checkin | checkout
+  payload    String?
+  ok         Boolean   @default(false)
+  result     String?
+  clientAt   DateTime?
+  createdAt  DateTime  @default(now())
+
+  @@index([driverCode, createdAt])
+  @@index([orderId])
+}
+
+model OpsProof {
+  id         String    @id @default(cuid())
+  orderId    String
+  driverCode String
+  kind       String    @default("delivery") // delivery | noshow | damage
+  mime       String    @default("image/jpeg")
+  bytes      Int       @default(0)
+  data       String    // base64
+  lat        Float?
+  lng        Float?
+  accuracy   Float?
+  takenAt    DateTime?
+  clientId   String?   @unique
+  createdAt  DateTime  @default(now())
+
+  @@index([orderId])
   @@index([createdAt])
 }

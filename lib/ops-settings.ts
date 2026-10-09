@@ -3,7 +3,7 @@
  * Les paramètres surchargent lib/ops-config.ts ; ils sont rechargés au plus toutes les 20 s.
  */
 import { prisma } from '@/lib/prisma'
-import { CFG, DEFAULT_CFG, setCfg, type OpsConfig } from '@/lib/ops-config'
+import { CFG, DEFAULT_CFG, setCfg, sanitizeCfgValue, type OpsConfig } from '@/lib/ops-config'
 
 let loadedAt = 0
 
@@ -27,7 +27,8 @@ export async function saveSettings(patch: Partial<OpsConfig>) {
   for (const k of Object.keys(DEFAULT_CFG) as (keyof OpsConfig)[]) {
     const v = patch[k]; if (v === undefined) continue
     if (k === 'slots') { if (Array.isArray(v) && v.length >= 1 && v.length <= 8) clean[k] = (v as OpsConfig['slots']).map(s => ({ label: `${String(s.startHour).padStart(2, '0')}-${String((Number(s.startHour) + 3) % 24).padStart(2, '0')}`, startHour: Number(s.startHour) })); continue }
-    if (typeof v === 'number' && Number.isFinite(v) && v >= 0) clean[k] = v
+    const sv = sanitizeCfgValue(k, v) // nombre ≥ 0 (bornes pour les rayons) ou valeur d'une liste fermée
+    if (sv !== undefined) clean[k] = sv
   }
   for (const [key, value] of Object.entries(clean)) {
     await prisma.opsSetting.upsert({ where: { key }, update: { value: JSON.stringify(value) }, create: { key, value: JSON.stringify(value) } })

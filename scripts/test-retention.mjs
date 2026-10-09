@@ -9,8 +9,9 @@ let n = 0
 const ok = (name, fn) => { fn(); n++; console.log('  ok  ' + name) }
 
 ok('constantes de durée', () => {
-  assert.deepEqual({ ...r.RETENTION_DAYS }, { OpsSyncRun: 30, OpsSyncReject: 60, OpsNotifLog: 90, DeliveryAlert: 90, QrScanNonce: 7, OpsOutbox: 30, ReliabilityScore: 180 })
+  assert.deepEqual({ ...r.RETENTION_DAYS }, { OpsSyncRun: 30, OpsSyncReject: 60, OpsNotifLog: 90, DeliveryAlert: 90, QrScanNonce: 7, OpsOutbox: 30, ReliabilityScore: 180, OpsProof: 180, OpsDriverAction: 90 })
   assert.equal(r.BATCH_SIZE, 5000)
+  assert.equal(r.PROOF_BATCH_SIZE, 500)
 })
 ok('cutoffDate = now - N jours', () => {
   assert.equal(r.cutoffDate(30, NOW).getTime(), NOW - 30 * DAY)

@@ -54,6 +54,31 @@ export function computeOtpCoverage(deliveredCount: number, verifiedCount: number
   return { value: pct(verifiedCount, deliveredCount), num: verifiedCount, den: deliveredCount, formula: 'Couverture code de remise = livraisons avec code vérifié (otpVerifiedAt) ÷ livrées × 100' }
 }
 
+// ── Sprint 20 : preuves de livraison, conformité géographique, actions de l'application livreur (fonctions pures) ──
+export interface ProofCoverage { value: number | null; num: number; den: number; formula: string }
+/** Couverture des preuves : livrées avec au moins une preuve (photo OU code remis vérifié) ÷ livrées × 100. */
+export function computeProofCoverage(deliveredCount: number, withProofCount: number): ProofCoverage {
+  return { value: pct(withProofCount, deliveredCount), num: withProofCount, den: deliveredCount, formula: 'Couverture des preuves = livraisons avec au moins une preuve (photo ou code remis vérifié) ÷ livrées × 100' }
+}
+
+export interface GeoCompliance { value: number | null; num: number; den: number; withPosition: number; noPositionPct: number | null; formula: string }
+/** Conformité géographique : parmi les livrées AVEC position, part dont deliveryGeoOk = true ; + part des livrées SANS position. */
+export function computeGeoCompliance(deliveredGeoOk: (boolean | null | undefined)[]): GeoCompliance {
+  const withPos = deliveredGeoOk.filter(v => v != null)
+  const okN = withPos.filter(v => v === true).length
+  return {
+    value: pct(okN, withPos.length), num: okN, den: withPos.length, withPosition: withPos.length,
+    noPositionPct: pct(deliveredGeoOk.length - withPos.length, deliveredGeoOk.length),
+    formula: 'Conformité géographique = livraisons dont la position est dans le rayon autorisé (deliveryGeoOk) ÷ livraisons avec position enregistrée × 100 ; « sans position » = livrées sans coordonnées ÷ livrées',
+  }
+}
+
+export interface OfflineActions { count: number | null; failed: number | null; failRate: number | null; formula: string }
+/** Actions envoyées par l'application livreur (OpsDriverAction) : nombre et taux d'échec (ok = false). Aucune action → null. */
+export function computeOfflineActions(total: number, failed: number): OfflineActions {
+  return { count: total > 0 ? total : null, failed: total > 0 ? failed : null, failRate: pct(failed, total), formula: "Actions application livreur = nombre d'actions reçues sur la période (OpsDriverAction) ; taux d'échec = actions refusées (ok = faux) ÷ actions × 100" }
+}
+
 export interface EtaAccuracyKpi { mae: number | null; withinTolerancePct: number | null; samples: number; insufficient: boolean; formula: string }
 export const ETA_ACCURACY_FORMULA = 'Précision ETA : MAE = moyenne des |ETA prédite à l\'assignation − heure réelle| en minutes (médianes hub×créneau hors commande évaluée) ; % ±15 min = part des erreurs ≤ 15 min ; n/d sous 20 livraisons'
 

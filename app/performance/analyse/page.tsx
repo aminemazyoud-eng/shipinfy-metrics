@@ -11,8 +11,11 @@ interface KpiV { value: number | null; unit: '%' | 'MAD' | 'liv/h'; formula: str
 interface Kpis { otif: KpiV; cancelRate: KpiV; firstAttemptSuccess: KpiV; deliveriesPerHour: KpiV; fleetUtilization: KpiV; costPerDelivery: KpiV; cancelReasons: { reason: string; count: number }[]
   csat?: { average: number | null; count: number; responseRate: number | null; nps: number | null; formula: string; npsFormula: string } | null
   etaAccuracy?: { mae: number | null; withinTolerancePct: number | null; samples: number; insufficient: boolean; formula: string } | null
-  otpCoverage?: { value: number | null; num: number; den: number; formula: string } | null }
-const KPI_CARDS: [Exclude<keyof Kpis, 'cancelReasons' | 'csat' | 'etaAccuracy' | 'otpCoverage'>, string][] = [['otif', 'OTIF (à l’heure et complète)'], ['firstAttemptSuccess', 'Réussite au 1er passage'], ['cancelRate', 'Taux d’annulation'], ['deliveriesPerHour', 'Livraisons / heure'], ['fleetUtilization', 'Utilisation flotte'], ['costPerDelivery', 'Coût / livraison']]
+  otpCoverage?: { value: number | null; num: number; den: number; formula: string } | null
+  proofCoverage?: { value: number | null; num: number; den: number; formula: string } | null
+  geoCompliance?: { value: number | null; num: number; den: number; withPosition: number; noPositionPct: number | null; formula: string } | null
+  offlineActions?: { count: number | null; failed: number | null; failRate: number | null; formula: string } | null }
+const KPI_CARDS: [Exclude<keyof Kpis, 'cancelReasons' | 'csat' | 'etaAccuracy' | 'otpCoverage' | 'proofCoverage' | 'geoCompliance' | 'offlineActions'>, string][] = [['otif', 'OTIF (à l’heure et complète)'], ['firstAttemptSuccess', 'Réussite au 1er passage'], ['cancelRate', 'Taux d’annulation'], ['deliveriesPerHour', 'Livraisons / heure'], ['fleetUtilization', 'Utilisation flotte'], ['costPerDelivery', 'Coût / livraison']]
 const kfmt = (k: KpiV) => (k.value == null ? 'n/d' : k.unit === '%' ? `${String(k.value).replace('.', ',')} %` : k.unit === 'MAD' ? `${String(k.value).replace('.', ',')} MAD` : `${String(k.value).replace('.', ',')} /h`)
 
 const WD = ['Dim', 'Lun', 'Mar', 'Mer', 'Jeu', 'Ven', 'Sam']
@@ -71,12 +74,15 @@ ${k.note}` : ''}`} className="bg-white border border-gray-200 rounded-xl p-3 cur
               </div>
               {(() => {
                 const fr = (v: number | null | undefined, suffix = '') => (v == null ? 'n/d' : `${String(v).replace('.', ',')}${suffix}`)
-                const c = kpis.csat, e = kpis.etaAccuracy, o = kpis.otpCoverage
+                const c = kpis.csat, e = kpis.etaAccuracy, o = kpis.otpCoverage, pr = kpis.proofCoverage, g = kpis.geoCompliance, oa = kpis.offlineActions
                 const cards: { label: string; value: string; sub?: string; tip: string }[] = [
                   { label: 'Satisfaction client (CSAT)', value: fr(c?.average, ' / 5'), sub: c ? `${c.count} note(s) · réponse ${fr(c.responseRate, ' %')}` : undefined, tip: c ? `${c.formula}${c.count ? `\n= ${c.count} notes` : ''}` : 'CSAT = moyenne des notes (1 à 5) des clients sur la période' },
                   { label: 'NPS-like', value: fr(c?.nps, ' pts'), sub: 'notes 4-5 moins notes 1-2', tip: c?.npsFormula ?? 'NPS-like = % de notes 4-5 − % de notes 1-2' },
                   { label: 'Précision ETA (MAE)', value: e && !e.insufficient ? fr(e.mae, ' min') : 'n/d', sub: e ? (e.insufficient ? `${e.samples} échantillon(s), minimum 20` : `${fr(e.withinTolerancePct, ' %')} à ±15 min · ${e.samples} liv.`) : undefined, tip: e?.formula ?? 'MAE = erreur absolue moyenne entre ETA prédite et heure réelle' },
                   { label: 'Couverture code de remise', value: fr(o?.value, ' %'), sub: o ? `${o.num} / ${o.den} livrées` : undefined, tip: o ? `${o.formula}\n= ${o.num} / ${o.den}` : 'Couverture = livraisons avec code vérifié ÷ livrées × 100' },
+                  { label: 'Couverture des preuves', value: fr(pr?.value, ' %'), sub: pr ? `${pr.num} / ${pr.den} livrées (photo ou code)` : undefined, tip: pr ? `${pr.formula}\n= ${pr.num} / ${pr.den}` : 'Couverture des preuves = livraisons avec photo ou code vérifié ÷ livrées × 100' },
+                  { label: 'Conformité géographique', value: fr(g?.value, ' %'), sub: g ? `${g.num} / ${g.den} avec position · sans position ${fr(g.noPositionPct, ' %')}` : undefined, tip: g ? `${g.formula}\n= ${g.num} / ${g.den}` : 'Conformité = livraisons dans le rayon autorisé ÷ livraisons avec position × 100' },
+                  { label: 'Actions application livreur', value: fr(oa?.count), sub: oa && oa.count != null ? `échecs ${fr(oa.failRate, ' %')} (${oa.failed})` : undefined, tip: oa?.formula ?? "Nombre d'actions envoyées par l'application livreur ; taux d'échec = refusées ÷ total" },
                 ]
                 return (
                   <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mt-3">

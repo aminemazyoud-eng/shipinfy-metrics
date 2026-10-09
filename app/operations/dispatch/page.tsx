@@ -26,6 +26,7 @@ function Dispatch() {
   const [busy, setBusy] = useState(false)
   const [msg, setMsg] = useState<{ t: 'ok' | 'err'; s: string } | null>(null)
   const [openDriver, setOpenDriver] = useState<string | null>(null)
+  const [appLink, setAppLink] = useState<{ code: string; url: string; whatsappLink: string; phoneKnown: boolean; copied?: boolean } | null>(null)
 
   const load = useCallback(async () => {
     const qs = new URLSearchParams({ day }); if (hub) qs.set('hub', hub)
@@ -49,6 +50,22 @@ function Dispatch() {
 
   const assign = (driverCode: string | null, ids: string[]) => call('/api/ops/dispatch/assign', { orderIds: ids, driverCode }, j => `${j.updated} commande(s) ${driverCode ? `→ ${driverCode}` : 'retirée(s)'}`)
   const auto = () => call('/api/ops/dispatch/auto', { hub, day }, j => `Auto-dispatch : ${j.assigned ?? 0} commande(s) réparties`)
+  // Lien personnel de l'application livreur (jeton signé) ; « Révoquer » invalide tous les anciens liens et en génère un nouveau
+  const getAppLink = async (code: string, revoke = false) => {
+    if (revoke && !window.confirm(`Révoquer le lien de ${code} ? Les liens déjà envoyés cesseront de fonctionner immédiatement.`)) return
+    setMsg(null)
+    try {
+      const r = await fetch(`/api/ops/drivers/${encodeURIComponent(code)}/app-link`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(revoke ? { revoke: true } : {}) })
+      const j = await r.json()
+      if (!r.ok) { setMsg({ t: 'err', s: j.error || 'Erreur' }); return }
+      setAppLink({ code, url: j.url, whatsappLink: j.whatsappLink, phoneKnown: !!j.phoneKnown })
+      if (revoke) setMsg({ t: 'ok', s: `Lien de ${code} révoqué — nouveau lien généré` })
+    } catch { setMsg({ t: 'err', s: 'Erreur réseau' }) }
+  }
+  const copyAppLink = async () => {
+    if (!appLink) return
+    try { await navigator.clipboard.writeText(appLink.url); setAppLink({ ...appLink, copied: true }) } catch { window.prompt('Copiez le lien :', appLink.url) }
+  }
   const moveDriver = (code: string, to: string) => call(`/api/ops/drivers/${code}/hub`, { hubCode: to }, () => `${code} → ${to}`)
 
   const unassigned = useMemo(() => (data?.orders ?? []).filter(o => !o.driverCode && o.status !== 'DELIVERED' && o.status !== 'NO_SHOW'), [data])
@@ -149,6 +166,19 @@ function Dispatch() {
                       <option value="">⇄ Hub</option>{(data?.hubs ?? []).filter(h => h.code !== d.hubCode).map(h => <option key={h.code} value={h.code}>{h.name.replace('Marjane ', '')}</option>)}
                     </select>
                   </div>
+                  <button onClick={() => getAppLink(d.code)} className="mt-2 w-full text-xs py-1.5 rounded-lg border border-purple-300 text-purple-700 hover:bg-purple-50">Lien application livreur</button>
+                  {appLink?.code === d.code && (
+                    <div className="mt-2 border border-purple-200 bg-purple-50 rounded-lg p-2 space-y-1.5">
+                      <input readOnly value={appLink.url} onFocus={e => e.currentTarget.select()} className="w-full text-[11px] font-mono border border-gray-200 rounded px-1.5 py-1 bg-white" />
+                      <div className="flex flex-wrap gap-1.5">
+                        <button onClick={copyAppLink} className="text-xs px-2 py-1 rounded-lg bg-purple-600 text-white">{appLink.copied ? 'Copié ✓' : 'Copier'}</button>
+                        <a href={appLink.whatsappLink} target="_blank" rel="noopener noreferrer" className="text-xs px-2 py-1 rounded-lg bg-green-600 text-white">Ouvrir WhatsApp</a>
+                        <button onClick={() => getAppLink(d.code, true)} className="text-xs px-2 py-1 rounded-lg border border-red-300 text-red-600 hover:bg-red-50">Révoquer</button>
+                        <button onClick={() => setAppLink(null)} className="text-xs px-2 py-1 text-gray-500">Fermer</button>
+                      </div>
+                      {!appLink.phoneKnown && <div className="text-[11px] text-amber-700">Téléphone non renseigné : choisissez le contact dans WhatsApp.</div>}
+                    </div>
+                  )}
                   {openDriver === d.code && (
                     <div className="mt-2 border-t border-gray-100 pt-2 space-y-1 max-h-40 overflow-y-auto">
                       {myOrders.map(o => (

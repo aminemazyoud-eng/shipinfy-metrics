@@ -2,11 +2,12 @@
 import { useState, useEffect, useCallback } from 'react'
 import { History, Download, Search, CheckCircle2, X } from 'lucide-react'
 import OpsNav from '../components/OpsNav'
+import ProofGallery, { type ProofGeo } from '../components/ProofGallery'
 import OrderTimeline, { StepChip } from '../components/OrderTimeline'
 import { fmtDuration, type Step } from '@/lib/ops-steps'
 
 interface Row { id: string; ref: string; hubCode: string | null; slot: string | null; district: string | null; customer: string | null; driver: string | null; amount: number; deliveredAt: string | null; collectedAt: string | null; collectedBy: string | null; method: string | null; onTime: boolean | null; steps: Step[]; totalMin: number | null }
-interface Detail { ref: string; hubCode: string | null; slotLabel: string | null; customer: string | null; address: string | null; district: string | null; amount: number | null; steps: Step[]; totalMin: number | null; driver: { code: string; name: string; phone: string | null; hub: string | null } | null; collected: { by: string | null; method: string | null; amount: number | null; note: string | null } | null }
+interface Detail { id: string; geo?: ProofGeo; geofenceMeters?: number; ref: string; hubCode: string | null; slotLabel: string | null; customer: string | null; address: string | null; district: string | null; amount: number | null; steps: Step[]; totalMin: number | null; driver: { code: string; name: string; phone: string | null; hub: string | null } | null; collected: { by: string | null; method: string | null; amount: number | null; note: string | null } | null }
 interface Res { total: number; amount: number; offset: number; rows: Row[] }
 
 const PAGE = 100
@@ -89,6 +90,7 @@ export default function HistoriquePage() {
             </div>
             <div className="mt-5 mb-2 text-sm font-medium text-gray-800">Parcours de la commande</div>
             <OrderTimeline steps={detail.steps} totalMin={detail.totalMin} slotLabel={detail.slotLabel} />
+            <div className="mt-5"><ProofGallery orderId={detail.id} geo={detail.geo} thresholdM={detail.geofenceMeters} /></div>
           </div>
         </div>
       )}

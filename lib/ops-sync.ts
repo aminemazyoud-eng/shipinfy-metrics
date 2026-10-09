@@ -155,35 +155,55 @@ export async function enqueueAssign(items: { externalId: string; courierRef: str
 }
 
 /**
- * Rejoue les poussées d'affectation vers le back-office (début de chaque synchro).
+ * Rejoue les poussées vers le back-office (début de chaque synchro) : affectations (kind 'assign') et changements de statut
+ * faits par l'application livreur (kind 'status', statut dans courierRef).
  * 3 tentatives (attempts++ / nextRetryAt = +1, +5, +15 min) puis abandon (doneAt posé, attempts = 3 → distinguable d'un succès).
+ * Les statuts d'une même commande sont poussés DANS L'ORDRE, un par un (accepté avant en livraison) ; en cas d'échec on s'arrête pour cette commande.
  */
 export async function flushOutbox(): Promise<{ sent: number; failed: number; abandoned: number }> {
   const out = { sent: 0, failed: 0, abandoned: 0 }
   try {
-    const rows = await prisma.$queryRaw<{ id: string; externalId: string; courierRef: string | null; attempts: number }[]>`
-      SELECT "id","externalId","courierRef","attempts" FROM "OpsOutbox"
-      WHERE "doneAt" IS NULL AND "kind" = 'assign' AND "nextRetryAt" <= ${new Date()}
+    const rows = await prisma.$queryRaw<{ id: string; kind: string; externalId: string; courierRef: string | null; attempts: number }[]>`
+      SELECT "id","kind","externalId","courierRef","attempts" FROM "OpsOutbox"
+      WHERE "doneAt" IS NULL AND "kind" IN ('assign','status') AND "nextRetryAt" <= ${new Date()}
       ORDER BY "createdAt" ASC LIMIT 200`
     if (!rows.length) return out
     const { url, key, source } = opsSyncConfig()
+    const assignRows = rows.filter(r => r.kind === 'assign')
+    const statusRows = rows.filter(r => r.kind === 'status')
     // on pousse l'affectation ACTUELLE (le dispatcher a pu la changer depuis l'empilement)
-    const cur = await prisma.opsOrder.findMany({ where: { source, externalId: { in: rows.map(r => r.externalId) } }, select: { externalId: true, courierRef: true } })
+    const cur = assignRows.length ? await prisma.opsOrder.findMany({ where: { source, externalId: { in: assignRows.map(r => r.externalId) } }, select: { externalId: true, courierRef: true } }) : []
     const curBy = new Map(cur.map(c => [c.externalId, c.courierRef]))
-    await Promise.all(rows.map(async r => {
-      const courierRef = curBy.has(r.externalId) ? curBy.get(r.externalId) ?? null : r.courierRef
-      let ok = false
-      try {
-        const res = await fetch(`${url}/api/v1/orders/${encodeURIComponent(r.externalId)}/assign`, { method: 'POST', headers: { 'x-api-key': key, 'Content-Type': 'application/json' }, body: JSON.stringify({ courierRef }), signal: AbortSignal.timeout(4000) })
-        ok = res.ok
-      } catch { /* back-office indisponible */ }
+    // résultat d'une tentative : succès → doneAt ; échec → attempts++ avec délai croissant, abandon à la 3e
+    const settle = async (r: { id: string; attempts: number }, ok: boolean) => {
       if (ok) { await prisma.$executeRaw`UPDATE "OpsOutbox" SET "doneAt" = ${new Date()} WHERE "id" = ${r.id}`; out.sent++; return }
       const attempts = r.attempts + 1
       if (attempts >= OUTBOX_MAX_ATTEMPTS) { await prisma.$executeRaw`UPDATE "OpsOutbox" SET "attempts" = ${attempts}, "doneAt" = ${new Date()} WHERE "id" = ${r.id}`; out.abandoned++; return }
       const next = new Date(Date.now() + (OUTBOX_BACKOFF_MIN[attempts - 1] ?? 15) * 60_000)
       await prisma.$executeRaw`UPDATE "OpsOutbox" SET "attempts" = ${attempts}, "nextRetryAt" = ${next} WHERE "id" = ${r.id}`
       out.failed++
-    }))
+    }
+    const post = async (externalId: string, action: 'assign' | 'status', body: unknown): Promise<boolean> => {
+      try {
+        const res = await fetch(`${url}/api/v1/orders/${encodeURIComponent(externalId)}/${action}`, { method: 'POST', headers: { 'x-api-key': key, 'Content-Type': 'application/json' }, body: JSON.stringify(body), signal: AbortSignal.timeout(4000) })
+        return res.ok
+      } catch { return false /* back-office indisponible */ }
+    }
+    const byOrder = new Map<string, typeof statusRows>()
+    for (const r of statusRows) (byOrder.get(r.externalId) ?? byOrder.set(r.externalId, []).get(r.externalId)!).push(r)
+    await Promise.all([
+      ...assignRows.map(async r => {
+        const courierRef = curBy.has(r.externalId) ? curBy.get(r.externalId) ?? null : r.courierRef
+        await settle(r, await post(r.externalId, 'assign', { courierRef }))
+      }),
+      ...[...byOrder.values()].map(async list => {
+        for (const r of list) { // déjà triées par createdAt
+          const ok = await post(r.externalId, 'status', { status: r.courierRef })
+          await settle(r, ok)
+          if (!ok) break // on ne pousse pas un statut ultérieur avant le précédent
+        }
+      }),
+    ])
   } catch (e) { console.warn('[ops-sync] flushOutbox:', e instanceof Error ? e.message : e) }
   return out
 }
@@ -264,14 +284,18 @@ export async function runOpsSync(opts: { full?: boolean } = {}): Promise<OpsSync
             const from = RANK[prev.status] ?? -1, to = RANK[o.status] ?? -1
             // JAMAIS de rétrogradation : la source est en retard sur notre dispatch → on garde statut / assignation locaux et on rejoue la poussée
             if (prev.driverId && to < from) {
-              const { status: _s, courierRef: _c, assignedAt: _a, ...rest } = data
-              void _s; void _c; void _a
+              // la source est en retard : on ne touche NI au statut NI aux horodatages d'étape (posés par l'application livreur ou le dispatch)
+              const { status: _s, courierRef: _c, assignedAt: _a, inTransportAt: _i, startDeliveryAt: _st, deliveredAt: _d, noShowAt: _n, ...rest } = data
+              void _s; void _c; void _a; void _i; void _st; void _d; void _n
               updates.push(prisma.opsOrder.update({ where: { id: prev.id }, data: rest }))
               if (from >= RANK.ASSIGNED && from <= RANK.START_DELIVERY) outbox.push({ externalId: o.id, courierRef: prev.courierRef ?? prev.driver?.code ?? null })
               changed.add(o.id)
               continue
             }
-            updates.push(prisma.opsOrder.update({ where: { id: prev.id }, data: { ...data, ...(prev.driverId ? {} : { driverId: bind }) } }))
+            // la source ne doit jamais EFFACER un horodatage déjà posé localement (une valeur vide côté source n'écrase rien)
+            const upd: Record<string, unknown> = { ...data, ...(prev.driverId ? {} : { driverId: bind }) }
+            for (const k of ['assignedAt', 'inTransportAt', 'startDeliveryAt', 'deliveredAt', 'noShowAt']) if (upd[k] == null) delete upd[k]
+            updates.push(prisma.opsOrder.update({ where: { id: prev.id }, data: upd as typeof data }))
             changed.add(o.id)
             if (prev.status !== o.status) {
               const stages = to > from ? stageEvents(o).filter(s => (RANK[s.status] ?? -1) > from && (RANK[s.status] ?? -1) <= to) : []

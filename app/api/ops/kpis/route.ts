@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { opsAuth, fail } from '@/lib/ops-auth'
-import { computeKpis, computeCsat, computeOtpCoverage, ETA_ACCURACY_FORMULA, type EtaAccuracyKpi } from '@/lib/ops-kpis'
+import { computeKpis, computeCsat, computeOtpCoverage, computeProofCoverage, computeGeoCompliance, computeOfflineActions, ETA_ACCURACY_FORMULA, type EtaAccuracyKpi } from '@/lib/ops-kpis'
 import { etaAccuracy } from '@/lib/ops-eta'
 import { computePay, type PayConfig } from '@/lib/ops-pay'
 import { cached } from '@/lib/ops-cache'
@@ -16,7 +16,7 @@ async function build(from: string, to: string, hub: string | undefined) {
   const [orders, vehicles, drivers] = await Promise.all([
     prisma.opsOrder.findMany({
       where: { slotStart: { gte: start, lt: end }, ...(hub ? { hubCode: hub } : {}) }, take: 100_000,
-      select: { status: true, slotEnd: true, deliveredAt: true, otpVerifiedAt: true, missingItems: true, attemptCount: true, cancelReason: true, driver: { select: { vehicleId: true } } },
+      select: { id: true, status: true, slotEnd: true, deliveredAt: true, otpVerifiedAt: true, deliveryGeoOk: true, missingItems: true, attemptCount: true, cancelReason: true, driver: { select: { vehicleId: true } } },
     }),
     prisma.opsVehicle.findMany({ where: { status: { not: 'out_of_service' }, ...(hub ? { hub: { code: hub } } : {}) }, select: { id: true } }),
     prisma.opsDriver.findMany({ where: { status: { not: 'off' }, ...(hub ? { hub: { code: hub } } : {}) }, include: { hub: { select: { code: true } } }, orderBy: { code: 'asc' } }),
@@ -72,7 +72,24 @@ async function build(from: string, to: string, hub: string | undefined) {
     eta = { mae: a.mae, withinTolerancePct: a.withinTolerancePct, samples: a.samples, insufficient: a.insufficient, formula: ETA_ACCURACY_FORMULA }
   } catch (e) { console.warn('[kpis] précision ETA indisponible', e instanceof Error ? e.message : e) }
   const otpCoverage = computeOtpCoverage(k.counts.delivered, orders.filter(o => o.status === 'DELIVERED' && o.otpVerifiedAt).length)
-  return { from, to, hub: hub ?? null, days, ...k, csat, etaAccuracy: eta, otpCoverage }
+
+  // Sprint 20 : preuves, conformité géographique, actions de l'application livreur (chacun isolé)
+  const deliveredOrders = orders.filter(o => o.status === 'DELIVERED')
+  let proofCoverage: ReturnType<typeof computeProofCoverage> | null = null
+  try {
+    // Preuves créées autour de la période (photo prise au plus tard quelques jours après le créneau) ; jointure en mémoire, pas de IN géant
+    const grouped = await prisma.opsProof.groupBy({ by: ['orderId'], where: { kind: 'delivery', createdAt: { gte: start, lt: new Date(end.getTime() + 7 * 86_400_000) } } })
+    const withPhoto = new Set(grouped.map(g => g.orderId))
+    proofCoverage = computeProofCoverage(deliveredOrders.length, deliveredOrders.filter(o => o.otpVerifiedAt || withPhoto.has(o.id)).length)
+  } catch (e) { console.warn('[kpis] couverture des preuves indisponible', e instanceof Error ? e.message : e) }
+  const geoCompliance = computeGeoCompliance(deliveredOrders.map(o => o.deliveryGeoOk))
+  let offlineActions: ReturnType<typeof computeOfflineActions> | null = null
+  try {
+    const where = { createdAt: { gte: start, lt: end }, ...(hub ? { driverCode: { in: drivers.map(d => d.code) } } : {}) }
+    const [total, failed] = await Promise.all([prisma.opsDriverAction.count({ where }), prisma.opsDriverAction.count({ where: { ...where, ok: false } })])
+    offlineActions = computeOfflineActions(total, failed)
+  } catch (e) { console.warn('[kpis] actions livreur indisponibles', e instanceof Error ? e.message : e) }
+  return { from, to, hub: hub ?? null, days, ...k, csat, etaAccuracy: eta, otpCoverage, proofCoverage, geoCompliance, offlineActions }
 }
 
 // GET /api/ops/kpis?from=&to=&hub= — KPIs de référence (OTIF, annulations, 1er passage, livraisons/heure, flotte, coût/livraison) avec leur FORMULE. VIEWER+.

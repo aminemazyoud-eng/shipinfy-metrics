@@ -1134,3 +1134,39 @@ CREATE TABLE IF NOT EXISTS "OpsCustomerNotif" (
 CREATE UNIQUE INDEX IF NOT EXISTS "OpsCustomerNotif_order_kind_channel_key" ON "OpsCustomerNotif"("orderId","kind","channel");
 CREATE INDEX IF NOT EXISTS "OpsCustomerNotif_createdAt_idx" ON "OpsCustomerNotif"("createdAt");
 ALTER TABLE "OpsCustomerNotif" ENABLE ROW LEVEL SECURITY;
+
+-- ═══ SPRINT 20 — application livreur (PWA hors-ligne), preuve de livraison (photo), géolocalisation, arabe (idempotent) ═══════════
+ALTER TABLE "OpsDriver" ADD COLUMN IF NOT EXISTS "tokenVersion" INTEGER NOT NULL DEFAULT 1;
+ALTER TABLE "OpsDriver" ADD COLUMN IF NOT EXISTS "lang" TEXT NOT NULL DEFAULT 'fr';
+
+-- Actions envoyées par l'application livreur : l'id est généré PAR LE TÉLÉPHONE (idempotence : un rejeu ne double jamais une action)
+CREATE TABLE IF NOT EXISTS "OpsDriverAction" (
+  "id" TEXT NOT NULL PRIMARY KEY, "driverCode" TEXT NOT NULL, "orderId" TEXT, "type" TEXT NOT NULL,
+  "payload" TEXT, "ok" BOOLEAN NOT NULL DEFAULT false, "result" TEXT,
+  "clientAt" TIMESTAMP(3), "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+CREATE INDEX IF NOT EXISTS "OpsDriverAction_driver_createdAt_idx" ON "OpsDriverAction"("driverCode","createdAt");
+CREATE INDEX IF NOT EXISTS "OpsDriverAction_orderId_idx" ON "OpsDriverAction"("orderId");
+ALTER TABLE "OpsDriverAction" ENABLE ROW LEVEL SECURITY;
+
+-- Preuves de livraison (photo compressée côté téléphone ≤ ~400 Ko, stockée en base64)
+CREATE TABLE IF NOT EXISTS "OpsProof" (
+  "id" TEXT NOT NULL PRIMARY KEY, "orderId" TEXT NOT NULL, "driverCode" TEXT NOT NULL, "kind" TEXT NOT NULL DEFAULT 'delivery',
+  "mime" TEXT NOT NULL DEFAULT 'image/jpeg', "bytes" INTEGER NOT NULL DEFAULT 0, "data" TEXT NOT NULL,
+  "lat" DOUBLE PRECISION, "lng" DOUBLE PRECISION, "accuracy" DOUBLE PRECISION, "takenAt" TIMESTAMP(3),
+  "clientId" TEXT, "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+CREATE UNIQUE INDEX IF NOT EXISTS "OpsProof_clientId_key" ON "OpsProof"("clientId");
+CREATE INDEX IF NOT EXISTS "OpsProof_orderId_idx" ON "OpsProof"("orderId");
+CREATE INDEX IF NOT EXISTS "OpsProof_createdAt_idx" ON "OpsProof"("createdAt");
+ALTER TABLE "OpsProof" ENABLE ROW LEVEL SECURITY;
+
+-- Géolocalisation à la livraison et au pointage (contrôle « souple » : on enregistre l'écart, on ne bloque pas)
+ALTER TABLE "OpsOrder" ADD COLUMN IF NOT EXISTS "deliveredLat" DOUBLE PRECISION;
+ALTER TABLE "OpsOrder" ADD COLUMN IF NOT EXISTS "deliveredLng" DOUBLE PRECISION;
+ALTER TABLE "OpsOrder" ADD COLUMN IF NOT EXISTS "deliveryDistanceM" INTEGER;
+ALTER TABLE "OpsOrder" ADD COLUMN IF NOT EXISTS "deliveryGeoOk" BOOLEAN;
+ALTER TABLE "DriverAttendance" ADD COLUMN IF NOT EXISTS "checkInLat" DOUBLE PRECISION;
+ALTER TABLE "DriverAttendance" ADD COLUMN IF NOT EXISTS "checkInLng" DOUBLE PRECISION;
+ALTER TABLE "DriverAttendance" ADD COLUMN IF NOT EXISTS "checkInDistanceM" INTEGER;
+ALTER TABLE "DriverAttendance" ADD COLUMN IF NOT EXISTS "checkInGeoOk" BOOLEAN;

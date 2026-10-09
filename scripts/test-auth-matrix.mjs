@@ -4,12 +4,13 @@ import fs from 'fs'
 import path from 'path'
 
 const ROOT = path.resolve(process.cwd(), 'app', 'api')
-const GUARD = /requireSession|getSession|opsAuth|verifyPlan|createHmac|timingSafeEqual/
+const GUARD = /requireSession|getSession|opsAuth|verifyPlan|createHmac|timingSafeEqual|driverFromRequest/ // driverFromRequest : jeton HMAC par livreur (application livreur, lib/ops-driver-token.ts)
 // Routes volontairement publiques (la sécurité est portée par la route elle-même : login, lien signé, signature HMAC…)
 const WHITELIST = new Set([
   'auth/login', 'auth/logout', 'auth/bootstrap', 'auth/forgot-password', 'auth/reset-password',
   'planning/pdf', 'webhooks/n8n',
   'track/[token]', 'track/[token]/rating', // suivi client : jeton HMAC signé (expire 48 h après le créneau), données minimales
+  'driver/ping', // application livreur : détection de connexion, aucune donnée, limité par IP (les autres routes /api/driver/* exigent le jeton HMAC par livreur)
   'health', // healthcheck public sans donnée sensible (Docker / Dokploy)
 ])
 

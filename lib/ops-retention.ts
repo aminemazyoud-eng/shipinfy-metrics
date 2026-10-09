@@ -16,10 +16,15 @@ export const RETENTION_DAYS = {
   QrScanNonce: 7,
   OpsOutbox: 30,           // uniquement les éléments terminés (doneAt renseigné)
   ReliabilityScore: 180,   // en conservant toujours le dernier score de chaque livreur
+  OpsProof: 180,           // photos de preuve (base64, lourdes) — lot réduit : PROOF_BATCH_SIZE
+  OpsDriverAction: 90,     // journal d'idempotence des actions de l'application livreur
 } as const
 
 /** Taille maximale d'un lot (lignes supprimées par passage et par table). */
 export const BATCH_SIZE = 5000
+
+/** Lot réduit pour OpsProof : chaque ligne porte une image base64 (suppression plus lourde). */
+export const PROOF_BATCH_SIZE = 500
 
 const DAY_MS = 86_400_000
 
@@ -96,6 +101,15 @@ export async function runRetention(nowMs: number = Date.now()): Promise<Retentio
       where: { calculatedAt: { lt: c.ReliabilityScore }, id: { notIn: keep } }, select: { id: true }, take: BATCH_SIZE,
     })
     return rows.length ? (await prisma.reliabilityScore.deleteMany({ where: { id: { in: rows.map(r => r.id) } } })).count : 0
+  })
+
+  await step('OpsProof', async () => {
+    const rows = await prisma.opsProof.findMany({ where: { createdAt: { lt: c.OpsProof } }, select: { id: true }, take: PROOF_BATCH_SIZE })
+    return rows.length ? (await prisma.opsProof.deleteMany({ where: { id: { in: rows.map(r => r.id) } } })).count : 0
+  })
+  await step('OpsDriverAction', async () => {
+    const rows = await prisma.opsDriverAction.findMany({ where: { createdAt: { lt: c.OpsDriverAction } }, select: { id: true }, take: BATCH_SIZE })
+    return rows.length ? (await prisma.opsDriverAction.deleteMany({ where: { id: { in: rows.map(r => r.id) } } })).count : 0
   })
 
   return summary

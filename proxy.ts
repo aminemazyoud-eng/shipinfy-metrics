@@ -20,6 +20,9 @@ const PUBLIC_PATHS = [
   '/api/planning/pdf', // lien signé du planning envoyé par WhatsApp (jeton HMAC par jour + chauffeur)
   '/api/track', // suivi client : lien signé HMAC (jeton par commande, expire 48 h après le créneau)
   '/suivi', // page publique de suivi client (/suivi/[token])
+  '/api/driver', // application livreur : jeton signé par livreur (en-tête x-driver-token), vérifié dans chaque route
+  '/livreur', // application livreur (PWA)
+  '/manifest.webmanifest', // manifeste PWA
 ]
 
 export function proxy(req: NextRequest) {

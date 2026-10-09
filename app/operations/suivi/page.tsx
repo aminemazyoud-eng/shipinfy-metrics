@@ -6,12 +6,13 @@ import { useSearchParams } from 'next/navigation'
 import OpsNav from '../components/OpsNav'
 import OrderTimeline from '../components/OrderTimeline'
 import OtpPanel from '../components/OtpPanel'
+import ProofGallery, { type ProofGeo } from '../components/ProofGallery'
 import { usePolling } from '@/lib/use-polling'
 import type { Step } from '@/lib/ops-steps'
 
 interface Row { id: string; ref: string; hubCode: string | null; district: string | null; status: string; slotLabel: string | null; amount: number | null; customer: string | null; driver: { code: string; name: string } | null; late: boolean; lateMin: number; deliveredLate: boolean; atRisk: boolean }
 interface Res { day: string; counts: Record<string, number>; late: number; toDispatch: number; orders: Row[] }
-interface Detail { id: string; ref: string; externalId: string; status: string; slotLabel: string | null; customer: string | null; address: string | null; amount: number | null; attempts: number; driver: { code: string; name: string; phone: string | null; hub: string | null } | null; steps: Step[]; totalMin: number | null; tickets: { id: string; reference: string; subject: string; status: string }[]; otpVerifiedAt?: string | null }
+interface Detail { id: string; ref: string; externalId: string; status: string; slotLabel: string | null; customer: string | null; address: string | null; amount: number | null; attempts: number; driver: { code: string; name: string; phone: string | null; hub: string | null } | null; steps: Step[]; totalMin: number | null; tickets: { id: string; reference: string; subject: string; status: string }[]; otpVerifiedAt?: string | null; geo?: ProofGeo; proofCount?: number; geofenceMeters?: number }
 
 // Parcours : À dispatcher (page Dispatch) → Assignée → Acceptée → En livraison [= Suivi] → Livrée (page Encaissement) → Encaissée (Historique)
 const STATUSES = [['ASSIGNED', 'Commande assignée', '#8b5cf6'], ['IN_TRANSPORT', 'Commande acceptée', '#06b6d4'], ['START_DELIVERY', 'En livraison', '#f59e0b'], ['NO_SHOW', 'NO_SHOW', '#6b7280']] as const
@@ -116,6 +117,7 @@ function Suivi() {
             </div>
             <div className="mt-5 text-sm font-medium text-gray-800">Chronologie</div>
             <div className="mt-3"><OrderTimeline steps={detail.steps} totalMin={detail.totalMin} slotLabel={detail.slotLabel} /></div>
+            <div className="mt-4"><ProofGallery orderId={detail.id} geo={detail.geo} thresholdM={detail.geofenceMeters} /></div>
             <div className="mt-5 text-sm font-medium text-gray-800">Réclamations</div>
             {detail.tickets.map(t => <div key={t.id} className="text-sm mt-1 text-gray-600">{t.reference} — {t.subject} <span className="text-xs text-gray-400">({t.status})</span></div>)}
             {!detail.tickets.length && <div className="text-xs text-gray-400 mt-1">Aucune</div>}

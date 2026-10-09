@@ -10,11 +10,12 @@ interface Cfg {
   fuelPriceDiesel: number; fuelPriceEssence: number; consumptionAlertPct: number; docAlertDays: number; maintKmMargin: number
   scoreCritical: number; scoreGood: number
   cashGapAlert: number
+  geofenceMeters: number; deliveryGeofenceMeters: number; proofRequired: 'otp_or_photo' | 'photo' | 'otp'
 }
 interface SpecialDay { day: string; label: string; kind: string; factor: number }
 const KINDS: Record<string, string> = { ramadan: 'Ramadan', aid: 'Aïd', payday: 'Fin de mois', promo: 'Promo', event: 'Événement' }
 const iso = (d: Date) => d.toISOString().slice(0, 10)
-type NumKey = Exclude<keyof Cfg, 'slots'>
+type NumKey = Exclude<keyof Cfg, 'slots' | 'proofRequired'>
 
 // Paramétrage → Calculs & équations : tout ce qui pilote les calculs des modules (créneaux, prévisions, retards, dispatch, flotte, scoring).
 export default function CalculsPage() {
@@ -51,10 +52,10 @@ export default function CalculsPage() {
   const save = async () => { const r = await fetch('/api/ops/settings', { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(cfg) }); setMsg(r.ok ? 'Paramètres enregistrés — appliqués immédiatement aux calculs.' : 'Échec (administrateur requis)'); if (r.ok) load() }
   const reset = async () => { if (!confirm('Remettre TOUS les paramètres de calcul aux valeurs par défaut ?')) return; const r = await fetch('/api/ops/settings', { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ reset: true }) }); setMsg(r.ok ? 'Valeurs par défaut rétablies.' : 'Échec'); if (r.ok) load() }
 
-  const num = (k: NumKey, label: string, hint: string, step = 1) => cfg && defaults && (
+  const num = (k: NumKey, label: string, hint: string, step = 1, min = 0, max?: number) => cfg && defaults && (
     <label className="block text-sm">
       <span className="flex items-center justify-between text-gray-700 font-medium">{label}{overridden.includes(k) && <span className="text-[10px] text-purple-600 font-normal">modifié (défaut {defaults[k]})</span>}</span>
-      <input type="number" step={step} min={0} disabled={!canEdit} value={cfg[k]} onChange={e => setCfg({ ...cfg, [k]: Number(e.target.value) })} className="mt-1 w-full border border-gray-300 rounded-lg px-2.5 py-1.5 text-sm disabled:bg-gray-50" />
+      <input type="number" step={step} min={min} max={max} disabled={!canEdit} value={cfg[k]} onChange={e => setCfg({ ...cfg, [k]: Number(e.target.value) })} className="mt-1 w-full border border-gray-300 rounded-lg px-2.5 py-1.5 text-sm disabled:bg-gray-50" />
       <span className="text-xs text-gray-400">{hint}</span>
     </label>
   )
@@ -124,6 +125,20 @@ export default function CalculsPage() {
 
           <Card title="Caisse (clôture du jour)" formula={'écart = montant remis − montant attendu (commandes livrées du jour)\nalerte si |écart| > seuil'}>
             {num('cashGapAlert', 'Seuil d’alerte d’écart de caisse (MAD)', 'Au-delà, l’écart est signalé dans le journal d’audit')}
+          </Card>
+
+          <Card title="Preuves de livraison & géolocalisation" formula={'pointage conforme = distance(position du livreur, hub) ≤ rayon du pointage\nlivraison conforme = distance(position, adresse du client) ≤ rayon de livraison\npreuve exigée pour livrer : code remis vérifié et/ou photo (selon le réglage)'}>
+            {num('geofenceMeters', 'Rayon du pointage d’arrivée (m)', 'Entre 50 et 2000 m autour du hub', 10, 50, 2000)}
+            {num('deliveryGeofenceMeters', 'Rayon de la livraison (m)', 'Entre 50 et 2000 m autour de l’adresse du client', 10, 50, 2000)}
+            <label className="block text-sm sm:col-span-2">
+              <span className="flex items-center justify-between text-gray-700 font-medium">Preuve exigée pour livrer{overridden.includes('proofRequired') && <span className="text-[10px] text-purple-600 font-normal">modifié (défaut {defaults.proofRequired})</span>}</span>
+              <select disabled={!canEdit} value={cfg.proofRequired} onChange={e => setCfg({ ...cfg, proofRequired: e.target.value as Cfg['proofRequired'] })} className="mt-1 w-full border border-gray-300 rounded-lg px-2.5 py-1.5 text-sm bg-white disabled:bg-gray-50">
+                <option value="otp_or_photo">Code remis OU photo (l’un des deux suffit)</option>
+                <option value="photo">Photo obligatoire</option>
+                <option value="otp">Code remis obligatoire</option>
+              </select>
+              <span className="text-xs text-gray-400">Appliqué par l’application livreur au moment de valider la livraison</span>
+            </label>
           </Card>
 
           <div className="bg-white border border-gray-200 rounded-xl p-5">

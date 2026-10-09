@@ -1,24 +1,9 @@
-import * as XLSX from 'xlsx'
+import ExcelJS from 'exceljs'
+import { parseCsv } from '@/lib/csv-parse'
 
 // Exports Excel : toutes les routes d'export construisent leur tableau en CSV (« ; » ou « , », BOM, guillemets) ;
 // ce module le convertit en vrai fichier .xlsx (nombres typés, colonnes dimensionnées, ligne d'en-tête figée).
-
-function parseCsv(text: string): string[][] {
-  const src = text.replace(/^﻿/, '')
-  const first = src.split(/\r?\n/, 1)[0] ?? ''
-  const sep = (first.match(/;/g)?.length ?? 0) >= (first.match(/,/g)?.length ?? 0) && first.includes(';') ? ';' : ','
-  const rows: string[][] = []; let row: string[] = []; let cur = ''; let q = false
-  for (let i = 0; i < src.length; i++) {
-    const c = src[i]
-    if (q) { if (c === '"') { if (src[i + 1] === '"') { cur += '"'; i++ } else q = false } else cur += c }
-    else if (c === '"') q = true
-    else if (c === sep) { row.push(cur); cur = '' }
-    else if (c === '\n' || c === '\r') { if (c === '\r' && src[i + 1] === '\n') i++; row.push(cur); rows.push(row); row = []; cur = '' }
-    else cur += c
-  }
-  if (cur !== '' || row.length) { row.push(cur); rows.push(row) }
-  return rows.filter(r => r.some(c => c !== ''))
-}
+// Sécurité : la lib `xlsx` (SheetJS, vulnérable, sans correctif npm) a été remplacée par `exceljs`.
 
 const TEXT_HEADER = /^(r[ée]f|code|cin|t[ée]l|plaque|immat|p[ée]riode|objet)/i
 // Neutralisation des formules (Sprint 17 A7) : une cellule TEXTE commençant par = + - @ tab ou CR est préfixée d'une apostrophe.
@@ -28,20 +13,32 @@ const PLAIN_NUMBERISH = /^[+-]?[\d\s().-]+$/
 const safeCell = (v: string): string => (DANGER.test(v) && !PLAIN_NUMBERISH.test(v) ? "'" + v : v)
 const NUM = /^-?(0|[1-9]\d{0,14})([.,]\d+)?$/
 
-export function csvToXlsx(csv: string, sheet = 'Export'): Buffer {
+/** CSV -> contenu binaire .xlsx. (Asynchrone : exceljs n'a pas d'écriture synchrone.) */
+export async function csvToXlsx(csv: string, sheet = 'Export'): Promise<Buffer> {
   const rows = parseCsv(csv)
   const head = rows[0] ?? []
   const data: (string | number)[][] = rows.map((r, ri) => r.map((c, ci) => (ri > 0 && !TEXT_HEADER.test(head[ci] ?? '') && NUM.test(c) ? Number(c.replace(',', '.')) : safeCell(c))))
-  const ws = XLSX.utils.aoa_to_sheet(data)
-  ws['!cols'] = head.map((_, ci) => ({ wch: Math.min(40, Math.max(8, ...data.slice(0, 200).map(r => String(r[ci] ?? '').length + 2))) }))
-  ws['!freeze'] = { xSplit: 0, ySplit: 1 } as never
-  const wb = XLSX.utils.book_new(); XLSX.utils.book_append_sheet(wb, ws, sheet.slice(0, 31))
-  return XLSX.write(wb, { type: 'buffer', bookType: 'xlsx' }) as Buffer
+  const wb = new ExcelJS.Workbook()
+  // Nom d'onglet : 31 caractères max, sans \ / ? * [ ] :
+  const ws = wb.addWorksheet(sheet.replace(/[\\/?*[\]:]/g, ' ').slice(0, 31) || 'Export', { views: head.length ? [{ state: 'frozen', xSplit: 0, ySplit: 1 }] : [] })
+  data.forEach(r => ws.addRow(r))
+  head.forEach((h, ci) => {
+    const col = ws.getColumn(ci + 1)
+    col.width = Math.min(40, Math.max(8, ...data.slice(0, 200).map(r => String(r[ci] ?? '').length + 2)))
+    if (TEXT_HEADER.test(h)) col.numFmt = '@'
+  })
+  return Buffer.from(await wb.xlsx.writeBuffer())
 }
 
-/** Réponse HTTP téléchargeable (.xlsx) à partir d'un texte CSV. */
+/** Réponse HTTP téléchargeable (.xlsx) à partir d'un texte CSV (signature synchrone conservée : le corps est produit en flux). */
 export function xlsxResponse(csv: string, filename: string, sheet = 'Export'): Response {
-  return new Response(new Uint8Array(csvToXlsx(csv, sheet)), {
+  const body = new ReadableStream<Uint8Array>({
+    async start(controller) {
+      try { controller.enqueue(new Uint8Array(await csvToXlsx(csv, sheet))); controller.close() }
+      catch (e) { controller.error(e) }
+    },
+  })
+  return new Response(body, {
     headers: {
       'Content-Type': 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
       'Content-Disposition': `attachment; filename="${filename.replace(/\.csv$/i, '')}.xlsx"`,

@@ -133,8 +133,8 @@ export function UploadZone({ activeReport, onUploadSuccess, onDeleteSuccess, mod
 
   // ── Envoi du fichier via XHR (avec progression) ───────────────────────────
   const handleFile = useCallback((file: File) => {
-    if (!file.name.match(/\.(xlsx|xls)$/i)) {
-      setError('Format non supporté. Utilisez un fichier .xlsx ou .xls')
+    if (!file.name.match(/\.(xlsx|csv)$/i)) {
+      setError('Format non supporté. Utilisez un fichier .xlsx ou .csv (le format .xls est refusé)')
       return
     }
     const sizeMB = file.size / (1024 * 1024)
@@ -284,7 +284,7 @@ export function UploadZone({ activeReport, onUploadSuccess, onDeleteSuccess, mod
         <>
           <Upload className="mx-auto mb-4 h-10 w-10 text-gray-400" />
           <p className="mb-2 text-lg font-semibold text-gray-700">Importer un fichier de tournées</p>
-          <p className="mb-1 text-sm text-gray-500">Glissez votre fichier Excel ici ou cliquez (.xlsx, .xls)</p>
+          <p className="mb-1 text-sm text-gray-500">Glissez votre fichier Excel ici ou cliquez (.xlsx, .csv — 10 Mo max)</p>
           <p className="mb-4 text-xs text-gray-400">Taille maximale : {MAX_FILE_SIZE_MB} Mo</p>
         </>
       )}
@@ -399,7 +399,7 @@ export function UploadZone({ activeReport, onUploadSuccess, onDeleteSuccess, mod
             <Upload className="h-4 w-4" />
             Sélectionner un fichier
             <input
-              type="file" accept=".xlsx,.xls" className="hidden"
+              type="file" accept=".xlsx,.csv" className="hidden"
               onChange={e => { const f = e.target.files?.[0]; if (f) handleFile(f) }}
             />
           </label>

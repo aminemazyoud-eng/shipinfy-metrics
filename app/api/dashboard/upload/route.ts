@@ -1,69 +1,12 @@
 import { requireSession } from '@/lib/api-guard'
 import { NextResponse } from 'next/server'
-import { Worker } from 'worker_threads'
 import { prisma } from '@/lib/prisma'
 import { COLUMN_MAP } from '@/lib/excel-mapping'
 import { toMoroccoTime } from '@/lib/timezone'
 import { trackUpload } from '@/lib/upload-progress'
+import { validateUploadFile, parseSpreadsheetRows } from '@/lib/xlsx-import'
 
 export const maxDuration = 60
-
-// ── Worker Thread script — XLSX.read() runs in a separate thread ─────────────
-// This prevents blocking the Node.js event loop during large file parsing.
-// Using eval:true avoids file path issues in Docker standalone builds.
-// xlsx MUST be in serverExternalPackages (next.config.ts) so require('xlsx')
-// works inside the Worker Thread (webpack bundles are not accessible from workers).
-const XLSX_WORKER_SCRIPT = `
-const { workerData, parentPort } = require('worker_threads')
-const path = require('path')
-try {
-  const XLSX = require(path.join(process.cwd(), 'node_modules', 'xlsx'))
-  const buf = Buffer.isBuffer(workerData) ? workerData : Buffer.from(workerData)
-  const wb = XLSX.read(buf, {
-    type: 'buffer',
-    cellDates: false,
-    cellNF: false,
-    cellStyles: false,
-    sheetStubs: false,
-    sheetRows: 200000,
-  })
-  const sheet = wb.Sheets[wb.SheetNames[0]]
-  const rows = XLSX.utils.sheet_to_json(sheet, { defval: null })
-  // Filter out rows where ALL values are null/empty (empty rows at end of file)
-  const filtered = rows.filter(row =>
-    Object.values(row).some(v => v !== null && v !== '' && v !== undefined)
-  )
-  parentPort.postMessage({ rows: filtered })
-} catch (e) {
-  parentPort.postMessage({ error: String(e) })
-}
-`
-
-function parseXlsxAsync(buffer: Buffer): Promise<Record<string, unknown>[]> {
-  return new Promise((resolve, reject) => {
-    // Make an explicit copy to avoid Node.js memory pool offset issues
-    const clean = Buffer.allocUnsafe(buffer.length)
-    buffer.copy(clean)
-
-    const worker = new Worker(XLSX_WORKER_SCRIPT, {
-      eval: true,
-      workerData: clean,   // structured-clone (Uint8Array) into worker
-    })
-
-    const timer = setTimeout(() => {
-      worker.terminate()
-      reject(new Error('XLSX parsing timeout (120s)'))
-    }, 120_000)
-
-    worker.once('message', (msg: { rows?: Record<string, unknown>[]; error?: string }) => {
-      clearTimeout(timer)
-      worker.terminate()
-      if (msg.error) reject(new Error(msg.error))
-      else resolve(msg.rows ?? [])
-    })
-    worker.once('error', (err) => { clearTimeout(timer); reject(err) })
-  })
-}
 
 // ── Column mapping ────────────────────────────────────────────────────────────
 const DATE_FIELDS = new Set([
@@ -124,16 +67,15 @@ export async function POST(request: Request) {
     const file = formData.get('file') as File | null
     if (!file) return NextResponse.json({ error: 'No file provided' }, { status: 400 })
 
-    const name = file.name.toLowerCase()
-    if (!name.endsWith('.xlsx') && !name.endsWith('.xls')) {
-      return NextResponse.json({ error: 'Format non supporté (.xlsx/.xls uniquement)' }, { status: 400 })
-    }
 
-    // ── Parse XLSX in Worker Thread (non-blocking) ────────────────────────────
+    // Taille max 10 Mo (contrôlée avant lecture), puis signature ZIP « PK » (.xlsx) ; .xls binaire refusé.
+    if (file.size > 10 * 1024 * 1024) return NextResponse.json({ error: 'Fichier trop volumineux (10 Mo maximum).' }, { status: 413 })
     const buffer = Buffer.from(await file.arrayBuffer())
+    const check = validateUploadFile(file.name, buffer)
+    if (!check.ok) return NextResponse.json({ error: check.error }, { status: check.status })
     let rows: Record<string, unknown>[]
     try {
-      rows = await parseXlsxAsync(buffer)
+      rows = await parseSpreadsheetRows(buffer, check.kind)
     } catch (e) {
       console.error('[upload/parse]', e)
       return NextResponse.json(

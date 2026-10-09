@@ -29,7 +29,7 @@ const securityHeaders = [
 const nextConfig: NextConfig = {
   output: 'standalone',
   poweredByHeader: false,
-  serverExternalPackages: ['pdfkit', 'fontkit', 'nodemailer', 'node-cron', 'xlsx'],
+  serverExternalPackages: ['pdfkit', 'fontkit', 'nodemailer', 'node-cron', 'exceljs'],
   async headers() {
     return [{ source: '/:path*', headers: securityHeaders }]
   },

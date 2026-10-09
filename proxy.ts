@@ -18,6 +18,8 @@ const PUBLIC_PATHS = [
   '/api/health', // healthcheck public (aucune donnée sensible)
   '/api/webhooks/n8n', // callback n8n : la route vérifie elle-même une signature HMAC
   '/api/planning/pdf', // lien signé du planning envoyé par WhatsApp (jeton HMAC par jour + chauffeur)
+  '/api/track', // suivi client : lien signé HMAC (jeton par commande, expire 48 h après le créneau)
+  '/suivi', // page publique de suivi client (/suivi/[token])
 ]
 
 export function proxy(req: NextRequest) {

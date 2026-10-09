@@ -33,6 +33,8 @@ export interface BoOrder {
   slotLabel?: string | null
   amount?: number | null
   customerName?: string | null
+  customerPhone?: string | null // optionnel (suivi client / OTP) ; absent = champ local conservé
+  customerPhoneNumber?: string | null
   address?: string | null
   lat?: number | null
   lng?: number | null
@@ -243,6 +245,7 @@ export async function runOpsSync(opts: { full?: boolean } = {}): Promise<OpsSync
           const data = {
             reference: o.reference ?? null, shipper: o.shipper ?? null, hubCode: o.hubCode ?? null, city: o.city ?? null, district: o.district ?? null,
             status: o.status, slotStart: new Date(o.slotStart), slotEnd: new Date(o.slotEnd), slotLabel: canonicalSlot(o.slotStart),
+            ...((o.customerPhone ?? o.customerPhoneNumber) ? { customerPhone: String(o.customerPhone ?? o.customerPhoneNumber).slice(0, 32) } : {}),
             amount: o.amount ?? null, customerName: o.customerName ?? null, address: o.address ?? null, lat: o.lat ?? null, lng: o.lng ?? null,
             cluster: o.cluster ?? null, attemptCount: o.attemptCount ?? 1, courierRef: o.courierRef ?? null,
             createdAtSrc: d(o.createdAt), assignedAt: d(o.assignedAt), inTransportAt: d(o.inTransportAt), startDeliveryAt: d(o.startDeliveryAt),

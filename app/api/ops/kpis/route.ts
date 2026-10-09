@@ -1,7 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { opsAuth, fail } from '@/lib/ops-auth'
-import { computeKpis } from '@/lib/ops-kpis'
+import { computeKpis, computeCsat, computeOtpCoverage, ETA_ACCURACY_FORMULA, type EtaAccuracyKpi } from '@/lib/ops-kpis'
+import { etaAccuracy } from '@/lib/ops-eta'
 import { computePay, type PayConfig } from '@/lib/ops-pay'
 import { cached } from '@/lib/ops-cache'
 import { dayOfTz, dayBoundsTz, localDay, addDays, attendanceKeyTz } from '@/lib/tz'
@@ -15,7 +16,7 @@ async function build(from: string, to: string, hub: string | undefined) {
   const [orders, vehicles, drivers] = await Promise.all([
     prisma.opsOrder.findMany({
       where: { slotStart: { gte: start, lt: end }, ...(hub ? { hubCode: hub } : {}) }, take: 100_000,
-      select: { status: true, slotEnd: true, deliveredAt: true, missingItems: true, attemptCount: true, cancelReason: true, driver: { select: { vehicleId: true } } },
+      select: { status: true, slotEnd: true, deliveredAt: true, otpVerifiedAt: true, missingItems: true, attemptCount: true, cancelReason: true, driver: { select: { vehicleId: true } } },
     }),
     prisma.opsVehicle.findMany({ where: { status: { not: 'out_of_service' }, ...(hub ? { hub: { code: hub } } : {}) }, select: { id: true } }),
     prisma.opsDriver.findMany({ where: { status: { not: 'off' }, ...(hub ? { hub: { code: hub } } : {}) }, include: { hub: { select: { code: true } } }, orderBy: { code: 'asc' } }),
@@ -58,7 +59,20 @@ async function build(from: string, to: string, hub: string | undefined) {
   } catch (e) { console.warn('[kpis] paie indisponible', e instanceof Error ? e.message : e) }
 
   const k = computeKpis(orders, { hoursWorked, vehicleDaysActive: vehicleDays.size, vehicleCount: vehicles.length, days, pay, fuel: fuelAgg._sum.amountMad ?? 0, maintenance: maintAgg._sum.costMad ?? 0 })
-  return { from, to, hub: hub ?? null, days, ...k }
+
+  // Sprint 19 : satisfaction client, précision ETA, couverture du code de remise (chacun isolé : un échec ne casse pas les KPIs existants)
+  let csat: ReturnType<typeof computeCsat> | null = null
+  try {
+    const ratings = await prisma.opsDeliveryRating.findMany({ where: { createdAt: { gte: start, lt: end } }, select: { score: true }, take: 100_000 })
+    csat = computeCsat(ratings.map(r => r.score), k.counts.delivered)
+  } catch (e) { console.warn('[kpis] csat indisponible', e instanceof Error ? e.message : e) }
+  let eta: EtaAccuracyKpi | null = null
+  try {
+    const a = await etaAccuracy(from, to, hub)
+    eta = { mae: a.mae, withinTolerancePct: a.withinTolerancePct, samples: a.samples, insufficient: a.insufficient, formula: ETA_ACCURACY_FORMULA }
+  } catch (e) { console.warn('[kpis] précision ETA indisponible', e instanceof Error ? e.message : e) }
+  const otpCoverage = computeOtpCoverage(k.counts.delivered, orders.filter(o => o.status === 'DELIVERED' && o.otpVerifiedAt).length)
+  return { from, to, hub: hub ?? null, days, ...k, csat, etaAccuracy: eta, otpCoverage }
 }
 
 // GET /api/ops/kpis?from=&to=&hub= — KPIs de référence (OTIF, annulations, 1er passage, livraisons/heure, flotte, coût/livraison) avec leur FORMULE. VIEWER+.

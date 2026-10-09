@@ -1110,3 +1110,27 @@ BEGIN
     END IF;
   EXCEPTION WHEN OTHERS THEN RAISE NOTICE 'trigger audit ignoré: %', SQLERRM; END;
 END $$;
+
+-- ═══ SPRINT 19 — suivi client, preuve de remise (OTP), CSAT par livraison (idempotent) ═══════════
+ALTER TABLE "OpsOrder" ADD COLUMN IF NOT EXISTS "customerPhone" TEXT;
+ALTER TABLE "OpsOrder" ADD COLUMN IF NOT EXISTS "otpAttempts" INTEGER NOT NULL DEFAULT 0;
+ALTER TABLE "OpsOrder" ADD COLUMN IF NOT EXISTS "otpVerifiedAt" TIMESTAMP(3);
+ALTER TABLE "OpsOrder" ADD COLUMN IF NOT EXISTS "otpVerifiedBy" TEXT;
+
+-- Note de satisfaction du client pour UNE livraison (1 à 5) donnée depuis la page de suivi
+CREATE TABLE IF NOT EXISTS "OpsDeliveryRating" (
+  "id" TEXT NOT NULL PRIMARY KEY, "orderId" TEXT NOT NULL, "score" INTEGER NOT NULL, "comment" TEXT,
+  "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+CREATE UNIQUE INDEX IF NOT EXISTS "OpsDeliveryRating_orderId_key" ON "OpsDeliveryRating"("orderId");
+CREATE INDEX IF NOT EXISTS "OpsDeliveryRating_createdAt_idx" ON "OpsDeliveryRating"("createdAt");
+ALTER TABLE "OpsDeliveryRating" ENABLE ROW LEVEL SECURITY;
+
+-- Journal des messages envoyés aux clients (anti-doublon : un message d'un type donné par commande et par canal)
+CREATE TABLE IF NOT EXISTS "OpsCustomerNotif" (
+  "id" TEXT NOT NULL PRIMARY KEY, "orderId" TEXT NOT NULL, "kind" TEXT NOT NULL, "channel" TEXT NOT NULL DEFAULT 'whatsapp',
+  "status" TEXT NOT NULL DEFAULT 'pending', "error" TEXT, "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+CREATE UNIQUE INDEX IF NOT EXISTS "OpsCustomerNotif_order_kind_channel_key" ON "OpsCustomerNotif"("orderId","kind","channel");
+CREATE INDEX IF NOT EXISTS "OpsCustomerNotif_createdAt_idx" ON "OpsCustomerNotif"("createdAt");
+ALTER TABLE "OpsCustomerNotif" ENABLE ROW LEVEL SECURITY;

@@ -24,6 +24,7 @@ import { canonicalSlot } from '@/lib/ops-slots'
 import { forecastDay } from '@/lib/ops-analytics'
 import { loadOrders, loadHubs, loadDrivers } from '@/lib/ops-data'
 import { applyOpsSettings } from '@/lib/ops-settings'
+import { runCustomerLateNotifs } from '@/lib/ops-customer-notif'
 
 export const EVENTS: Record<string, { label: string; description: string; vars: string[] }> = {
   slot_at_risk:    { label: 'Créneau à risque', description: 'Des commandes ne sont pas encore en livraison alors que la fin du créneau approche.', vars: ['hub', 'slot', 'count', 'minutes', 'name'] },
@@ -166,7 +167,7 @@ export async function retryFailedNotifs(): Promise<{ retried: number; recovered:
 }
 
 /** Évalue tous les événements et envoie les messages des règles activées. */
-export async function runIncidentChecks(opts: { dryRun?: boolean } = {}): Promise<Stats> {
+async function runIncidentChecksCore(opts: { dryRun?: boolean } = {}): Promise<Stats> {
   await applyOpsSettings(); await ensureDefaults()
   const dryRun = !!opts.dryRun
   const st: Stats = { sent: 0, failed: 0, skipped: 0, preview: [] }
@@ -245,6 +246,13 @@ export async function runIncidentChecks(opts: { dryRun?: boolean } = {}): Promis
       }
     }
   }
+  return st
+}
+
+/** Contrôles d'incidents puis (Sprint 19) messages clients « retard » — désactivés par défaut (CUSTOMER_NOTIFY_ENABLED=true). */
+export async function runIncidentChecks(opts: { dryRun?: boolean } = {}): Promise<Stats> {
+  const st = await runIncidentChecksCore(opts)
+  if (!opts.dryRun) { try { await runCustomerLateNotifs() } catch (e) { console.error('[ops-notify] messages clients:', e instanceof Error ? e.message : e) } }
   return st
 }
 

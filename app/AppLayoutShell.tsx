@@ -4,7 +4,7 @@ import Sidebar from '@/components/Sidebar'
 import AppShell from '@/components/AppShell'
 
 // Pages that render without Sidebar/AppShell
-const AUTH_PATHS = ['/login']
+const AUTH_PATHS = ['/login', '/suivi'] // pages sans menu ni session : connexion + suivi client public
 
 export default function AppLayoutShell({ children }: { children: React.ReactNode }) {
   const pathname = usePathname()

@@ -719,6 +719,10 @@ model OpsOrder {
   @@index([driverId])
   @@index([tenantId])
   @@index([collectedAt])
+  customerPhone    String?
+  otpAttempts      Int           @default(0)
+  otpVerifiedAt    DateTime?
+  otpVerifiedBy    String?
 }
 
 model OpsOrderEvent {
@@ -1035,4 +1039,28 @@ model OpsPayRunLine {
 
   @@unique([runId, driverCode])
   @@index([runId])
+}
+
+// ─── SPRINT 19 — suivi client ────────────────────────────────────────────────
+model OpsDeliveryRating {
+  id        String   @id @default(cuid())
+  orderId   String   @unique
+  score     Int
+  comment   String?
+  createdAt DateTime @default(now())
+
+  @@index([createdAt])
+}
+
+model OpsCustomerNotif {
+  id        String   @id @default(cuid())
+  orderId   String
+  kind      String
+  channel   String   @default("whatsapp")
+  status    String   @default("pending")
+  error     String?
+  createdAt DateTime @default(now())
+
+  @@unique([orderId, kind, channel])
+  @@index([createdAt])
 }

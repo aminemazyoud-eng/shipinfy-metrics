@@ -1,16 +1,17 @@
 'use client'
 import { useState, useEffect, useCallback, Suspense } from 'react'
-import { ListChecks, RefreshCw, Search, X, AlertTriangle, LifeBuoy } from 'lucide-react'
+import { ListChecks, RefreshCw, Search, X, AlertTriangle, LifeBuoy, Link2, MessageCircle } from 'lucide-react'
 import Link from 'next/link'
 import { useSearchParams } from 'next/navigation'
 import OpsNav from '../components/OpsNav'
 import OrderTimeline from '../components/OrderTimeline'
+import OtpPanel from '../components/OtpPanel'
 import { usePolling } from '@/lib/use-polling'
 import type { Step } from '@/lib/ops-steps'
 
 interface Row { id: string; ref: string; hubCode: string | null; district: string | null; status: string; slotLabel: string | null; amount: number | null; customer: string | null; driver: { code: string; name: string } | null; late: boolean; lateMin: number; deliveredLate: boolean; atRisk: boolean }
 interface Res { day: string; counts: Record<string, number>; late: number; toDispatch: number; orders: Row[] }
-interface Detail { id: string; ref: string; externalId: string; status: string; slotLabel: string | null; customer: string | null; address: string | null; amount: number | null; attempts: number; driver: { code: string; name: string; phone: string | null; hub: string | null } | null; steps: Step[]; totalMin: number | null; tickets: { id: string; reference: string; subject: string; status: string }[] }
+interface Detail { id: string; ref: string; externalId: string; status: string; slotLabel: string | null; customer: string | null; address: string | null; amount: number | null; attempts: number; driver: { code: string; name: string; phone: string | null; hub: string | null } | null; steps: Step[]; totalMin: number | null; tickets: { id: string; reference: string; subject: string; status: string }[]; otpVerifiedAt?: string | null }
 
 // Parcours : À dispatcher (page Dispatch) → Assignée → Acceptée → En livraison [= Suivi] → Livrée (page Encaissement) → Encaissée (Historique)
 const STATUSES = [['ASSIGNED', 'Commande assignée', '#8b5cf6'], ['IN_TRANSPORT', 'Commande acceptée', '#06b6d4'], ['START_DELIVERY', 'En livraison', '#f59e0b'], ['NO_SHOW', 'NO_SHOW', '#6b7280']] as const
@@ -33,6 +34,7 @@ function Suivi() {
   const [res, setRes] = useState<Res | null>(null)
   const [detail, setDetail] = useState<Detail | null>(null)
   const [flash, setFlash] = useState('')
+  const [link, setLink] = useState<{ url: string; whatsappLink: string; customerPhoneKnown: boolean } | null>(null)
 
   const load = useCallback(async () => {
     const qs = new URLSearchParams({ day }); if (status) qs.set('status', status); if (lateOnly) qs.set('late', '1'); if (hub) qs.set('hub', hub); if (q) qs.set('q', q)
@@ -42,7 +44,9 @@ function Suivi() {
   usePolling(load, 30_000)
   useEffect(() => { fetch('/api/ops/hubs').then(r => r.ok ? r.json() : null).then(j => j && setHubs(j.hubs)).catch(() => {}) }, [])
 
-  const open = async (id: string) => { const r = await fetch(`/api/ops/orders/${id}`); if (r.ok) setDetail(await r.json()) }
+  const loadLink = async (id: string) => { setLink(null); const r = await fetch(`/api/ops/orders/${id}/tracking-link`); if (r.ok) setLink(await r.json()); else setFlash('Lien de suivi indisponible (droits ou configuration)') }
+  const copyLink = async () => { if (!link) return; try { await navigator.clipboard.writeText(link.url); setFlash('Lien de suivi copié') } catch { setFlash(link.url) } }
+  const open = async (id: string) => { setLink(null); const r = await fetch(`/api/ops/orders/${id}`); if (r.ok) setDetail(await r.json()) }
   const claim = async (d: Detail) => {
     const r = await fetch('/api/support', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ category: 'retard', priority: 'haute', subject: `Commande ${d.ref} — ${LBL[d.status]}`, description: `Réclamation créée depuis le suivi. Créneau ${d.slotLabel ?? ''}, client ${d.customer ?? ''}, livreur ${d.driver?.name ?? 'non affecté'}.`, clientName: d.customer ?? undefined, orderRef: d.externalId }) })
     setFlash(r.ok ? 'Réclamation créée — visible dans Support Client' : 'Échec de création'); if (r.ok) open(d.id)
@@ -96,6 +100,20 @@ function Suivi() {
           <div className="bg-white w-full max-w-md h-full p-5 overflow-y-auto" onClick={e => e.stopPropagation()}>
             <div className="flex justify-between items-start"><div><div className="text-lg font-bold">{detail.ref}</div><div className="text-sm text-gray-500">{LBL[detail.status]} · créneau {detail.slotLabel}</div></div><button onClick={() => setDetail(null)}><X className="w-5 h-5" /></button></div>
             <div className="mt-4 space-y-1 text-sm text-gray-700"><div><b>Client :</b> {detail.customer ?? '—'}</div><div><b>Adresse :</b> {detail.address ?? '—'}</div><div><b>Montant :</b> {detail.amount ? `${detail.amount} MAD` : '—'} · tentatives : {detail.attempts}</div><div><b>Livreur :</b> {detail.driver ? `${detail.driver.name} (${detail.driver.code}) — ${detail.driver.hub ?? ''}` : 'non affecté'}</div></div>
+            <div className="mt-4"><OtpPanel orderId={detail.id} status={detail.status} verifiedAt={detail.otpVerifiedAt ?? null} /></div>
+            <div className="mt-4 rounded-lg border border-gray-200 p-3">
+              <div className="text-sm font-medium text-gray-800 flex items-center gap-1.5"><Link2 className="w-4 h-4 text-purple-600" />Lien de suivi client</div>
+              {!link ? <button onClick={() => loadLink(detail.id)} className="mt-2 text-sm px-3 py-1.5 rounded-lg border border-purple-300 text-purple-700 hover:bg-purple-50">Générer le lien</button> : (
+                <div className="mt-2 space-y-2">
+                  <input readOnly value={link.url} onFocus={e => e.currentTarget.select()} className="w-full border border-gray-200 rounded px-2 py-1 text-xs text-gray-600" />
+                  <div className="flex flex-wrap gap-2">
+                    <button onClick={copyLink} className="text-sm px-3 py-1.5 rounded-lg border border-gray-300 hover:bg-gray-50">Copier</button>
+                    <a href={link.whatsappLink} target="_blank" rel="noopener noreferrer" className="text-sm px-3 py-1.5 rounded-lg border border-green-300 text-green-700 hover:bg-green-50 flex items-center gap-1.5"><MessageCircle className="w-4 h-4" />Ouvrir WhatsApp</a>
+                  </div>
+                  {!link.customerPhoneKnown && <div className="text-xs text-amber-600">Téléphone client inconnu : choisissez le contact dans WhatsApp.</div>}
+                </div>
+              )}
+            </div>
             <div className="mt-5 text-sm font-medium text-gray-800">Chronologie</div>
             <div className="mt-3"><OrderTimeline steps={detail.steps} totalMin={detail.totalMin} slotLabel={detail.slotLabel} /></div>
             <div className="mt-5 text-sm font-medium text-gray-800">Réclamations</div>

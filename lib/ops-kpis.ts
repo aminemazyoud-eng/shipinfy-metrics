@@ -27,6 +27,36 @@ export interface KpiResult {
   costBreakdown: { pay: number | null; fuel: number; maintenance: number }
 }
 
+// ── Sprint 19 : satisfaction client, couverture du code de remise, précision de l'ETA (fonctions pures) ──
+export interface CsatResult {
+  average: number | null; count: number; responseRate: number | null; distribution: Record<1 | 2 | 3 | 4 | 5, number>
+  nps: number | null; formula: string; npsFormula: string
+}
+/** CSAT : moyenne des notes 1-5, taux de réponse (notes ÷ livrées) et NPS-like (% de 4-5 moins % de 1-2). Aucune note → null (« n/d »). */
+export function computeCsat(scores: number[], deliveredCount: number): CsatResult {
+  const valid = scores.filter(s => Number.isInteger(s) && s >= 1 && s <= 5)
+  const distribution = { 1: 0, 2: 0, 3: 0, 4: 0, 5: 0 } as Record<1 | 2 | 3 | 4 | 5, number>
+  for (const s of valid) distribution[s as 1 | 2 | 3 | 4 | 5]++
+  const n = valid.length
+  return {
+    average: n ? r2(valid.reduce((a, b) => a + b, 0) / n) : null, count: n,
+    responseRate: pct(n, deliveredCount),
+    distribution,
+    nps: n ? r1(((distribution[4] + distribution[5]) / n) * 100 - ((distribution[1] + distribution[2]) / n) * 100) : null,
+    formula: 'CSAT = moyenne des notes (1 à 5) des clients sur la période ; taux de réponse = notes ÷ livrées × 100',
+    npsFormula: 'NPS-like = % de notes 4-5 − % de notes 1-2',
+  }
+}
+
+export interface OtpCoverage { value: number | null; num: number; den: number; formula: string }
+/** Couverture du code de remise : livraisons dont le code a été vérifié ÷ livrées × 100. */
+export function computeOtpCoverage(deliveredCount: number, verifiedCount: number): OtpCoverage {
+  return { value: pct(verifiedCount, deliveredCount), num: verifiedCount, den: deliveredCount, formula: 'Couverture code de remise = livraisons avec code vérifié (otpVerifiedAt) ÷ livrées × 100' }
+}
+
+export interface EtaAccuracyKpi { mae: number | null; withinTolerancePct: number | null; samples: number; insufficient: boolean; formula: string }
+export const ETA_ACCURACY_FORMULA = 'Précision ETA : MAE = moyenne des |ETA prédite à l\'assignation − heure réelle| en minutes (médianes hub×créneau hors commande évaluée) ; % ±15 min = part des erreurs ≤ 15 min ; n/d sous 20 livraisons'
+
 const r1 = (n: number) => Math.round(n * 10) / 10
 const r2 = (n: number) => Math.round(n * 100) / 100
 const pct = (num: number, den: number): number | null => (den > 0 ? r1((num / den) * 100) : null)

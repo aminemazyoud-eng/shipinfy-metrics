@@ -1,3 +1,4 @@
+import { requireSession } from '@/lib/api-guard'
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { computeAssignmentScore, balanceLoad } from '@/lib/dispatch-engine'
@@ -61,6 +62,7 @@ async function buildDriversStatus(reportId: string): Promise<DriverStatus[]> {
 // POST /api/dispatch/assign
 // body: { reportId: string, orderId?: string, orderCount?: number }
 export async function POST(req: NextRequest) {
+  const _guard = await requireSession(req, 'DISPATCHER'); if ('error' in _guard) return _guard.error
   try {
     const body = await req.json().catch(() => ({})) as {
       reportId?: string

@@ -1,9 +1,11 @@
+import { requireSession } from '@/lib/api-guard'
 import { NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 
 export const runtime = 'nodejs'
 
-export async function GET() {
+export async function GET(req: Request) {
+  const _guard = await requireSession(req, 'VIEWER'); if ('error' in _guard) return _guard.error
   try {
     const drivers = await prisma.driver.findMany({
       include: {
@@ -19,6 +21,7 @@ export async function GET() {
 }
 
 export async function POST(req: Request) {
+  const _guard = await requireSession(req, 'DISPATCHER'); if ('error' in _guard) return _guard.error
   try {
     const body = await req.json()
     const driver = await prisma.driver.create({

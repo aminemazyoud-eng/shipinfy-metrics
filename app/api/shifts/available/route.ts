@@ -1,3 +1,4 @@
+import { requireSession } from '@/lib/api-guard'
 import { NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { canAccessSlot } from '@/lib/shift-engine'
@@ -6,6 +7,7 @@ export const runtime = 'nodejs'
 
 // GET /api/shifts/available?driverName=xxx&week=YYYY-MM-DD
 export async function GET(req: Request) {
+  const _guard = await requireSession(req, 'VIEWER'); if ('error' in _guard) return _guard.error
   try {
     const { searchParams } = new URL(req.url)
     const driverName = searchParams.get('driverName')

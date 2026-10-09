@@ -1,3 +1,4 @@
+import { requireSession } from '@/lib/api-guard'
 import { NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { isUnassigned } from '@/lib/driver-utils'
@@ -46,6 +47,7 @@ function rmse(actual: number[], predicted: number[]): number {
 }
 
 export async function GET(request: Request) {
+  const _guard = await requireSession(request, 'VIEWER'); if ('error' in _guard) return _guard.error
   try {
     const { searchParams } = new URL(request.url)
 

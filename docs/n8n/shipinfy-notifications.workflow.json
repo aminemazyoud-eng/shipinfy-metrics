@@ -1,39 +1,61 @@
 {
   "name": "Shipinfy — Notifications",
-  "settings": { "executionOrder": "v1" },
+  "settings": {
+    "executionOrder": "v1"
+  },
   "nodes": [
     {
       "parameters": {
         "httpMethod": "POST",
         "path": "shipinfy-notify",
         "responseMode": "onReceived",
-        "options": { "responseCode": 200 }
+        "options": {
+          "responseCode": 200
+        }
       },
       "id": "webhook-in",
       "name": "Webhook Shipinfy",
       "type": "n8n-nodes-base.webhook",
       "typeVersion": 2,
-      "position": [-40, 300],
+      "position": [
+        -40,
+        300
+      ],
       "webhookId": "shipinfy-notify"
     },
     {
       "parameters": {
         "jsClass": "",
-        "jsCode": "// Normalise le payload envoyé par lib/notify.ts / triggerN8N\nconst root = $input.first().json;\nconst body = root.body ?? root;              // selon 'Received data'\nconst d = body.data ?? {};\nconst inner = d.data ?? {};\n\nreturn [{\n  json: {\n    eventType: body.eventType ?? 'report_ready',\n    notificationId: d.notificationId ?? null,\n    kind: d.kind ?? (String(body.eventType).startsWith('alert') ? 'alert' : 'report'),\n    title: d.title ?? '(sans titre)',\n    summary: d.summary ?? '',\n    channels: d.channels ?? [],\n    recipients: Array.isArray(d.recipients) ? d.recipients : [],\n    recipientsStr: (d.recipients ?? []).join(','),\n    alertLevel: d.alertLevel ?? null,\n    reportId: d.reportId ?? null,\n    pdfFilename: d.pdfFilename ?? 'rapport.pdf',\n    pdfBase64: d.pdfBase64 ?? null,\n    metrics: inner,\n    wantsEmail: (d.channels ?? []).includes('email'),\n    wantsSlack: (d.channels ?? []).includes('slack'),\n  },\n  binary: d.pdfBase64\n    ? { pdf: { data: d.pdfBase64, mimeType: 'application/pdf', fileName: d.pdfFilename ?? 'rapport.pdf' } }\n    : {},\n}];\n"
+        "jsCode": "// Normalise le payload envoyé par lib/notify.ts / triggerN8N\nconst root = $input.first().json;\nconst body = root.body ?? root;              // selon 'Received data'\nconst d = body.data ?? {};\nconst inner = d.data ?? {};\n\nreturn [{\n  json: {\n    eventType: body.eventType ?? 'report_ready',\n    notificationId: d.notificationId ?? null,\n    kind: d.kind ?? (String(body.eventType).startsWith('alert') ? 'alert' : 'report'),\n    title: d.title ?? '(sans titre)',\n    summary: d.summary ?? '',\n    channels: d.channels ?? [],\n    recipients: Array.isArray(d.recipients) ? d.recipients : [],\n    recipientsStr: (d.recipients ?? []).join(','),\n    alertLevel: d.alertLevel ?? null,\n    reportId: d.reportId ?? null,\n    pdfFilename: d.pdfFilename ?? 'rapport.pdf',\n    pdfBase64: d.pdfBase64 ?? null,\n    metrics: inner,\n    wantsEmail: (d.channels ?? []).includes('email'),\n    wantsSlack: (d.channels ?? []).includes('slack'),\n    wantsWhatsapp: (d.channels ?? []).includes('whatsapp'),\n  },\n  binary: d.pdfBase64\n    ? { pdf: { data: d.pdfBase64, mimeType: 'application/pdf', fileName: d.pdfFilename ?? 'rapport.pdf' } }\n    : {},\n}];\n"
       },
       "id": "prep",
       "name": "Préparer",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
-      "position": [200, 300]
+      "position": [
+        200,
+        300
+      ]
     },
     {
       "parameters": {
         "conditions": {
-          "options": { "caseSensitive": true, "typeValidation": "loose" },
+          "options": {
+            "caseSensitive": true,
+            "typeValidation": "loose"
+          },
           "combinator": "and",
           "conditions": [
-            { "id": "c1", "leftValue": "={{ $json.wantsEmail }}", "rightValue": true, "operator": { "type": "boolean", "operation": "true", "singleValue": true } }
+            {
+              "id": "c1",
+              "leftValue": "={{ $json.wantsEmail }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
           ]
         }
       },
@@ -41,15 +63,30 @@
       "name": "Email demandé ?",
       "type": "n8n-nodes-base.if",
       "typeVersion": 2,
-      "position": [440, 180]
+      "position": [
+        440,
+        180
+      ]
     },
     {
       "parameters": {
         "conditions": {
-          "options": { "caseSensitive": true, "typeValidation": "loose" },
+          "options": {
+            "caseSensitive": true,
+            "typeValidation": "loose"
+          },
           "combinator": "and",
           "conditions": [
-            { "id": "c2", "leftValue": "={{ $json.wantsSlack }}", "rightValue": true, "operator": { "type": "boolean", "operation": "true", "singleValue": true } }
+            {
+              "id": "c2",
+              "leftValue": "={{ $json.wantsSlack }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
           ]
         }
       },
@@ -57,7 +94,10 @@
       "name": "Slack demandé ?",
       "type": "n8n-nodes-base.if",
       "typeVersion": 2,
-      "position": [440, 440]
+      "position": [
+        440,
+        440
+      ]
     },
     {
       "parameters": {
@@ -74,7 +114,10 @@
       "name": "Email — envoyer",
       "type": "n8n-nodes-base.emailSend",
       "typeVersion": 2.1,
-      "position": [700, 120],
+      "position": [
+        700,
+        120
+      ],
       "notes": "TODO: créer la credential SMTP. Gmail: host smtp.gmail.com, port 465, SSL/TLS ON, user = ton email, password = mot de passe d'application Gmail (16 car.). fromEmail à ajuster.",
       "credentials": {}
     },
@@ -91,56 +134,378 @@
       "name": "Slack — poster",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
-      "position": [700, 440],
+      "position": [
+        700,
+        440
+      ],
       "notes": "TODO: remplacer l'URL par ton Slack Incoming Webhook (https://hooks.slack.com/services/...). Aucun credential nécessaire.",
       "onError": "continueErrorOutput"
     },
     {
       "parameters": {
+        "mode": "runOnceForEachItem",
+        "jsCode": "// Sprint 17 A6 : signe le callback (HMAC-SHA256 de \"timestamp.corps\", hex) — secret = variable n8n N8N_WEBHOOK_SECRET (la même que côté Shipinfy).\n// Prérequis n8n : NODE_FUNCTION_ALLOW_BUILTIN=crypto et N8N_BLOCK_ENV_ACCESS_IN_NODE=false.\nconst crypto = require('crypto');\nconst secret = $env.N8N_WEBHOOK_SECRET;\nconst cbBody = JSON.stringify({ notificationId: $('Préparer').item.json.notificationId, channel: 'email', status: $json.error ? 'failed' : 'delivered', sentTo: $('Préparer').item.json.recipientsStr, error: $json.error ?? null });\nconst cbTs = String(Math.floor(Date.now() / 1000));\nconst cbSig = crypto.createHmac('sha256', secret).update(cbTs + '.' + cbBody).digest('hex');\nreturn { json: { ...$json, cbBody, cbTs, cbSig } };\n"
+      },
+      "id": "sign-email",
+      "name": "Signer callback email",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        960,
+        120
+      ]
+    },
+    {
+      "parameters": {
         "method": "POST",
         "url": "https://metrics.mediflows.shop/api/webhooks/n8n",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "X-Timestamp",
+              "value": "={{ $json.cbTs }}"
+            },
+            {
+              "name": "X-Signature",
+              "value": "={{ $json.cbSig }}"
+            }
+          ]
+        },
         "sendBody": true,
-        "specifyBody": "json",
-        "jsonBody": "={{ JSON.stringify({ notificationId: $('Préparer').item.json.notificationId, channel: 'email', status: $json.error ? 'failed' : 'delivered', sentTo: $('Préparer').item.json.recipientsStr, error: $json.error ?? null }) }}",
+        "contentType": "raw",
+        "rawContentType": "application/json",
+        "body": "={{ $json.cbBody }}",
         "options": {}
       },
       "id": "cb-email",
       "name": "Callback email",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
-      "position": [960, 120],
+      "position": [
+        1220,
+        120
+      ],
       "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForEachItem",
+        "jsCode": "// Sprint 17 A6 : signe le callback (HMAC-SHA256 de \"timestamp.corps\", hex) — secret = variable n8n N8N_WEBHOOK_SECRET (la même que côté Shipinfy).\n// Prérequis n8n : NODE_FUNCTION_ALLOW_BUILTIN=crypto et N8N_BLOCK_ENV_ACCESS_IN_NODE=false.\nconst crypto = require('crypto');\nconst secret = $env.N8N_WEBHOOK_SECRET;\nconst cbBody = JSON.stringify({ notificationId: $('Préparer').item.json.notificationId, channel: 'slack', status: $json.error ? 'failed' : 'delivered', error: $json.error ?? null });\nconst cbTs = String(Math.floor(Date.now() / 1000));\nconst cbSig = crypto.createHmac('sha256', secret).update(cbTs + '.' + cbBody).digest('hex');\nreturn { json: { ...$json, cbBody, cbTs, cbSig } };\n"
+      },
+      "id": "sign-slack",
+      "name": "Signer callback slack",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        960,
+        440
+      ]
     },
     {
       "parameters": {
         "method": "POST",
         "url": "https://metrics.mediflows.shop/api/webhooks/n8n",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "X-Timestamp",
+              "value": "={{ $json.cbTs }}"
+            },
+            {
+              "name": "X-Signature",
+              "value": "={{ $json.cbSig }}"
+            }
+          ]
+        },
         "sendBody": true,
-        "specifyBody": "json",
-        "jsonBody": "={{ JSON.stringify({ notificationId: $('Préparer').item.json.notificationId, channel: 'slack', status: $json.error ? 'failed' : 'delivered', error: $json.error ?? null }) }}",
+        "contentType": "raw",
+        "rawContentType": "application/json",
+        "body": "={{ $json.cbBody }}",
         "options": {}
       },
       "id": "cb-slack",
       "name": "Callback slack",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
-      "position": [960, 440],
+      "position": [
+        1220,
+        440
+      ],
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "typeValidation": "loose"
+          },
+          "combinator": "and",
+          "conditions": [
+            {
+              "id": "c3",
+              "leftValue": "={{ $json.wantsWhatsapp }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ]
+        }
+      },
+      "id": "if-whatsapp",
+      "name": "WhatsApp demandé ?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [
+        440,
+        700
+      ]
+    },
+    {
+      "parameters": {
+        "fieldToSplitOut": "recipients",
+        "options": {}
+      },
+      "id": "split-wa",
+      "name": "Diviser destinataires WA",
+      "type": "n8n-nodes-base.splitOut",
+      "typeVersion": 1,
+      "position": [
+        700,
+        700
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "PASTE_YOUR_EVOLUTION_API_URL_HERE/message/sendText/PASTE_YOUR_EVOLUTION_INSTANCE_HERE",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "apikey",
+              "value": "PASTE_YOUR_EVOLUTION_API_KEY_HERE"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ number: String($json.recipients).replace('+',''), text: '📦 ' + $('Préparer').item.json.title + '\\n' + $('Préparer').item.json.summary }) }}",
+        "options": {}
+      },
+      "id": "whatsapp",
+      "name": "WhatsApp — envoyer",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        960,
+        700
+      ],
+      "notes": "TODO: remplacer l'URL/instance/apikey par ceux de l'instance Evolution API partagée (voir docs/n8n/planning-hebdo/README.md). 1 appel par destinataire (Split Out en amont).",
+      "onError": "continueErrorOutput"
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForEachItem",
+        "jsCode": "// Sprint 17 A6 : signe le callback (HMAC-SHA256 de \"timestamp.corps\", hex) — secret = variable n8n N8N_WEBHOOK_SECRET (la même que côté Shipinfy).\n// Prérequis n8n : NODE_FUNCTION_ALLOW_BUILTIN=crypto et N8N_BLOCK_ENV_ACCESS_IN_NODE=false.\nconst crypto = require('crypto');\nconst secret = $env.N8N_WEBHOOK_SECRET;\nconst cbBody = JSON.stringify({ notificationId: $('Préparer').item.json.notificationId, channel: 'whatsapp', status: $json.error ? 'failed' : 'delivered', sentTo: $('Diviser destinataires WA').item.json.recipients, error: $json.error ?? null });\nconst cbTs = String(Math.floor(Date.now() / 1000));\nconst cbSig = crypto.createHmac('sha256', secret).update(cbTs + '.' + cbBody).digest('hex');\nreturn { json: { ...$json, cbBody, cbTs, cbSig } };\n"
+      },
+      "id": "sign-whatsapp",
+      "name": "Signer callback whatsapp",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1220,
+        700
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://metrics.mediflows.shop/api/webhooks/n8n",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "X-Timestamp",
+              "value": "={{ $json.cbTs }}"
+            },
+            {
+              "name": "X-Signature",
+              "value": "={{ $json.cbSig }}"
+            }
+          ]
+        },
+        "sendBody": true,
+        "contentType": "raw",
+        "rawContentType": "application/json",
+        "body": "={{ $json.cbBody }}",
+        "options": {}
+      },
+      "id": "cb-whatsapp",
+      "name": "Callback whatsapp",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1480,
+        700
+      ],
       "onError": "continueRegularOutput"
     }
   ],
   "connections": {
-    "Webhook Shipinfy": { "main": [[ { "node": "Préparer", "type": "main", "index": 0 } ]] },
-    "Préparer": {
-      "main": [[
-        { "node": "Email demandé ?", "type": "main", "index": 0 },
-        { "node": "Slack demandé ?", "type": "main", "index": 0 }
-      ]]
+    "Webhook Shipinfy": {
+      "main": [
+        [
+          {
+            "node": "Préparer",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
     },
-    "Email demandé ?": { "main": [[ { "node": "Email — envoyer", "type": "main", "index": 0 } ], []] },
-    "Slack demandé ?": { "main": [[ { "node": "Slack — poster", "type": "main", "index": 0 } ], []] },
-    "Email — envoyer": { "main": [[ { "node": "Callback email", "type": "main", "index": 0 } ]] },
-    "Slack — poster": { "main": [[ { "node": "Callback slack", "type": "main", "index": 0 } ]] }
+    "Préparer": {
+      "main": [
+        [
+          {
+            "node": "Email demandé ?",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Slack demandé ?",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "WhatsApp demandé ?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Email demandé ?": {
+      "main": [
+        [
+          {
+            "node": "Email — envoyer",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        []
+      ]
+    },
+    "Slack demandé ?": {
+      "main": [
+        [
+          {
+            "node": "Slack — poster",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        []
+      ]
+    },
+    "WhatsApp demandé ?": {
+      "main": [
+        [
+          {
+            "node": "Diviser destinataires WA",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        []
+      ]
+    },
+    "Diviser destinataires WA": {
+      "main": [
+        [
+          {
+            "node": "WhatsApp — envoyer",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Email — envoyer": {
+      "main": [
+        [
+          {
+            "node": "Signer callback email",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Slack — poster": {
+      "main": [
+        [
+          {
+            "node": "Signer callback slack",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "WhatsApp — envoyer": {
+      "main": [
+        [
+          {
+            "node": "Signer callback whatsapp",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Signer callback email": {
+      "main": [
+        [
+          {
+            "node": "Callback email",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Signer callback slack": {
+      "main": [
+        [
+          {
+            "node": "Callback slack",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Signer callback whatsapp": {
+      "main": [
+        [
+          {
+            "node": "Callback whatsapp",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
   },
   "pinData": {},
-  "meta": { "note": "Shipinfy Sprint 17 — importer, connecter Gmail + Slack, activer. Webhook path: shipinfy-notify" }
+  "meta": {
+    "note": "Shipinfy Sprint 17 — importer, connecter Gmail + Slack + Evolution API (WhatsApp), activer. Webhook path: shipinfy-notify"
+  }
 }

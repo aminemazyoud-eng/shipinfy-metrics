@@ -15,17 +15,23 @@ const PUBLIC_PATHS = [
   '/api/auth/bootstrap',
   '/api/auth/forgot-password',
   '/api/auth/reset-password',
+  '/api/health', // healthcheck public (aucune donnée sensible)
+  '/api/webhooks/n8n', // callback n8n : la route vérifie elle-même une signature HMAC
   '/api/planning/pdf', // lien signé du planning envoyé par WhatsApp (jeton HMAC par jour + chauffeur)
 ]
 
 export function proxy(req: NextRequest) {
   const { pathname } = req.nextUrl
 
-  // Always allow Next.js internals and static assets
+  const isApi = pathname.startsWith('/api/')
+
+  // Internes Next.js et fichiers de public/ uniquement — le contournement ne s'applique JAMAIS sous /api/
   if (
-    pathname.startsWith('/_next') ||
-    pathname.startsWith('/favicon') ||
-    /\.(png|jpg|jpeg|gif|svg|ico|css|js|woff2?|html)$/.test(pathname)
+    !isApi && (
+      pathname.startsWith('/_next') ||
+      pathname.startsWith('/favicon') ||
+      /\.(png|jpg|jpeg|gif|svg|ico|css|js|woff2?|html)$/.test(pathname)
+    )
   ) {
     return NextResponse.next()
   }
@@ -41,13 +47,15 @@ export function proxy(req: NextRequest) {
   )
 
   if (!hasSession) {
+    // API : réponse JSON 401 (pas de redirection vers /login)
+    if (isApi) return NextResponse.json({ error: 'Non authentifié' }, { status: 401 })
     const loginUrl = new URL('/login', req.url)
     loginUrl.searchParams.set('from', pathname)
     return NextResponse.redirect(loginUrl)
   }
 
-  // Role-based route protection (API routes do their own auth — skip them here)
-  if (!pathname.startsWith('/api/')) {
+  // Routage UI par rôle (cookie shipinfy_role = confort d'affichage, PAS une preuve d'identité) ; les routes API font leur propre garde
+  if (!isApi) {
     const role = req.cookies.get(ROLE_COOKIE)?.value
     if (role && !canAccess(role, pathname)) {
       return NextResponse.redirect(new URL('/', req.url))

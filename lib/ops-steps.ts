@@ -22,7 +22,7 @@ export function buildSteps(o: {
     ['RECEIVED', o.createdAt?.getTime() ?? first('READY_PICKUP')],
     ['ASSIGNED', first('ASSIGNED')], ['IN_TRANSPORT', first('IN_TRANSPORT')], ['START_DELIVERY', first('START_DELIVERY')],
     [o.noShowAt && !o.deliveredAt ? 'NO_SHOW' : 'DELIVERED', o.deliveredAt?.getTime() ?? o.noShowAt?.getTime() ?? first('DELIVERED') ?? first('NO_SHOW')],
-    ['COLLECTED', o.collectedAt?.getTime() ?? first('COLLECTED')],
+    ['COLLECTED', o.collectedAt?.getTime() ?? (o.events.some(e => e.to === 'COLLECT_REVERTED') ? undefined : first('COLLECTED'))],
   ]
   const isInferred = (s: string) => { const e = o.events.filter(x => x.to === s); return e.length > 0 && e.every(x => x.inferred) }
   let prev: number | null = null, prevReal = true, start: number | null = null, end: number | null = null

@@ -43,19 +43,23 @@ export const EXPRESS_THRESHOLDS = {
   PALIER_3: 55,
 } as const
 
-// ── Créer une DeliveryAlert avec déduplication 30min ───────────────────────
-export async function createDeliveryAlert(payload: AlertPayload): Promise<void> {
-  // Déduplication : pas 2 alertes identiques pour la même commande dans les 30min
+// Fenêtre de déduplication par (commande, type, niveau) — Sprint 17 B2 : 2 h (avant 30 min → 3 synchros = 3 alertes identiques)
+export const ALERT_DEDUPE_MS = 2 * 60 * 60 * 1000
+
+// ── Créer une DeliveryAlert avec déduplication 2 h ─────────────────────────
+/** Retourne true si l'alerte a été réellement créée, false si elle a été dédupliquée (aucune notification dans ce cas). */
+export async function createDeliveryAlert(payload: AlertPayload): Promise<boolean> {
+  // Déduplication : pas 2 alertes identiques pour la même commande dans les 2 h
   if (payload.orderId) {
     const recent = await prisma.deliveryAlert.findFirst({
       where: {
         orderId:     payload.orderId,
         type:        payload.type,
         level:       payload.level,
-        triggeredAt: { gte: new Date(Date.now() - 30 * 60 * 1000) },
+        triggeredAt: { gte: new Date(Date.now() - ALERT_DEDUPE_MS) },
       },
     })
-    if (recent) return
+    if (recent) return false
   }
 
   await prisma.deliveryAlert.create({
@@ -99,6 +103,7 @@ export async function createDeliveryAlert(payload: AlertPayload): Promise<void> 
       },
     }).catch((e) => console.error('[AlertEngine] notify error:', e))
   }
+  return true
 }
 
 // ── Moteur Standard — vérifie retards tournée ───────────────────────────────
@@ -127,6 +132,7 @@ export async function checkStandardDelays(): Promise<{ checked: number; created:
       livreurLastName:        true,
       shippingWorkflowStatus: true,
     },
+    orderBy: { deliveryTimeEnd: 'asc' }, // les plus urgentes d'abord : le take ne coupe jamais les retards les plus anciens
     take: 500,
   })
 
@@ -148,7 +154,7 @@ export async function checkStandardDelays(): Promise<{ checked: number; created:
     const driverName = [order.livreurFirstName, order.livreurLastName].filter(Boolean).join(' ') || undefined
 
     if (ratio >= STANDARD_THRESHOLDS.CRITICAL) {
-      await createDeliveryAlert({
+      if (await createDeliveryAlert({
         orderId:    order.id,
         reportId:   report.id,
         driverName,
@@ -156,10 +162,9 @@ export async function checkStandardDelays(): Promise<{ checked: number; created:
         level:      3,
         type:       'delay_confirmed',
         message:    `Retard confirmé — ${elapsedMin}min écoulées, créneau dépassé`,
-      })
-      created++
+      })) created++
     } else if (ratio >= STANDARD_THRESHOLDS.DANGER) {
-      await createDeliveryAlert({
+      if (await createDeliveryAlert({
         orderId:    order.id,
         reportId:   report.id,
         driverName,
@@ -167,10 +172,9 @@ export async function checkStandardDelays(): Promise<{ checked: number; created:
         level:      2,
         type:       'delay_risk',
         message:    `Risque retard — ${Math.round(ratio * 100)}% du créneau écoulé (${elapsedMin}min)`,
-      })
-      created++
+      })) created++
     } else if (ratio >= STANDARD_THRESHOLDS.WARNING) {
-      await createDeliveryAlert({
+      if (await createDeliveryAlert({
         orderId:    order.id,
         reportId:   report.id,
         driverName,
@@ -178,8 +182,7 @@ export async function checkStandardDelays(): Promise<{ checked: number; created:
         level:      1,
         type:       'delay_risk',
         message:    `Attention — ${Math.round(ratio * 100)}% du créneau écoulé (${elapsedMin}min)`,
-      })
-      created++
+      })) created++
     }
   }
 
@@ -213,14 +216,13 @@ export async function runPredictiveAlerts(): Promise<{ checked: number; created:
     })
     if (recent) continue
 
-    await createDeliveryAlert({
+    if (await createDeliveryAlert({
       driverName: ds.driverName,
       mode:       'standard',
       level:      1,
       type:       'predictive',
       message:    `Prévision risque retard — Score IA ${Math.round(ds.score)}/100 (${ds.driverName})`,
-    })
-    created++
+    })) created++
   }
 
   return { checked: lowScores.length, created }

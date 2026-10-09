@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
-import { getSession, hashPassword, verifyPassword } from '@/lib/auth'
+import { getSession, hashPassword, verifyPassword, deleteUserSessions, createSession, buildSessionCookie, MIN_PASSWORD_LENGTH } from '@/lib/auth'
 
 export const runtime = 'nodejs'
 
@@ -19,8 +19,8 @@ export async function POST(req: Request) {
     if (!currentPassword || !newPassword) {
       return NextResponse.json({ error: 'Mot de passe actuel et nouveau mot de passe requis' }, { status: 400 })
     }
-    if (newPassword.length < 6) {
-      return NextResponse.json({ error: 'Le nouveau mot de passe doit contenir au moins 6 caractères' }, { status: 400 })
+    if (String(newPassword).length < MIN_PASSWORD_LENGTH) {
+      return NextResponse.json({ error: `Le nouveau mot de passe doit contenir au moins ${MIN_PASSWORD_LENGTH} caractères` }, { status: 400 })
     }
 
     const user = await prisma.user.findUnique({ where: { id: session.userId } })
@@ -37,7 +37,12 @@ export async function POST(req: Request) {
       data:  { password: hashPassword(newPassword) },
     })
 
-    return NextResponse.json({ success: true })
+    // Révoque toutes les sessions, puis rouvre une session fraîche pour l'utilisateur courant
+    await deleteUserSessions(user.id)
+    const token = await createSession(user.id)
+    const res = NextResponse.json({ success: true })
+    res.headers.set('Set-Cookie', buildSessionCookie(token))
+    return res
   } catch (e) {
     console.error('[auth/change-password]', e)
     return NextResponse.json({ error: 'Erreur serveur' }, { status: 500 })

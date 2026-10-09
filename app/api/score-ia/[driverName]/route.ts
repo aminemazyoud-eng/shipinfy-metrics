@@ -1,3 +1,4 @@
+import { requireSession } from '@/lib/api-guard'
 import { NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 
@@ -6,6 +7,7 @@ export const runtime = 'nodejs'
 type RouteCtx = { params: Promise<{ driverName: string }> }
 
 export async function GET(_: Request, { params }: RouteCtx) {
+  const _guard = await requireSession(_, 'VIEWER'); if ('error' in _guard) return _guard.error
   try {
     const { driverName } = await params
     const decoded = decodeURIComponent(driverName)

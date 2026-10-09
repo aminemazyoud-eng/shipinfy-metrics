@@ -1,7 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { opsAuth } from '@/lib/ops-auth'
 import { loadOrders, loadHubs, loadDrivers, opsNow } from '@/lib/ops-data'
-import { liveSnapshot, localDay } from '@/lib/ops-analytics'
+import { liveSnapshot } from '@/lib/ops-analytics'
+import { localDay, dayBoundsTz } from '@/lib/tz'
 
 // GET /api/ops/live?city=&hub=
 // Photo temps réel : par hub (statuts, retards, à risque), par créneau, points carte, charge livreurs.
@@ -11,9 +12,9 @@ export async function GET(req: NextRequest) {
   try {
     const sp = new URL(req.url).searchParams
     const now = await opsNow()
-    const dayStart = Date.parse(localDay(now) + 'T00:00:00Z') - 3_600_000
+    const { from: dayFrom, to: dayTo } = dayBoundsTz(localDay(now)) // fuseau Casablanca réel (Ramadan inclus)
     const [orders, hubs, drivers] = await Promise.all([
-      loadOrders(new Date(dayStart), new Date(dayStart + 86_400_000), { includeOpenBefore: true }), loadHubs(), loadDrivers(),
+      loadOrders(dayFrom, dayTo, { includeOpenBefore: true }), loadHubs(), loadDrivers(),
     ])
     return NextResponse.json(liveSnapshot(orders, hubs, drivers, now, { city: sp.get('city'), hub: sp.get('hub') }))
   } catch (e) {

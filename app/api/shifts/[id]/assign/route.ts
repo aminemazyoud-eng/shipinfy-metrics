@@ -1,3 +1,4 @@
+import { requireSession } from '@/lib/api-guard'
 import { NextResponse } from 'next/server'
 import { assignDriver } from '@/lib/shift-engine'
 import { prisma } from '@/lib/prisma'
@@ -9,6 +10,7 @@ type RouteCtx = { params: Promise<{ id: string }> }
 
 // POST /api/shifts/[id]/assign — assigner un livreur
 export async function POST(req: Request, ctx: RouteCtx) {
+  const _guard = await requireSession(req, 'DISPATCHER'); if ('error' in _guard) return _guard.error
   try {
     const { id }       = await ctx.params
     const body         = await req.json()
@@ -55,6 +57,7 @@ export async function POST(req: Request, ctx: RouteCtx) {
 
 // DELETE /api/shifts/[id]/assign — désassigner un livreur
 export async function DELETE(req: Request, ctx: RouteCtx) {
+  const _guard = await requireSession(req, 'DISPATCHER'); if ('error' in _guard) return _guard.error
   try {
     const { id }       = await ctx.params
     const { searchParams } = new URL(req.url)

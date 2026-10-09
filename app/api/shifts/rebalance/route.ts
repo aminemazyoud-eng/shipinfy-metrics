@@ -1,3 +1,4 @@
+import { requireSession } from '@/lib/api-guard'
 import { NextResponse } from 'next/server'
 import { rebalanceZone } from '@/lib/shift-engine'
 
@@ -5,6 +6,7 @@ export const runtime = 'nodejs'
 
 // POST /api/shifts/rebalance — rééquilibrer une zone/date
 export async function POST(req: Request) {
+  const _guard = await requireSession(req, 'DISPATCHER'); if ('error' in _guard) return _guard.error
   try {
     const body = await req.json()
     const { zone, date } = body

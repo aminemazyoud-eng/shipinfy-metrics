@@ -12,7 +12,9 @@
 
 import { prisma } from '@/lib/prisma'
 import { sendEmail, type EmailAttachment } from '@/lib/email'
+import { sendWhatsApp } from '@/lib/whatsapp'
 import { triggerN8N, type N8NEventType } from '@/lib/n8n-bridge'
+import { safeFetch } from '@/lib/safe-fetch'
 
 export type NotifyChannel = 'email' | 'slack' | 'whatsapp'
 export type NotifyKind    = 'report' | 'alert'
@@ -39,7 +41,7 @@ export interface NotifyInput {
 
 export interface ChannelResult {
   channel: NotifyChannel
-  status:  'delivered' | 'failed' | 'skipped'
+  status:  'delivered' | 'partial' | 'failed' | 'skipped'   // partial : certains destinataires seulement (voir error)
   sentTo?: string
   error?:  string
   at:      string
@@ -64,8 +66,9 @@ function computeStatus(results: ChannelResult[], mode: 'direct' | 'n8n'): string
   const active = results.filter(r => r.status !== 'skipped')
   if (active.length === 0) return mode === 'n8n' ? 'sent_to_n8n' : 'failed'
   const delivered = active.filter(r => r.status === 'delivered').length
+  const partial   = active.filter(r => r.status === 'partial').length
   if (delivered === active.length) return 'delivered'
-  if (delivered === 0) return 'failed'
+  if (delivered === 0 && partial === 0) return 'failed'
   return 'partial'
 }
 
@@ -78,11 +81,11 @@ async function sendSlackDirect(text: string): Promise<ChannelResult> {
     if (!config?.webhookUrl) {
       return { channel: 'slack', status: 'failed', error: 'Aucune config Slack active', at }
     }
-    const res = await fetch(config.webhookUrl, {
+    // webhook saisi par un utilisateur : safeFetch (https, hôte autorisé, IP privées refusées, pas de redirection)
+    const res = await safeFetch(config.webhookUrl, {
       method:  'POST',
       headers: { 'Content-Type': 'application/json' },
       body:    JSON.stringify({ text }),
-      signal:  AbortSignal.timeout(8000),
     })
     if (!res.ok) {
       const body = (await res.text().catch(() => '')).slice(0, 300)
@@ -122,6 +125,32 @@ async function sendEmailDirect(input: NotifyInput): Promise<ChannelResult> {
     : { channel: 'email', status: 'failed', sentTo: to.join(', '), error: r.error, at }
 }
 
+async function sendWhatsAppDirect(input: NotifyInput): Promise<ChannelResult> {
+  const at = new Date().toISOString()
+  const to = input.recipients ?? []
+  if (to.length === 0) {
+    return { channel: 'whatsapp', status: 'failed', error: 'Aucun destinataire', at }
+  }
+  const message = input.emailText ?? `${input.title}\n${input.summary}`
+  const failed: string[] = []
+  let delivered = 0
+  for (const phone of to) {
+    if (await sendWhatsApp(phone, message)) delivered++
+    else failed.push(phone)
+  }
+  if (delivered === 0) {
+    return { channel: 'whatsapp', status: 'failed', sentTo: to.join(', '), error: 'Aucun envoi réussi', at }
+  }
+  // 'delivered' seulement si TOUS les destinataires ont reçu ; sinon 'partial' avec la liste des échecs
+  return {
+    channel: 'whatsapp',
+    status:  failed.length === 0 ? 'delivered' : 'partial',
+    sentTo:  to.join(', '),
+    error:   failed.length > 0 ? `Échec pour : ${failed.join(', ')}` : undefined,
+    at,
+  }
+}
+
 // ─── Public API ──────────────────────────────────────────────────────────────
 
 export async function notify(input: NotifyInput): Promise<NotifyResult> {
@@ -156,7 +185,11 @@ export async function notify(input: NotifyInput): Promise<NotifyResult> {
 
   // 2. Mode n8n → déléguer et sortir
   if (mode === 'n8n') {
-    triggerN8N(input.event, {
+    // On lit le résultat : 'sent_to_n8n' UNIQUEMENT si la délégation a réussi (n8n-bridge peut renvoyer { ok, delivered, error } ou lever).
+    let n8nOk = true
+    let n8nErr: string | undefined
+    try {
+      const r = await triggerN8N(input.event, {
       notificationId: log.id,
       kind:           input.kind,
       title:          input.title,
@@ -168,7 +201,22 @@ export async function notify(input: NotifyInput): Promise<NotifyResult> {
       pdfFilename:    input.pdfFilename ?? null,
       pdfBase64:      input.pdfBase64 ?? null,
       data:           input.data ?? {},
-    }).catch(() => {})
+      }) as unknown as { ok?: boolean; delivered?: number; error?: string } | void
+      if (r && typeof r === 'object' && (r.ok === false || r.delivered === 0)) { n8nOk = false; n8nErr = r.error ?? 'n8n : aucun webhook joint' }
+    } catch (e) {
+      n8nOk = false
+      n8nErr = String(e).slice(0, 300)
+    }
+
+    if (!n8nOk) {
+      const at = new Date().toISOString()
+      const results: ChannelResult[] = channels.map(ch => ({ channel: ch, status: 'failed' as const, error: n8nErr, at }))
+      await prisma.notificationLog.update({
+        where: { id: log.id },
+        data:  { status: 'failed', results: JSON.stringify(results) },
+      }).catch(() => {})
+      return { notificationId: log.id, mode, status: 'failed', results }
+    }
 
     await prisma.notificationLog.update({
       where: { id: log.id },
@@ -181,8 +229,9 @@ export async function notify(input: NotifyInput): Promise<NotifyResult> {
   // 3. Mode direct → l'app envoie
   const results: ChannelResult[] = []
   for (const ch of channels) {
-    if (ch === 'email')      results.push(await sendEmailDirect(input))
-    else if (ch === 'slack') results.push(await sendSlackDirect(slackText(input)))
+    if (ch === 'email')         results.push(await sendEmailDirect(input))
+    else if (ch === 'slack')    results.push(await sendSlackDirect(slackText(input)))
+    else if (ch === 'whatsapp') results.push(await sendWhatsAppDirect(input))
     else results.push({ channel: ch, status: 'skipped', error: 'canal non géré en mode direct', at: new Date().toISOString() })
   }
 

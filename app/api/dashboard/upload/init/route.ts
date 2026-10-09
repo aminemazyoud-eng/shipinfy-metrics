@@ -1,9 +1,11 @@
+import { requireSession } from '@/lib/api-guard'
 import { NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 
 // Creates the DeliveryReport shell and returns the reportId.
 // The actual row insertion is handled by /upload/batch in small chunks.
 export async function POST(request: Request) {
+  const _guard = await requireSession(request, 'MANAGER'); if ('error' in _guard) return _guard.error
   try {
     const { filename } = await request.json() as { filename: string }
     if (!filename?.trim()) {

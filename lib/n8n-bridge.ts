@@ -9,6 +9,7 @@
 
 import { prisma } from '@/lib/prisma'
 import { createHmac } from 'crypto'
+import { safeFetch } from '@/lib/safe-fetch'
 
 export type N8NEventType =
   | 'report_ready'
@@ -70,7 +71,8 @@ export async function triggerN8N(
             headers['X-Shipinfy-Signature'] = `sha256=${sig}`
           }
 
-          const res = await fetch(cfg.webhookUrl, {
+          // safeFetch : https + hôte autorisé (n8n) + adresse non interne, sans suivre de redirection (anti-SSRF)
+          const res = await safeFetch(cfg.webhookUrl, {
             method: 'POST',
             headers,
             body,

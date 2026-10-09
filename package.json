@@ -3,6 +3,7 @@
   "version": "0.1.0",
   "private": true,
   "scripts": {
+    "test:auth": "node scripts/test-auth-matrix.mjs",
     "dev": "next dev --port 3001",
     "build": "NODE_OPTIONS=--max-old-space-size=2048 next build",
     "start": "next start --port 3001",

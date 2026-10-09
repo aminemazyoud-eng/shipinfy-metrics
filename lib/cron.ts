@@ -6,14 +6,19 @@
  */
 
 import cron from 'node-cron'
-import { PrismaClient } from '@prisma/client'
+// Sprint 17 B5 : UN SEUL PrismaClient (singleton partagé) — plus de `new PrismaClient()` dédié au scheduler
+import { prisma } from '@/lib/prisma'
 // Sprint 7 — moteur alertes prédictives
 import { checkStandardDelays, runPredictiveAlerts } from '@/lib/alert-engine'
 // Sprint 17 — notifications centralisées (direct OU n8n) + trace /notifications
 import { notify } from '@/lib/notify'
+// Sprint 17 B5 : logique appelée DIRECTEMENT (plus de fetch HTTP sans session vers notre propre API)
+import { runAlertCheck } from '@/lib/alert-check'
+import { calculateScores } from '@/lib/score-ia-engine'
+// Sprint 17 B6 : fuseau Africa/Casablanca réel (plus de getHours()/setHours() du serveur)
+import { localParts, localDay, dayStartUtc, offsetMs, attendanceKeyTz, addDays } from '@/lib/tz'
 
-// Prisma client dédié au scheduler (pas le singleton global)
-const db = new PrismaClient()
+const db = prisma
 
 // ─── KPI computation (light version for scheduled sends) ────────────────────
 async function getKpisForReport(reportId: string) {
@@ -42,7 +47,7 @@ async function getKpisForReport(reportId: string) {
   const deliveryRate = total > 0 ? Math.round((delivered.length / total) * 1000) / 10 : 0
   const onTimeRate   = delivered.length > 0 ? Math.round((onTime.length / delivered.length) * 1000) / 10 : 0
 
-  const daySet = new Set(orders.map(o => o.dateTimeWhenOrderSent?.toISOString().slice(0, 10)).filter(Boolean))
+  const daySet = new Set(orders.map(o => (o.dateTimeWhenOrderSent ? localDay(o.dateTimeWhenOrderSent.getTime()) : null)).filter(Boolean))
   const avgOrdersPerDay = daySet.size > 0 ? Math.round((total / daySet.size) * 10) / 10 : 0
 
   return {
@@ -83,12 +88,11 @@ async function sendScheduledReport(scheduleId: string) {
     const textContent = buildEmailText(kpisData)
     const pdfBuffer   = await generateReportPDF(kpisData)
 
-    const now    = new Date()
-    const day    = now.getDate().toString().padStart(2, '0')
+    const lp     = localParts(Date.now())   // date LOCALE marocaine (et non celle du serveur)
+    const [year, mm, day] = lp.day.split('-')
     const months = ['Janvier','Février','Mars','Avril','Mai','Juin','Juillet','Août','Septembre','Octobre','Novembre','Décembre']
-    const month  = months[now.getMonth()]
-    const year   = now.getFullYear()
-    const dateStr = `${day.padStart(2, '0')}-${(now.getMonth() + 1).toString().padStart(2, '0')}-${year}`
+    const month  = months[Number(mm) - 1]
+    const dateStr = `${day}-${mm}-${year}`
     const subject = `📦 Rapport Performance Livraison — ${day} ${month} ${year} | Shipinfy Metrics`
     const pdfFilename = `rapport-livraisons-${dateStr}.pdf`
 
@@ -116,7 +120,7 @@ async function sendScheduledReport(scheduleId: string) {
     })
 
     const emailRes = r.results.find(x => x.channel === 'email')
-    success  = r.mode === 'n8n' || !emailRes || emailRes.status === 'delivered'
+    success  = r.mode === 'n8n' ? r.status !== 'failed' : (!emailRes || emailRes.status === 'delivered')
     if (!success) errorMsg = emailRes?.error
     console.log(`[cron] Rapport ${r.mode === 'n8n' ? 'délégué à n8n' : (success ? 'envoyé' : 'ÉCHEC')} → ${emails.join(', ')} (schedule: ${scheduleId})`)
   } catch (e) {
@@ -190,18 +194,11 @@ async function loadAndScheduleAll() {
  * Vérifie toutes les minutes si de nouveaux schedules ont été ajoutés.
  */
 // ─── Alert check ────────────────────────────────────────────────────────────
-async function runAlertCheck() {
+// Appel direct de lib/alert-check (la route /api/alerts/check garde sa garde d'authentification pour les appels manuels).
+async function runAlertCheckJob() {
   try {
-    const baseUrl = process.env.NEXTAUTH_URL ?? process.env.VERCEL_URL
-      ? `https://${process.env.VERCEL_URL}`
-      : `http://localhost:${process.env.PORT ?? 3001}`
-    const res = await fetch(`${baseUrl}/api/alerts/check`, { method: 'POST' })
-    if (res.ok) {
-      const d = await res.json() as { triggered?: number }
-      if ((d.triggered ?? 0) > 0) {
-        console.log(`[cron] Alertes déclenchées: ${d.triggered}`)
-      }
-    }
+    const d = await runAlertCheck()
+    if (d.triggered > 0) console.log(`[cron] Alertes déclenchées: ${d.triggered}`)
   } catch (e) {
     console.error('[cron] Erreur vérification alertes:', e)
   }
@@ -220,25 +217,24 @@ export function startCronScheduler() {
 
   // Hourly alert check — vérifier les seuils toutes les heures
   cron.schedule('0 * * * *', () => {
-    runAlertCheck().catch(console.error)
+    runAlertCheckJob().catch(console.error)
   }, { timezone: 'Africa/Casablanca' })
 
   // Score IA recalculation — every day at 02:00
   cron.schedule('0 2 * * *', async () => {
     console.log('[cron] Score IA recalculation starting...')
     try {
-      const res = await fetch(`${process.env.NEXTAUTH_URL ?? 'http://localhost:' + (process.env.PORT ?? 3001)}/api/score-ia/calculate`, {
-        method: 'POST',
-      })
-      const data = await res.json()
-      console.log(`[cron] Score IA done — ${data.calculated ?? 0} drivers calculated`)
+      // Appel direct (le fetch HTTP sans session était redirigé vers /login : le recalcul nocturne ne tournait jamais)
+      const data = await calculateScores()
+      if (!data.ok) console.warn(`[cron] Score IA: ${data.error}`)
+      else console.log(`[cron] Score IA done — ${data.calculated} drivers calculated`)
     } catch (e) {
       console.error('[cron] Score IA recalculation failed:', e)
     }
   }, { timezone: 'Africa/Casablanca' })
 
-  // Sprint 7 — Alertes retards Standard toutes les 5 min
-  cron.schedule('*/5 * * * *', async () => {
+  // Sprint 7 — Alertes retards Standard toutes les 5 min (décalé à la minute 1 pour ne pas coïncider avec sync / incidents)
+  cron.schedule('1-59/5 * * * *', async () => {
     try {
       const r = await checkStandardDelays()
       if (r.created > 0) console.log(`[cron] Alertes retards: ${r.created} créées (${r.checked} commandes vérifiées)`)
@@ -249,7 +245,7 @@ export function startCronScheduler() {
 
   // Module 0 — Synchro back-office -> OpsOrder toutes les 5 min (opt-in : OPS_SYNC_ENABLED=true)
   if (process.env.OPS_SYNC_ENABLED === 'true') {
-    cron.schedule('*/5 * * * *', async () => {
+    cron.schedule('2-59/5 * * * *', async () => {
       try {
         const { runOpsSync } = await import('@/lib/ops-sync')
         const r = await runOpsSync()
@@ -259,19 +255,22 @@ export function startCronScheduler() {
         console.error('[cron] ops-sync:', e)
       }
     }, { timezone: 'Africa/Casablanca' })
-    console.log('[cron] ops-sync activé (*/5 min)')
+    console.log('[cron] ops-sync activé (2-59/5 min)')
   }
 
   // Incidents terrain : créneaux à risque, retards, NO_SHOW, saturation, documents (opt-in : OPS_ALERTS_ENABLED=true)
   if (process.env.OPS_ALERTS_ENABLED === 'true') {
-    cron.schedule('*/5 * * * *', async () => {
+    cron.schedule('3-59/5 * * * *', async () => {
       try {
-        const { runIncidentChecks } = await import('@/lib/ops-notify')
+        const { runIncidentChecks, retryFailedNotifs } = await import('@/lib/ops-notify')
         const r = await runIncidentChecks()
         if (r.sent || r.failed) console.log('[cron] incidents: ' + r.sent + ' envoyés, ' + r.failed + ' échecs')
+        // rejoue les envois en échec (3 tentatives : 1 / 5 / 15 min), puis dead
+        const rr = await retryFailedNotifs()
+        if (rr.retried) console.log('[cron] relances: ' + rr.retried + ' tentées, ' + rr.recovered + ' récupérées, ' + rr.dead + ' abandonnées')
       } catch (e) { console.error('[cron] incidents:', e) }
     }, { timezone: 'Africa/Casablanca' })
-    console.log('[cron] alertes incidents activées (*/5 min)')
+    console.log('[cron] alertes incidents activées (3-59/5 min)')
   }
 
   // Sprint 7 — Prévisions prédictives Score IA chaque matin 07:00
@@ -284,53 +283,71 @@ export function startCronScheduler() {
     }
   }, { timezone: 'Africa/Casablanca' })
 
-  // Sprint 16 — Rappel WhatsApp shift non ouvert toutes les 15 min
+  // Sprint 16 — Rappel WhatsApp shift non ouvert toutes les 15 min.
+  // Sprint 17 B5 : fenêtre 0 < diffMin <= 15 (chaque shift n'est « due » qu'à UN passage), heures LOCALES via lib/tz.ts,
+  // et clé de dédup `shift:<id>:<jour>` dans OpsNotifLog (clé unique) : jamais deux rappels pour le même shift.
   cron.schedule('*/15 * * * *', async () => {
     try {
-      const mins = parseInt(process.env.SHIFT_REMINDER_MINUTES ?? '30')
-      const now  = new Date()
-
-      const todayMidnightUTC = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate()))
-      const tomorrowMidnightUTC = new Date(todayMidnightUTC.getTime() + 86400000)
+      const WINDOW_MIN = 15
+      const now  = Date.now()
+      const today = localDay(now)
+      const dayKeyFrom = attendanceKeyTz(today)              // les dates de shift / pointage sont des minuits UTC du jour local
+      const dayKeyTo   = attendanceKeyTz(addDays(today, 1))
 
       const assignments = await db.shiftAssignment.findMany({
-        where: { slot: { date: { gte: todayMidnightUTC, lt: tomorrowMidnightUTC } } },
+        where: { slot: { date: { gte: dayKeyFrom, lt: dayKeyTo } } },
         include: { slot: true },
       })
+      if (assignments.length === 0) return
 
       // Livreurs déjà pointés aujourd'hui (checkIn non null)
       const attendance = await db.driverAttendance.findMany({
-        where: { date: { gte: todayMidnightUTC, lt: tomorrowMidnightUTC }, checkIn: { not: null } },
+        where: { date: { gte: dayKeyFrom, lt: dayKeyTo }, checkIn: { not: null } },
         select: { driverName: true },
       })
       const checkedIn = new Set(attendance.map(a => a.driverName))
 
-      // Cible : slot commence dans les prochaines `mins` minutes ET pas de check-in
+      // Instant UTC réel d'une heure locale « HH:MM » du jour local (corrige l'éventuelle bascule Ramadan)
+      const startMsOf = (a: (typeof assignments)[number]) => {
+        const [h, m] = (a.slot.startTime ?? '00:00').split(':').map(Number)
+        const base = dayStartUtc(a.slot.date.toISOString().slice(0, 10))
+        const guess = base + ((h || 0) * 60 + (m || 0)) * 60_000
+        return guess - (offsetMs(guess) - offsetMs(base))
+      }
+
+      // Cible : le slot commence dans (0, 15] minutes ET pas de check-in
       const due = assignments.filter(a => {
         if (checkedIn.has(a.driverName)) return false
-        const [h, m] = (a.slot.startTime ?? '00:00').split(':').map(Number)
-        const start = new Date(a.slot.date)
-        start.setHours(h || 0, m || 0, 0, 0)
-        const diffMin = (start.getTime() - now.getTime()) / 60000
-        return diffMin > 0 && diffMin <= mins
+        const diffMin = (startMsOf(a) - now) / 60000
+        return diffMin > 0 && diffMin <= WINDOW_MIN
       })
-
       if (due.length === 0) return
 
       const { sendWhatsApp } = await import('@/lib/whatsapp')
+      const { normalizePhone } = await import('@/lib/ops-planning')
       const drivers = await db.driver.findMany({ select: { firstName: true, lastName: true, phone: true } })
       const phoneMap = new Map(drivers.map(d => [`${d.firstName} ${d.lastName}`.trim(), d.phone]))
 
       const seen = new Set<string>()
+      let sent = 0
       for (const a of due) {
         if (seen.has(a.driverName)) continue
         seen.add(a.driverName)
 
         const startTime = a.slot.startTime
-        const phone = phoneMap.get(a.driverName)
+        const phone = normalizePhone(phoneMap.get(a.driverName))
+        const message = `⚠️ Rappel : votre shift commence à ${startTime}. Pointez-vous sur l'appli.`
+
+        // Réservation atomique de la clé de dédup AVANT l'envoi : si la ligne existe déjà, le rappel a déjà été traité.
+        const dedupeKey = `shift:${a.id}:${today}`
+        try {
+          await db.opsNotifLog.create({ data: { event: 'shift_reminder', audience: 'chauffeur', channel: 'whatsapp', dedupeKey, recipient: phone, message, ok: false, attempts: phone ? 1 : 0, dead: !phone, error: phone ? null : 'Pas de numéro WhatsApp valide' } })
+        } catch { continue } // déjà rappelé
         if (phone) {
-          await sendWhatsApp(phone, `⚠️ Rappel : votre shift commence à ${startTime}. Pointez-vous sur l'appli.`)
-            .catch(e => console.error('[cron] shift reminder whatsapp:', e))
+          const ok = await sendWhatsApp(phone, message).catch(e => { console.error('[cron] shift reminder whatsapp:', e); return false })
+          // pas de rejeu : un rappel tardif (après l'heure de début) n'a plus de sens
+          await db.opsNotifLog.update({ where: { dedupeKey }, data: { ok, dead: !ok, error: ok ? null : 'Envoi WhatsApp refusé' } }).catch(() => {})
+          if (ok) sent++
         }
 
         await db.deliveryAlert.create({
@@ -344,7 +361,7 @@ export function startCronScheduler() {
           },
         }).catch(e => console.error('[cron] shift reminder alert:', e))
       }
-      console.log(`[cron] Rappels shift envoyés: ${seen.size}`)
+      console.log(`[cron] Rappels shift traités: ${seen.size} (WhatsApp envoyés: ${sent})`)
     } catch (e) {
       console.error('[cron] shift reminder job:', e)
     }

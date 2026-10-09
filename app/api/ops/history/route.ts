@@ -2,7 +2,8 @@ import { NextRequest, NextResponse } from 'next/server'
 import type { Prisma } from '@prisma/client'
 import { prisma } from '@/lib/prisma'
 import { opsAuth, fail } from '@/lib/ops-auth'
-import { dayOf, dayBounds } from '@/lib/ops-time'
+import { dayOfTz, dayBoundsTz } from '@/lib/tz'
+import { ACTIVE_SOURCE } from '@/lib/ops-data'
 import { buildHistory, historyCsv } from '@/lib/ops-history'
 import { buildSteps } from '@/lib/ops-steps'
 import { xlsxResponse } from '@/lib/xlsx-response'
@@ -13,24 +14,28 @@ export async function GET(req: NextRequest) {
   if ('error' in auth) return auth.error
   try {
     const sp = new URL(req.url).searchParams
-    const to = sp.get('to') || dayOf('today')
-    const from = sp.get('from') || dayOf('-30')
+    const to = sp.get('to') || dayOfTz('today')
+    const from = sp.get('from') || dayOfTz('-30')
     const hub = sp.get('hub') || undefined
 
     // Commandes TERMINÉES = livrées ET encaissées (fin de parcours)
     if (sp.get('view') === 'done') {
       const driver = sp.get('driver') || undefined, q = sp.get('q')?.trim(), offset = Number(sp.get('offset')) || 0
+      const range = { gte: dayBoundsTz(from).from, lt: dayBoundsTz(to).to }
+      // fin de parcours = encaissée, OU livrée sans montant à encaisser (indicateur noCollection) — elle ne doit pas disparaître de l'historique
       const where: Prisma.OpsOrderWhereInput = {
-        collectedAt: { gte: dayBounds(from).from, lt: dayBounds(to).to }, ...(hub ? { hubCode: hub } : {}), ...(driver ? { driver: { code: driver } } : {}),
+        source: ACTIVE_SOURCE,
+        AND: [{ OR: [{ collectedAt: range }, { status: 'DELIVERED', collectedAt: null, deliveredAt: range, OR: [{ amount: null }, { amount: { lte: 0 } }] }] }],
+        ...(hub ? { hubCode: hub } : {}), ...(driver ? { driver: { code: driver } } : {}),
         ...(q ? { OR: [{ reference: { contains: q } }, { externalId: { contains: q } }, { customerName: { contains: q, mode: 'insensitive' } }, { district: { contains: q, mode: 'insensitive' } }, { driver: { firstName: { contains: q, mode: 'insensitive' } } }, { driver: { lastName: { contains: q, mode: 'insensitive' } } }] } : {}),
       }
       const [rows, agg] = await Promise.all([
-        prisma.opsOrder.findMany({ where, orderBy: { collectedAt: 'desc' }, take: sp.get('format') === 'xlsx' ? 20000 : 100, skip: sp.get('format') === 'xlsx' ? 0 : offset,
+        prisma.opsOrder.findMany({ where, orderBy: [{ collectedAt: { sort: 'desc', nulls: 'last' } }, { deliveredAt: 'desc' }], take: sp.get('format') === 'xlsx' ? 20000 : 100, skip: sp.get('format') === 'xlsx' ? 0 : offset,
           select: { id: true, externalId: true, reference: true, hubCode: true, slotLabel: true, slotEnd: true, district: true, customerName: true, collectedAmount: true, deliveredAt: true, noShowAt: true, createdAtSrc: true, collectedAt: true, collectedBy: true, collectionMethod: true, events: { select: { toStatus: true, at: true, source: true } }, driver: { select: { firstName: true, lastName: true } } } }),
         prisma.opsOrder.aggregate({ where, _count: { _all: true }, _sum: { collectedAmount: true } }),
       ])
       const out = rows.map(r => ({ id: r.id, ref: r.reference || r.externalId, hubCode: r.hubCode, slot: r.slotLabel, district: r.district, customer: r.customerName, driver: r.driver ? `${r.driver.firstName} ${r.driver.lastName}` : null,
-        amount: r.collectedAmount ?? 0, deliveredAt: r.deliveredAt, collectedAt: r.collectedAt, collectedBy: r.collectedBy, method: r.collectionMethod, onTime: r.deliveredAt ? r.deliveredAt <= r.slotEnd : null,
+        amount: r.collectedAmount ?? 0, noCollection: r.collectedAt == null, deliveredAt: r.deliveredAt, collectedAt: r.collectedAt, collectedBy: r.collectedBy, method: r.collectionMethod, onTime: r.deliveredAt ? r.deliveredAt <= r.slotEnd : null,
         ...buildSteps({ createdAt: r.createdAtSrc, events: r.events.map(e => ({ to: e.toStatus, at: e.at, inferred: e.source === 'inferred' })), deliveredAt: r.deliveredAt, noShowAt: r.noShowAt, collectedAt: r.collectedAt, slotEnd: r.slotEnd }) }))
       if (sp.get('format') === 'xlsx') {
         const head = ['Référence', 'Hub', 'Créneau', 'Livreur', 'Client', 'Quartier', 'Livrée le', 'Encaissée le', 'Encaissée par', 'Mode', 'Montant (MAD)']
@@ -41,7 +46,7 @@ export async function GET(req: NextRequest) {
       return NextResponse.json({ from, to, offset, total: agg._count._all, amount: agg._sum.collectedAmount ?? 0, rows: out })
     }
     const rows = await prisma.opsOrder.findMany({
-      where: { slotStart: { gte: dayBounds(from).from, lt: dayBounds(to).to }, ...(hub ? { hubCode: hub } : {}) },
+      where: { source: ACTIVE_SOURCE, slotStart: { gte: dayBoundsTz(from).from, lt: dayBoundsTz(to).to }, ...(hub ? { hubCode: hub } : {}) },
       select: { slotStart: true, slotEnd: true, status: true, hubCode: true, createdAtSrc: true, deliveredAt: true, noShowAt: true, amount: true, driver: { select: { code: true } } },
     })
     const h = buildHistory(rows.map(r => ({ slotStart: r.slotStart, slotEnd: r.slotEnd, status: r.status, hubCode: r.hubCode, driverCode: r.driver?.code ?? null, createdAt: r.createdAtSrc, deliveredAt: r.deliveredAt, noShowAt: r.noShowAt, amount: r.amount })))

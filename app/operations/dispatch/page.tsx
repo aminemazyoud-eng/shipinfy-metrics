@@ -3,6 +3,7 @@ import { useState, useEffect, useCallback, useMemo, Suspense } from 'react'
 import { useSearchParams } from 'next/navigation'
 import { Truck, Wand2, RefreshCw, MapPin, ArrowRightLeft, AlertTriangle, Clock, UserCheck, UserX } from 'lucide-react'
 import OpsNav from '../components/OpsNav'
+import { usePolling } from '@/lib/use-polling'
 
 interface Hub { code: string; name: string; city: string; toDispatch?: number }
 interface Order { id: string; ref: string; status: string; slotStart: string; slotEnd: string; slotLabel: string | null; district: string | null; amount: number | null; customer: string | null; driverCode: string | null; late: boolean; atRisk: boolean }
@@ -34,7 +35,7 @@ function Dispatch() {
   }, [hub, day])
 
   useEffect(() => { load() }, [load])
-  useEffect(() => { const id = setInterval(load, 20_000); return () => clearInterval(id) }, [load])
+  usePolling(load, 20_000)
 
   const call = async (url: string, body: unknown, ok: (j: Record<string, unknown>) => string) => {
     setBusy(true); setMsg(null)

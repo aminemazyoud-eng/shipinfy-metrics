@@ -1,3 +1,4 @@
+import { requireSession } from '@/lib/api-guard'
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { sendWhatsApp, formatShiftPlanning, type ShiftSlotLite } from '@/lib/whatsapp'
@@ -7,6 +8,7 @@ export const runtime = 'nodejs'
 // POST /api/shifts/notify-whatsapp
 // Body: { week: string (ISO date of any day in the week), driverNames?: string[] }
 export async function POST(req: NextRequest) {
+  const _guard = await requireSession(req, 'DISPATCHER'); if ('error' in _guard) return _guard.error
   try {
     const body = await req.json() as { week?: string; driverNames?: string[] }
     if (!body.week) {

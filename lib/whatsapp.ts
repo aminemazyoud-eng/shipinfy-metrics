@@ -101,8 +101,9 @@ function pad(n: number): string {
   return String(n).padStart(2, '0')
 }
 
+// Les dates de shift sont des clés « minuit UTC du jour local » : on lit donc les composantes en UTC (indépendant du fuseau du serveur).
 function fmtDayDate(d: Date): string {
-  return `${DAYS_FR[d.getDay()]} ${pad(d.getDate())}/${pad(d.getMonth() + 1)}/${d.getFullYear()}`
+  return `${DAYS_FR[d.getUTCDay()]} ${pad(d.getUTCDate())}/${pad(d.getUTCMonth() + 1)}/${d.getUTCFullYear()}`
 }
 
 export function formatShiftPlanning(driverName: string, slots: ShiftSlotLite[]): string {
@@ -114,10 +115,10 @@ export function formatShiftPlanning(driverName: string, slots: ShiftSlotLite[]):
   // Lundi de la semaine du 1er slot (ou aujourd'hui si vide)
   const ref = dates[0] ?? new Date()
   const monday = new Date(ref)
-  const day = monday.getDay()
-  monday.setDate(monday.getDate() - day + (day === 0 ? -6 : 1))
+  const day = monday.getUTCDay()
+  monday.setUTCDate(monday.getUTCDate() - day + (day === 0 ? -6 : 1))
 
-  const header = `📋 Planning Shipinfy — Semaine du ${pad(monday.getDate())}/${pad(monday.getMonth() + 1)}/${monday.getFullYear()}`
+  const header = `📋 Planning Shipinfy — Semaine du ${pad(monday.getUTCDate())}/${pad(monday.getUTCMonth() + 1)}/${monday.getUTCFullYear()}`
 
   const lines = slots
     .slice()

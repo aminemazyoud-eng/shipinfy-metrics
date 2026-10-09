@@ -4,9 +4,11 @@ import { opsAuth, fail, audit } from '@/lib/ops-auth'
 import { dayOf, dayBounds, attendanceKey } from '@/lib/ops-time'
 import { computePay, payCsv, type PayConfig } from '@/lib/ops-pay'
 import { xlsxResponse } from '@/lib/xlsx-response'
+import { localDay as tzLocalDay } from '@/lib/tz'
+import { ACTIVE_SOURCE } from '@/lib/ops-data'
 
-const TZ = 3_600_000
-const localDay = (d: Date) => new Date(d.getTime() + TZ).toISOString().slice(0, 10)
+// jour LOCAL (Africa/Casablanca réel, Ramadan inclus) d'une date
+const localDay = (d: Date) => tzLocalDay(d.getTime())
 
 async function getConfig(): Promise<PayConfig & { id: string }> {
   return prisma.opsPayConfig.upsert({ where: { id: 'default' }, update: {}, create: { id: 'default' } })
@@ -33,7 +35,7 @@ export async function GET(req: NextRequest) {
     const byName = new Map(drivers.map(d => [`${d.firstName} ${d.lastName}`, d]))
     const [att, orders] = await Promise.all([
       prisma.driverAttendance.findMany({ where: { driverName: { in: drivers.map(d => `${d.firstName} ${d.lastName}`) }, date: { gte: attendanceKey(from), lte: attendanceKey(to) } }, select: { driverName: true, date: true, status: true } }),
-      prisma.opsOrder.findMany({ where: { driverId: { in: ids }, OR: [{ status: 'DELIVERED', deliveredAt: { gte: start, lt: end } }, { status: 'NO_SHOW', noShowAt: { gte: start, lt: end } }] }, select: { driverId: true, status: true, deliveredAt: true, noShowAt: true, slotEnd: true } }),
+      prisma.opsOrder.findMany({ where: { source: ACTIVE_SOURCE, driverId: { in: ids }, OR: [{ status: 'DELIVERED', deliveredAt: { gte: start, lt: end } }, { status: 'NO_SHOW', noShowAt: { gte: start, lt: end } }] }, select: { driverId: true, status: true, deliveredAt: true, noShowAt: true, slotEnd: true } }),
     ])
     const lines = computePay(cfg, drivers.map(d => ({ id: d.id, code: d.code, name: `${d.firstName} ${d.lastName}`, hubCode: d.hub?.code ?? null, dailyRate: d.dailyRate })),
       att.flatMap(a => { const d = byName.get(a.driverName); return d ? [{ driverId: d.id, day: a.date.toISOString().slice(0, 10), status: a.status }] : [] }),

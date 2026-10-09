@@ -1,3 +1,4 @@
+import { requireSession } from '@/lib/api-guard'
 import { NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { COLUMN_MAP } from '@/lib/excel-mapping'
@@ -20,6 +21,7 @@ const FLOAT_FIELDS = new Set([
 ])
 
 export async function POST(request: Request) {
+  const _guard = await requireSession(request, 'MANAGER'); if ('error' in _guard) return _guard.error
   try {
     const body = await request.json() as { reportId: string; rows: Record<string, unknown>[] }
     const { reportId, rows } = body

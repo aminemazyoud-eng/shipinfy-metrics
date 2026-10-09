@@ -1,7 +1,7 @@
 'use client'
 import { useState, useEffect, useCallback, useMemo } from 'react'
 import { CalendarDays, ChevronLeft, ChevronRight, Send, FileText, Save, Wand2, Copy, X, ArrowRightLeft, CheckCircle2, AlertTriangle, MessageCircle, Trash2, Phone } from 'lucide-react'
-import type { ForecastResult } from '@/lib/ops-analytics'
+import type { ForecastWithSpecial } from '@/lib/ops-special-days'
 
 interface Drv { code: string; name: string; phone: string | null; phoneOk: boolean; homeHub: string | null; hub: string | null; vehicle: string | null; plate: string | null; helpers: { name: string; phoneOk: boolean }[]; attendance: string | null }
 interface Line { driverCode: string; hubCode: string; departTime: string; slots: string[]; note?: string | null; sentAt?: string | null; sentStatus?: string | null }
@@ -21,7 +21,7 @@ const tomorrow = () => iso(new Date(Date.now() + 86_400_000 + 3_600_000))
 export default function PlanningPage() {
   const [day, setDay] = useState(tomorrow())
   const [data, setData] = useState<Data | null>(null)
-  const [fc, setFc] = useState<ForecastResult | null>(null)
+  const [fc, setFc] = useState<ForecastWithSpecial | null>(null)
   const [lines, setLines] = useState<Record<string, Line>>({})
   const [dirty, setDirty] = useState(false)
   const [busy, setBusy] = useState(false)
@@ -145,6 +145,7 @@ export default function PlanningPage() {
         {data && <span className={`text-xs px-2 py-1 rounded-full ${data.status === 'published' ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-600'}`}>{data.status === 'published' ? `Publié${data.publishedAt ? ` le ${new Date(data.publishedAt).toLocaleString('fr-FR', { timeZone: 'Africa/Casablanca', day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' })}` : ''}${data.publishedBy ? ` par ${data.publishedBy}` : ''}` : 'Brouillon'}</span>}
         {data && data.status === 'published' && toResend > 0 && <span className="text-xs px-2 py-1 rounded-full bg-blue-100 text-blue-700">{toResend} équipe(s) modifiée(s) à renvoyer</span>}
         {dirty && <span className="text-xs px-2 py-1 rounded-full bg-amber-100 text-amber-800">modifications non enregistrées</span>}
+        {fc?.specialDay && <span className="text-xs font-semibold px-2.5 py-1 rounded-full bg-purple-100 text-purple-700" title="Les commandes prévues ci-dessous intègrent ce coefficient">Jour spécial : {fc.specialDay.label} ×{String(fc.specialDay.factor).replace('.', ',')}</span>}
         <div className="ml-auto flex flex-wrap gap-2">
           <button onClick={prefill} className="flex items-center gap-1.5 px-3 py-1.5 text-sm border border-gray-300 rounded-lg bg-white"><Wand2 className="w-4 h-4" />Pré-remplir (hubs d&apos;origine)</button>
           <button onClick={copyPrev} disabled={!data?.prevLines.length} className="flex items-center gap-1.5 px-3 py-1.5 text-sm border border-gray-300 rounded-lg bg-white disabled:opacity-40" title={`Copier le planning du ${data?.prevDay ?? ''}`}><Copy className="w-4 h-4" />Copier la veille</button>

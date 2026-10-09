@@ -9,7 +9,11 @@ interface Cfg {
   atRiskMinutes: number; autoDistWeight: number
   fuelPriceDiesel: number; fuelPriceEssence: number; consumptionAlertPct: number; docAlertDays: number; maintKmMargin: number
   scoreCritical: number; scoreGood: number
+  cashGapAlert: number
 }
+interface SpecialDay { day: string; label: string; kind: string; factor: number }
+const KINDS: Record<string, string> = { ramadan: 'Ramadan', aid: 'Aïd', payday: 'Fin de mois', promo: 'Promo', event: 'Événement' }
+const iso = (d: Date) => d.toISOString().slice(0, 10)
 type NumKey = Exclude<keyof Cfg, 'slots'>
 
 // Paramétrage → Calculs & équations : tout ce qui pilote les calculs des modules (créneaux, prévisions, retards, dispatch, flotte, scoring).
@@ -19,12 +23,30 @@ export default function CalculsPage() {
   const [overridden, setOverridden] = useState<string[]>([])
   const [canEdit, setCanEdit] = useState(false)
   const [msg, setMsg] = useState('')
+  const [specials, setSpecials] = useState<SpecialDay[]>([])
+  const [sp, setSp] = useState<SpecialDay>({ day: '', label: '', kind: 'event', factor: 1.3 })
 
   const load = async () => {
     const r = await fetch('/api/ops/settings'); const j = await r.json()
     if (r.ok) { setCfg(j.config); setDefaults(j.defaults); setOverridden(j.overridden); setCanEdit(j.canEdit) } else setMsg(j.error || 'Accès réservé aux managers')
   }
-  useEffect(() => { load() }, [])
+  const loadSpecials = async () => { const r = await fetch('/api/ops/special-days'); if (r.ok) setSpecials((await r.json()).days) }
+  useEffect(() => { load(); loadSpecials() }, [])
+  const addSpecial = async (items: SpecialDay[]) => {
+    const r = await fetch('/api/ops/special-days', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ items }) }); const j = await r.json()
+    setMsg(r.ok ? `${j.saved} jour(s) spécial(aux) enregistré(s).` : j.error || 'Échec (administrateur requis)'); if (r.ok) { setSp({ ...sp, day: '', label: '' }); loadSpecials() }
+  }
+  const delSpecial = async (day: string) => { const r = await fetch(`/api/ops/special-days?day=${day}`, { method: 'DELETE' }); setMsg(r.ok ? 'Jour spécial supprimé.' : 'Échec (administrateur requis)'); if (r.ok) loadSpecials() }
+  // Fins de mois des 3 prochains mois : dernier jour du mois + dernier vendredi (jour de paie → pic de commandes), facteur 1,3
+  const prefillMonthEnds = () => {
+    const out = new Map<string, SpecialDay>(), now = new Date()
+    for (let m = 0; m < 3; m++) {
+      const last = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth() + m + 1, 0, 12))
+      const fri = new Date(last); while (fri.getUTCDay() !== 5) fri.setUTCDate(fri.getUTCDate() - 1)
+      for (const d of [last, fri]) if (iso(d) >= iso(now)) out.set(iso(d), { day: iso(d), label: 'Fin de mois', kind: 'payday', factor: 1.3 })
+    }
+    if (out.size) addSpecial([...out.values()])
+  }
 
   const save = async () => { const r = await fetch('/api/ops/settings', { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(cfg) }); setMsg(r.ok ? 'Paramètres enregistrés — appliqués immédiatement aux calculs.' : 'Échec (administrateur requis)'); if (r.ok) load() }
   const reset = async () => { if (!confirm('Remettre TOUS les paramètres de calcul aux valeurs par défaut ?')) return; const r = await fetch('/api/ops/settings', { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ reset: true }) }); setMsg(r.ok ? 'Valeurs par défaut rétablies.' : 'Échec'); if (r.ok) load() }
@@ -99,6 +121,37 @@ export default function CalculsPage() {
             {num('scoreGood', 'Seuil excellent (≥)', '')}
             <div className="sm:col-span-2 text-xs"><Link href="/parametres/scoring" className="text-purple-700 underline">Régler les coefficients c1, c2, c3 et simuler →</Link></div>
           </Card>
+
+          <Card title="Caisse (clôture du jour)" formula={'écart = montant remis − montant attendu (commandes livrées du jour)\nalerte si |écart| > seuil'}>
+            {num('cashGapAlert', 'Seuil d’alerte d’écart de caisse (MAD)', 'Au-delà, l’écart est signalé dans le journal d’audit')}
+          </Card>
+
+          <div className="bg-white border border-gray-200 rounded-xl p-5">
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <div className="font-semibold text-gray-900">Jours spéciaux</div>
+              {canEdit && <button onClick={prefillMonthEnds} className="text-xs px-3 py-1.5 border border-purple-300 text-purple-700 rounded-lg bg-white hover:bg-purple-50">Pré-remplir les fins de mois (facteur 1,3) pour les 3 prochains mois</button>}
+            </div>
+            <div className="mt-1.5 mb-3 text-xs font-mono bg-gray-50 border border-gray-100 rounded-lg p-2.5 text-gray-600 whitespace-pre-wrap">{'prévu du jour = prévu × facteur (ex. 1,4 = +40 %) · capacité inchangée → charge, niveau et manque de livreurs recalculés\nS’applique aux Prévisions du Cockpit et au Planning. Facteur entre 0,3 et 5.'}</div>
+            {canEdit && (
+              <div className="flex flex-wrap items-end gap-2 mb-3 text-sm">
+                <label className="text-xs text-gray-500">Date<input type="date" value={sp.day} onChange={e => setSp({ ...sp, day: e.target.value })} className="block border border-gray-300 rounded-lg px-2 py-1.5" /></label>
+                <label className="text-xs text-gray-500">Libellé<input value={sp.label} maxLength={80} onChange={e => setSp({ ...sp, label: e.target.value })} placeholder="ex. Aïd Al-Adha" className="block border border-gray-300 rounded-lg px-2 py-1.5 w-44" /></label>
+                <label className="text-xs text-gray-500">Type<select value={sp.kind} onChange={e => setSp({ ...sp, kind: e.target.value })} className="block border border-gray-300 rounded-lg px-2 py-1.5 bg-white">{Object.entries(KINDS).map(([k, l]) => <option key={k} value={k}>{l}</option>)}</select></label>
+                <label className="text-xs text-gray-500">Facteur<input type="number" step={0.05} min={0.3} max={5} value={sp.factor} onChange={e => setSp({ ...sp, factor: Number(e.target.value) })} className="block border border-gray-300 rounded-lg px-2 py-1.5 w-20" /></label>
+                <button onClick={() => addSpecial([sp])} disabled={!sp.day || !sp.label.trim()} className="flex items-center gap-1 px-3 py-2 text-sm rounded-lg bg-purple-600 text-white disabled:opacity-40"><Plus className="w-4 h-4" />Ajouter</button>
+              </div>
+            )}
+            <div className="divide-y divide-gray-100 border border-gray-100 rounded-lg max-h-72 overflow-y-auto">
+              {specials.map(d => (
+                <div key={d.day} className="flex items-center gap-3 px-3 py-2 text-sm">
+                  <span className="font-mono text-xs text-gray-500 w-24">{d.day}</span><span className="flex-1 truncate">{d.label}</span>
+                  <span className="text-xs text-gray-400">{KINDS[d.kind] ?? d.kind}</span><span className="font-semibold text-purple-700 w-14 text-right">×{String(d.factor).replace('.', ',')}</span>
+                  {canEdit && <button onClick={() => delSpecial(d.day)} className="text-red-500" title="Supprimer"><Trash2 className="w-4 h-4" /></button>}
+                </div>
+              ))}
+              {!specials.length && <div className="p-3 text-xs text-gray-400">Aucun jour spécial à venir. Ajoutez le Ramadan, les Aïd, les fins de mois ou une promo.</div>}
+            </div>
+          </div>
 
           <div className="bg-white border border-gray-200 rounded-xl p-5 text-sm text-gray-600">
             <div className="font-semibold text-gray-900 mb-1">Paie & bonus</div>

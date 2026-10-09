@@ -1,3 +1,4 @@
+import { requireSession } from '@/lib/api-guard'
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { livreurName, isUnassigned } from '@/lib/driver-utils'
@@ -5,6 +6,7 @@ import { livreurName, isUnassigned } from '@/lib/driver-utils'
 // POST /api/remuneration/calculate
 // Body: { reportId, mode? }  — mode defaults to "standard"
 export async function POST(req: NextRequest) {
+  const _guard = await requireSession(req, 'MANAGER'); if ('error' in _guard) return _guard.error
   try {
     const body = await req.json() as { reportId?: string; mode?: string }
     if (!body.reportId) return NextResponse.json({ error: 'reportId requis' }, { status: 400 })

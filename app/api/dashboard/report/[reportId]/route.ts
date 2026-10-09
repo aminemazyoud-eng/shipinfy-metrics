@@ -1,7 +1,9 @@
+import { requireSession } from '@/lib/api-guard'
 import { NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 
 export async function DELETE(_req: Request, { params }: { params: Promise<{ reportId: string }> }) {
+  const _guard = await requireSession(_req, 'MANAGER'); if ('error' in _guard) return _guard.error
   try {
     const { reportId } = await params
     const count = await prisma.deliveryOrder.count({ where: { reportId } })

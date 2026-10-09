@@ -1,3 +1,4 @@
+import { requireSession } from '@/lib/api-guard'
 import { NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 
@@ -29,6 +30,7 @@ const normStore = (s: string | null): 'supermarket' | 'hypermarket' | null => {
 }
 
 export async function GET(request: Request) {
+  const _guard = await requireSession(request, 'VIEWER'); if ('error' in _guard) return _guard.error
   try {
     const { searchParams } = new URL(request.url)
     const reportId = searchParams.get('reportId')

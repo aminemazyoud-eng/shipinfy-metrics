@@ -4,8 +4,11 @@ import { NextResponse } from 'next/server'
 import { randomBytes } from 'crypto'
 import { prisma } from '@/lib/prisma'
 import { transporter } from '@/lib/mailer'
+import { limited } from '@/lib/rate-limit'
 
 export async function POST(req: Request) {
+  const tooMany = limited(req, 'forgot-password', 3, 60 * 60_000)
+  if (tooMany) return tooMany
   try {
     const { email } = await req.json()
 

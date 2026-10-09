@@ -1,7 +1,9 @@
+import { requireSession } from '@/lib/api-guard'
 import { NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 
 export async function GET(request: Request) {
+  const _guard = await requireSession(request, 'VIEWER'); if ('error' in _guard) return _guard.error
   try {
     const { searchParams } = new URL(request.url)
     const status = searchParams.get('status')
@@ -22,6 +24,7 @@ export async function GET(request: Request) {
 }
 
 export async function POST(request: Request) {
+  const _guard = await requireSession(request, 'DISPATCHER'); if ('error' in _guard) return _guard.error
   try {
     const body = await request.json() as {
       title: string; description: string; priority?: string; alertId?: string; assignedTo?: string
@@ -44,6 +47,7 @@ export async function POST(request: Request) {
 }
 
 export async function PATCH(request: Request) {
+  const _guard = await requireSession(request, 'DISPATCHER'); if ('error' in _guard) return _guard.error
   try {
     const body = await request.json() as { id: string; status?: string; assignedTo?: string; priority?: string }
     const { id, ...data } = body
@@ -60,6 +64,7 @@ export async function PATCH(request: Request) {
 }
 
 export async function DELETE(request: Request) {
+  const _guard = await requireSession(request, 'DISPATCHER'); if ('error' in _guard) return _guard.error
   try {
     const { searchParams } = new URL(request.url)
     const id = searchParams.get('id')

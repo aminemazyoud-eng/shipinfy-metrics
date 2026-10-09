@@ -1,6 +1,7 @@
 # n8n — Workflows Shipinfy (Sprint 17)
 
-n8n devient le **moteur d'envoi unique** : email + Slack (+ WhatsApp plus tard).
+n8n devient le **moteur d'envoi unique** : email + Slack + WhatsApp (branche ajoutée dans
+`shipinfy-notifications.workflow.json` — Evolution API, 1 envoi par destinataire via Split Out).
 L'app shipinfy-metrics envoie juste des événements webhook, n8n fait le travail et
 renvoie le résultat de chaque canal à l'app.
 

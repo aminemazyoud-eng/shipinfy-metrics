@@ -1,3 +1,4 @@
+import { requireSession } from '@/lib/api-guard'
 import { NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { triggerN8N } from '@/lib/n8n-bridge'
@@ -7,6 +8,7 @@ export const runtime = 'nodejs'
 type RouteCtx = { params: Promise<{ id: string }> }
 
 export async function GET(_: Request, { params }: RouteCtx) {
+  const _guard = await requireSession(_, 'VIEWER'); if ('error' in _guard) return _guard.error
   try {
     const { id } = await params
     const driver = await prisma.driver.findUnique({
@@ -24,6 +26,7 @@ export async function GET(_: Request, { params }: RouteCtx) {
 }
 
 export async function PATCH(req: Request, { params }: RouteCtx) {
+  const _guard = await requireSession(req, 'DISPATCHER'); if ('error' in _guard) return _guard.error
   try {
     const { id } = await params
     const body = await req.json()
@@ -82,6 +85,7 @@ export async function PATCH(req: Request, { params }: RouteCtx) {
 }
 
 export async function DELETE(_: Request, { params }: RouteCtx) {
+  const _guard = await requireSession(_, 'DISPATCHER'); if ('error' in _guard) return _guard.error
   try {
     const { id } = await params
     await prisma.driver.delete({ where: { id } })

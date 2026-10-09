@@ -7,6 +7,11 @@ interface Row { key: string; total: number; delivered: number; noShow: number; o
 interface Res { from: string; to: string; totals: Row & { days: number; avgPerDay: number }; byDay: Row[]; byHub: Row[]; bySlot: Row[]; byDriver: Row[]
   weekdayMatrix: { weekday: number; days: number; slots: Record<string, number> }[]; arrivalCurve: { hoursBefore: number; knownPct: number | null }[] }
 
+interface KpiV { value: number | null; unit: '%' | 'MAD' | 'liv/h'; formula: string; num?: number; den?: number; note?: string }
+interface Kpis { otif: KpiV; cancelRate: KpiV; firstAttemptSuccess: KpiV; deliveriesPerHour: KpiV; fleetUtilization: KpiV; costPerDelivery: KpiV; cancelReasons: { reason: string; count: number }[] }
+const KPI_CARDS: [keyof Omit<Kpis, 'cancelReasons'>, string][] = [['otif', 'OTIF (à l’heure et complète)'], ['firstAttemptSuccess', 'Réussite au 1er passage'], ['cancelRate', 'Taux d’annulation'], ['deliveriesPerHour', 'Livraisons / heure'], ['fleetUtilization', 'Utilisation flotte'], ['costPerDelivery', 'Coût / livraison']]
+const kfmt = (k: KpiV) => (k.value == null ? 'n/d' : k.unit === '%' ? `${String(k.value).replace('.', ',')} %` : k.unit === 'MAD' ? `${String(k.value).replace('.', ',')} MAD` : `${String(k.value).replace('.', ',')} /h`)
+
 const WD = ['Dim', 'Lun', 'Mar', 'Mer', 'Jeu', 'Ven', 'Sam']
 const iso = (d: Date) => d.toISOString().slice(0, 10)
 const pc = (v: number | null) => (v == null ? '—' : `${v}%`)
@@ -24,8 +29,10 @@ function Table({ title, rows, label }: { title: string; rows: Row[]; label: (k: 
 export default function MetricsPage() {
   const [from, setFrom] = useState(iso(new Date(Date.now() - 30 * 86_400_000))); const [to, setTo] = useState(iso(new Date()))
   const [res, setRes] = useState<Res | null>(null)
+  const [kpis, setKpis] = useState<Kpis | null>(null)
   const load = useCallback(async () => { const r = await fetch(`/api/ops/history?from=${from}&to=${to}`); if (r.ok) setRes(await r.json()) }, [from, to])
   useEffect(() => { load() }, [load])
+  useEffect(() => { setKpis(null); fetch(`/api/ops/kpis?from=${from}&to=${to}`).then(r => r.ok ? r.json() : null).then(j => j && setKpis(j)).catch(() => {}) }, [from, to])
   const max = Math.max(1, ...(res?.weekdayMatrix.flatMap(w => Object.values(w.slots)) ?? [1]))
   const slots = res ? Object.keys(res.weekdayMatrix[0]?.slots ?? {}) : []
 
@@ -44,6 +51,24 @@ export default function MetricsPage() {
           <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
             {[['Commandes', res.totals.total], ['Moy. / jour', res.totals.avgPerDay], ['Livrées', pc(res.totals.deliveryRate)], ['À l\'heure', pc(res.totals.onTimeRate)], ['NO_SHOW', pc(res.totals.noShowRate)]].map(([l, v]) => <div key={l as string} className="bg-white border border-gray-200 rounded-xl p-3"><div className="text-xs text-gray-500">{l}</div><div className="text-xl font-bold text-gray-900">{v}</div></div>)}
           </div>
+
+          {kpis && (
+            <div>
+              <div className="text-sm font-medium text-gray-700 mb-2">KPIs de référence <span className="text-xs font-normal text-gray-400">· survolez une carte pour voir la formule</span></div>
+              <div className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-6 gap-3">
+                {KPI_CARDS.map(([key, label]) => { const k = kpis[key]; return (
+                  <div key={key} title={`${k.formula}${k.num != null && k.den != null ? `
+= ${k.num} / ${k.den}` : ''}${k.note ? `
+${k.note}` : ''}`} className="bg-white border border-gray-200 rounded-xl p-3 cursor-help">
+                    <div className="text-xs text-gray-500">{label}</div>
+                    <div className={`text-xl font-bold ${k.value == null ? 'text-gray-300' : 'text-gray-900'}`}>{kfmt(k)}</div>
+                    {k.note && <div className="text-[10px] text-amber-600 mt-0.5 line-clamp-2">{k.note}</div>}
+                  </div>
+                ) })}
+              </div>
+              {kpis.cancelReasons.length > 0 && <div className="mt-2 text-xs text-gray-500">Motifs d&apos;annulation : {kpis.cancelReasons.map(c => `${c.reason} (${c.count})`).join(' · ')}</div>}
+            </div>
+          )}
 
           <div className="bg-white border border-gray-200 rounded-xl p-3">
             <div className="text-sm font-medium text-gray-700 mb-2">Volume et ponctualité par jour</div>

@@ -701,6 +701,8 @@ model OpsOrder {
   collectedBy      String?
   collectionMethod String?
   collectionNote   String?
+  missingItems     Int?
+  cancelReason     String?
   events           OpsOrderEvent[]
 
   @@unique([source, externalId])
@@ -739,6 +741,10 @@ model OpsSyncRun {
   cursorAfter String?   // curseur "ISO|id" — le dernier run OK de la source fait foi
   ok          Boolean   @default(false)
   error       String?
+  durationMs    Int?
+  liveRefreshMs Int?
+  pages         Int?
+  rejected      Int       @default(0)
 
   @@index([source, startedAt])
 }
@@ -880,6 +886,9 @@ model OpsNotifLog {
   message   String
   ok        Boolean  @default(false)
   error     String?
+  attempts    Int       @default(0)
+  nextRetryAt DateTime?
+  dead        Boolean   @default(false)
   createdAt DateTime @default(now())
 
   @@index([createdAt])
@@ -919,4 +928,58 @@ model OpsPlanLine {
 
   @@unique([day, driverCode])
   @@index([day])
+}
+
+// ─── SPRINT 17 — sécurité, intégrité, quick wins ─────────────────────────────
+model QrScanNonce {
+  nonce      String   @id
+  driverName String
+  usedAt     DateTime @default(now())
+
+  @@index([usedAt])
+}
+
+model OpsSyncReject {
+  id         String   @id @default(cuid())
+  source     String
+  externalId String?
+  reason     String
+  payload    String?
+  createdAt  DateTime @default(now())
+
+  @@index([createdAt])
+}
+
+model OpsOutbox {
+  id          String    @id @default(cuid())
+  kind        String    @default("assign")
+  externalId  String
+  courierRef  String?
+  attempts    Int       @default(0)
+  nextRetryAt DateTime  @default(now())
+  doneAt      DateTime?
+  createdAt   DateTime  @default(now())
+}
+
+model OpsSpecialDay {
+  day       String   @id // YYYY-MM-DD
+  label     String
+  kind      String   @default("event") // ramadan | aid | payday | promo | event
+  factor    Float    @default(1)
+  createdAt DateTime @default(now())
+}
+
+model OpsCashClose {
+  id         String   @id @default(cuid())
+  day        String
+  hubCode    String
+  driverCode String   @default("")
+  expected   Float
+  declared   Float
+  gap        Float
+  note       String?
+  closedBy   String?
+  closedAt   DateTime @default(now())
+
+  @@unique([day, hubCode, driverCode])
 }

@@ -1,3 +1,4 @@
+import { requireSession } from '@/lib/api-guard'
 import { NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { notify, type NotifyChannel } from '@/lib/notify'
@@ -10,6 +11,7 @@ type RouteCtx = { params: Promise<{ id: string }> }
 // Note : le PDF n'est pas conservé → un rapport renvoyé part sans pièce jointe
 // (résumé + lien in-app). Les alertes se renvoient à l'identique.
 export async function POST(_req: Request, ctx: RouteCtx) {
+  const _guard = await requireSession(_req, 'DISPATCHER'); if ('error' in _guard) return _guard.error
   try {
     const { id } = await ctx.params
     const log = await prisma.notificationLog.findUnique({ where: { id } })

@@ -1,3 +1,4 @@
+import { requireSession } from '@/lib/api-guard'
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 
@@ -7,7 +8,8 @@ const DEFAULTS = [
 ]
 
 // GET /api/remuneration/config — récupère les configs (crée les défauts si absent)
-export async function GET() {
+export async function GET(req: Request) {
+  const _guard = await requireSession(req, 'MANAGER'); if ('error' in _guard) return _guard.error
   try {
     let configs = await prisma.payConfig.findMany({ orderBy: { mode: 'asc' } })
 
@@ -27,6 +29,7 @@ export async function GET() {
 // POST /api/remuneration/config — upsert d'une config par mode
 // Body: { mode, label?, baseRate, bonusRate, penaltyRate, active? }
 export async function POST(req: NextRequest) {
+  const _guard = await requireSession(req, 'MANAGER'); if ('error' in _guard) return _guard.error
   try {
     const body = await req.json() as {
       mode: string; label?: string

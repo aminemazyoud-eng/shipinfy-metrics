@@ -1,39 +1,47 @@
 import { NextResponse } from 'next/server'
-import { createHmac } from 'crypto'
+import { createHmac, timingSafeEqual } from 'crypto'
 import { applyN8nResult, type NotifyChannel } from '@/lib/notify'
+import { requireEnv, envUnavailable } from '@/lib/env'
+import { limited } from '@/lib/rate-limit'
 
 export const runtime = 'nodejs'
 
-const WEBHOOK_SECRET = process.env.N8N_WEBHOOK_SECRET
+const WINDOW_MS = 5 * 60_000
 
-// POST /api/webhooks/n8n — N8N calls back into Shipinfy
-// Use this as the "response webhook" URL in your N8N workflows.
+// POST /api/webhooks/n8n — N8N rappelle Shipinfy (callback de livraison).
+// Authentification OBLIGATOIRE : secret N8N_WEBHOOK_SECRET (503 s'il n'est pas configuré).
+//   X-Timestamp : secondes ou millisecondes epoch (fenêtre ±5 min)
+//   X-Signature : HMAC-SHA256 hex de `${timestamp}.${corps brut}` (préfixe « sha256= » toléré)
 //
-// Sprint 17 — per-channel delivery result:
-//   { notificationId: "clx...", channel: "email"|"slack"|"whatsapp",
-//     status: "delivered"|"failed", sentTo?: "...", error?: "..." }
-//
-// Legacy payloads (action-based) are still accepted and just logged.
+// Résultat par canal : { notificationId, channel: "email"|"slack"|"whatsapp", status: "delivered"|"failed", sentTo?, error? }
+// Les payloads historiques (basés sur « action ») sont acceptés et seulement journalisés.
 export async function POST(req: Request) {
+  const lim = limited(req, 'webhook-n8n', 120, 60_000)
+  if (lim) return lim
   try {
-    let payload: Record<string, unknown>
+    const secret = requireEnv('N8N_WEBHOOK_SECRET')
+    const tsHeader = req.headers.get('x-timestamp') ?? ''
+    const sig = (req.headers.get('x-signature') ?? '').replace(/^sha256=/i, '')
+    const body = await req.text()
 
-    if (WEBHOOK_SECRET) {
-      const sig  = req.headers.get('X-N8N-Signature') ?? ''
-      const body = await req.text()
-      const expected = `sha256=${createHmac('sha256', WEBHOOK_SECRET).update(body).digest('hex')}`
-      if (sig !== expected) {
-        return NextResponse.json({ error: 'Invalid signature' }, { status: 401 })
-      }
-      payload = JSON.parse(body) as Record<string, unknown>
-    } else {
-      payload = await req.json() as Record<string, unknown>
-    }
+    // horodatage : secondes (≤ 11 chiffres) ou millisecondes, fenêtre ±5 min
+    const tsNum = Number(tsHeader)
+    if (!tsHeader || !Number.isFinite(tsNum)) return NextResponse.json({ error: 'Signature invalide' }, { status: 401 })
+    const tsMs = tsNum < 1e11 ? tsNum * 1000 : tsNum
+    if (Math.abs(Date.now() - tsMs) > WINDOW_MS) return NextResponse.json({ error: 'Horodatage hors fenêtre' }, { status: 401 })
+
+    const expected = createHmac('sha256', secret).update(`${tsHeader}.${body}`).digest('hex')
+    const a = Buffer.from(sig), b = Buffer.from(expected)
+    if (!sig || a.length !== b.length || !timingSafeEqual(a, b)) return NextResponse.json({ error: 'Signature invalide' }, { status: 401 })
+
+    let payload: Record<string, unknown>
+    try { payload = JSON.parse(body) as Record<string, unknown> } catch { return NextResponse.json({ error: 'JSON invalide' }, { status: 400 }) }
 
     return handleCallback(payload)
   } catch (e) {
+    const env = envUnavailable(e); if (env) return env
     console.error('[webhooks/n8n]', e)
-    return NextResponse.json({ error: String(e) }, { status: 500 })
+    return NextResponse.json({ error: 'Erreur serveur' }, { status: 500 })
   }
 }
 
@@ -56,7 +64,7 @@ async function handleCallback(payload: Record<string, unknown>) {
     return NextResponse.json({ received: true, notificationId, channel, status })
   }
 
-  // Legacy / unstructured callback — just log
+  // Callback historique / non structuré — simple journalisation
   console.log('[N8N Callback]', JSON.stringify(payload).slice(0, 1000))
   return NextResponse.json({ received: true, timestamp: new Date().toISOString() })
 }

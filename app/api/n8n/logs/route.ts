@@ -1,13 +1,13 @@
-import { NextResponse } from 'next/server'
+import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
-import { getSession, roleAtLeast } from '@/lib/auth'
+import { requireSession } from '@/lib/api-guard'
 
 export const runtime = 'nodejs'
 
-export async function GET(req: Request) {
-  const session = await getSession(req)
-  if (!session) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-  if (!roleAtLeast(session.role, 'MANAGER')) return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
+// GET /api/n8n/logs — journal des 50 derniers appels (MANAGER)
+export async function GET(req: NextRequest) {
+  const auth = await requireSession(req, 'MANAGER')
+  if ('error' in auth) return auth.error
 
   const logs = await prisma.n8NLog.findMany({
     orderBy: { createdAt: 'desc' },

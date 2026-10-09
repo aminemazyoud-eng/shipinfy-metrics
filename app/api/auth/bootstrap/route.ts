@@ -1,10 +1,13 @@
 import { NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
-import { hashPassword } from '@/lib/auth'
+import { hashPassword, MIN_PASSWORD_LENGTH } from '@/lib/auth'
+import { limited } from '@/lib/rate-limit'
 
 // POST /api/auth/bootstrap — creates the first SUPER_ADMIN if no users exist
 // Should only work once (when the DB is empty)
 export async function POST(req: Request) {
+  const tooMany = limited(req, 'bootstrap', 5, 60 * 60_000)
+  if (tooMany) return tooMany
   try {
     const userCount = await prisma.user.count()
     if (userCount > 0) {
@@ -17,8 +20,8 @@ export async function POST(req: Request) {
     if (!email || !password) {
       return NextResponse.json({ error: 'email et password requis' }, { status: 400 })
     }
-    if (password.length < 8) {
-      return NextResponse.json({ error: 'Mot de passe minimum 8 caractères' }, { status: 400 })
+    if (String(password).length < MIN_PASSWORD_LENGTH) {
+      return NextResponse.json({ error: `Mot de passe minimum ${MIN_PASSWORD_LENGTH} caractères` }, { status: 400 })
     }
 
     const user = await prisma.user.create({

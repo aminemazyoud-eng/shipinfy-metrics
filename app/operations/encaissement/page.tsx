@@ -2,6 +2,8 @@
 import { useState, useEffect, useCallback, useMemo } from 'react'
 import { Banknote, RefreshCw, CheckCircle2, Clock, AlertTriangle, ChevronDown, ChevronRight } from 'lucide-react'
 import OpsNav from '../components/OpsNav'
+import ClotureCaisse from '../components/ClotureCaisse'
+import { usePolling } from '@/lib/use-polling'
 
 interface Row { id: string; ref: string; hubCode: string | null; slot: string | null; district: string | null; customer: string | null; amount: number; deliveredAt: string | null; ageHours: number; driverCode: string; driverName: string }
 interface Group { code: string; name: string; count: number; total: number; oldest: number }
@@ -25,11 +27,12 @@ export default function EncaissementPage() {
   const [note, setNote] = useState('')
   const [msg, setMsg] = useState('')
   const [busy, setBusy] = useState(false)
+  const [tab, setTab] = useState<'encaisser' | 'cloture'>('encaisser')
 
   const load = useCallback(async () => { const r = await fetch(`/api/ops/cash${hub ? `?hub=${hub}` : ''}`); if (r.ok) setRes(await r.json()) }, [hub])
   useEffect(() => { load() }, [load])
   useEffect(() => { fetch('/api/ops/hubs').then(r => r.ok ? r.json() : null).then(j => j && setHubs(j.hubs)).catch(() => {}) }, [])
-  useEffect(() => { const id = setInterval(load, 30_000); return () => clearInterval(id) }, [load])
+  usePolling(load, 30_000, tab === 'encaisser')
 
   const byDriver = useMemo(() => { const m = new Map<string, Row[]>(); for (const o of res?.orders ?? []) (m.get(o.driverCode) ?? m.set(o.driverCode, []).get(o.driverCode)!).push(o); return m }, [res])
   const selTotal = useMemo(() => (res?.orders ?? []).filter(o => sel.has(o.id)).reduce((s, o) => s + o.amount, 0), [res, sel])
@@ -53,6 +56,13 @@ export default function EncaissementPage() {
         </div>
       </div>
       <OpsNav />
+      <div className="flex gap-1 border-b border-gray-200">
+        {([['encaisser', 'À encaisser'], ['cloture', 'Clôture du jour']] as const).map(([k, l]) => (
+          <button key={k} onClick={() => setTab(k)} className={`px-4 py-2 text-sm border-b-2 -mb-px ${tab === k ? 'border-green-600 text-green-700 font-medium' : 'border-transparent text-gray-500 hover:text-gray-800'}`}>{l}</button>
+        ))}
+      </div>
+      {tab === 'cloture' && <ClotureCaisse hubs={hubs} />}
+      {tab === 'encaisser' && <>
       <p className="text-sm text-gray-500">Commandes <b>livrées</b> dont le montant n&apos;a pas encore été encaissé. Une fois encaissée, la commande disparaît d&apos;ici et rejoint l&apos;<b>Historique</b> : son parcours est terminé.</p>
 
       {res && (
@@ -115,6 +125,7 @@ export default function EncaissementPage() {
           </div>
         </div>
       </div>
+      </>}
     </div>
   )
 }

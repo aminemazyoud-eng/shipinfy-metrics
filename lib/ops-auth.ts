@@ -20,7 +20,8 @@ export async function opsAuth(req: NextRequest, min?: Role): Promise<{ session: 
 
 export function fail(e: unknown, status = 500) {
   console.error('[api/ops]', e)
-  return NextResponse.json({ error: e instanceof Error ? e.message : 'Erreur serveur' }, { status })
+  // Message générique côté client (le détail reste dans les logs serveur)
+  return NextResponse.json({ error: 'Erreur serveur' }, { status })
 }
 
 /** Trace une action (qui, quoi, quand) — alimente l'historique consulting. N'échoue jamais. */

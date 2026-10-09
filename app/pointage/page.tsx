@@ -210,6 +210,10 @@ function ScanQrSection({ onScanned }: { onScanned: () => void }) {
           TOKEN_EXPIRED: '❌ QR expiré',
           TOKEN_USED:    '❌ Déjà utilisé',
           TOKEN_INVALID: '❌ Token invalide',
+          TOKEN_REPLAYED: '❌ QR déjà utilisé (rejeu refusé)',
+          MIN_WORK_TIME: '⏳ Départ trop tôt : 30 minutes minimum après l’arrivée',
+          STATUS_CONFLICT: '⚠️ Statut absent/congé déjà saisi — confirmez la modification manuellement',
+          DRIVER_NOT_FOUND: '❌ Livreur inconnu ou inactif',
         }
         setFeedback({ ok: false, msg: map[data.error] ?? `❌ ${data.error ?? 'Erreur'}` })
       }

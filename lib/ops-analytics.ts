@@ -12,6 +12,11 @@
 
 import { canonicalSlot, slotLabels } from '@/lib/ops-slots'
 import { CFG } from '@/lib/ops-config'
+// Sprint 17 B6/B7 : fuseau Africa/Casablanca réel (lib/tz.ts) et définitions métier uniques (lib/ops-defs.ts)
+import { localDay as tzLocalDay, localParts, dayStartUtc, dayOfTz, addDays, offsetMs } from '@/lib/tz'
+import { isLate, isAtRisk, isUnassigned, isOpen, isCancelled } from '@/lib/ops-defs'
+
+export { isLate, isAtRisk } // ré-exportés : une seule définition (ops-defs)
 
 export interface OrderLite {
   id: string
@@ -33,24 +38,23 @@ export interface OrderLite {
 export interface HubLite { code: string; name: string; city: string; lat: number | null; lng: number | null }
 export interface DriverLite { code: string; firstName: string; lastName: string; hubCode: string | null; vehicleType?: string | null }
 
-const TZ_MS = 60 * 60 * 1000 // Africa/Casablanca UTC+1
-const MIN = 60_000
 const HOUR = 3_600_000
 const DAY = 24 * HOUR
-export const DONE = new Set(['DELIVERED', 'NO_SHOW'])
-export const STATUS_ORDER = ['READY_PICKUP', 'ASSIGNED', 'IN_TRANSPORT', 'START_DELIVERY', 'DELIVERED', 'NO_SHOW'] as const
+export const DONE = new Set(['DELIVERED', 'NO_SHOW']) // terminées « réellement » ; CANCELLED est traité à part (exclu des totaux, compté dans cancelled)
+export const STATUS_ORDER = ['READY_PICKUP', 'ASSIGNED', 'IN_TRANSPORT', 'START_DELIVERY', 'DELIVERED', 'NO_SHOW', 'CANCELLED'] as const
 
 const t = (iso: string | null | undefined) => (iso ? Date.parse(iso) : NaN)
-export const localDay = (ms: number) => new Date(ms + TZ_MS).toISOString().slice(0, 10)
-const localDayIdx = (ms: number) => Math.floor((ms + TZ_MS) / DAY)
-const weekday = (ms: number) => new Date(ms + TZ_MS).getUTCDay()
+export const localDay = (ms: number) => tzLocalDay(ms)
+export const weekday = (ms: number) => localParts(ms).weekday
+/** Instant UTC de l'heure locale `h` (décimale) d'un jour local — corrige l'éventuelle bascule Ramadan en cours de journée. */
+const atLocalHour = (day: string, h: number) => {
+  const start = dayStartUtc(day), guess = start + h * HOUR
+  return guess - (offsetMs(guess) - offsetMs(start))
+}
 export const slotLabelOf = (o: { slotStart: string; slotEnd: string; slotLabel: string | null }) => canonicalSlot(o.slotStart)
 
 export function resolveDay(spec: string | null | undefined, nowMs: number): string {
-  const base = localDayIdx(nowMs)
-  const idx = !spec || spec === 'today' ? base : spec === 'tomorrow' ? base + 1 : spec === 'yesterday' ? base - 1
-    : /^\d{4}-\d\d-\d\d$/.test(spec) ? Math.floor(Date.parse(spec + 'T00:00:00Z') / DAY) : base + (Number(spec) || 0)
-  return new Date(idx * DAY).toISOString().slice(0, 10)
+  return dayOfTz(spec, nowMs)
 }
 
 const mean = (a: number[]) => (a.length ? a.reduce((s, x) => s + x, 0) / a.length : 0)
@@ -78,11 +82,12 @@ export function forecastDay(
   const perDriver = opts.perDriverPerSlot ?? CFG.perDriverPerSlot
   const hubList = hubs.filter(h => !opts.city || h.city === opts.city.toUpperCase())
   const hubCodes = new Set(hubList.map(h => h.code))
-  const dayStart = Date.parse(day + 'T00:00:00Z') - TZ_MS
-  const dayEnd = dayStart + DAY
+  const dayStart = dayStartUtc(day)
+  const dayEnd = dayStartUtc(addDays(day, 1))
 
-  const target = orders.filter(o => hubCodes.has(o.hubCode) && t(o.slotStart) >= dayStart && t(o.slotStart) < dayEnd)
-  const hist = orders.filter(o => hubCodes.has(o.hubCode) && t(o.slotStart) < dayStart && t(o.slotStart) >= dayStart - CFG.historyDays * DAY)
+  // CANCELLED ne compte ni dans le volume connu, ni dans l'historique, ni dans la capacité
+  const target = orders.filter(o => !isCancelled(o.status) && hubCodes.has(o.hubCode) && t(o.slotStart) >= dayStart && t(o.slotStart) < dayEnd)
+  const hist = orders.filter(o => !isCancelled(o.status) && hubCodes.has(o.hubCode) && t(o.slotStart) < dayStart && t(o.slotStart) >= dayStart - CFG.historyDays * DAY)
 
   // jours d'historique « complets » (≥ 20 commandes ce jour-là, tous hubs) — exclut les bords d'export
   const perDay = new Map<string, number>()
@@ -114,7 +119,7 @@ export function forecastDay(
   for (const o of target) slotSet.add(slotLabelOf(o))
   for (const h of hubList) for (const d of useDays) for (const [k, n] of finalBy) if (n && k.startsWith(h.code + '|') && k.endsWith('|' + d)) slotSet.add(k.split('|')[1])
   const slots = [...slotSet].sort((a, b) => Number(a.slice(0, 2)) - Number(b.slice(0, 2)) || a.localeCompare(b))
-  const slotStartMs = (label: string) => dayStart + Number(label.slice(0, 2)) * HOUR
+  const slotStartMs = (label: string) => atLocalHour(day, Number(label.slice(0, 2)))
 
   const driversByHub = new Map<string, number>()
   for (const d of drivers) if (d.hubCode) driversByHub.set(d.hubCode, (driversByHub.get(d.hubCode) || 0) + 1)
@@ -173,23 +178,22 @@ export interface LivePoint { id: string; lat: number; lng: number; late: boolean
 export interface LiveDriver { code: string; name: string; hubCode: string | null; active: number; late: number; done: number }
 export interface LiveResult {
   now: string; day: string
-  totals: { total: number; done: number; late: number; atRisk: number; unassigned: number; pctDone: number; carriedOver: number }
+  totals: { total: number; done: number; late: number; atRisk: number; unassigned: number; pctDone: number; carriedOver: number; cancelled: number }
   hubs: LiveHub[]; points: LivePoint[]; drivers: LiveDriver[]
 }
 
-export function isLate(o: OrderLite, nowMs: number) { return !DONE.has(o.status) && nowMs > t(o.slotEnd) }
-export function isAtRisk(o: OrderLite, nowMs: number) {
-  return !DONE.has(o.status) && o.status !== 'START_DELIVERY' && nowMs <= t(o.slotEnd) && t(o.slotEnd) - nowMs < CFG.atRiskMinutes * MIN
-}
 
 export function liveSnapshot(orders: OrderLite[], hubs: HubLite[], drivers: DriverLite[], nowMs: number, opts: { city?: string | null; hub?: string | null } = {}): LiveResult {
   const day = localDay(nowMs)
-  const dayStart = Date.parse(day + 'T00:00:00Z') - TZ_MS
+  const dayStart = dayStartUtc(day), dayEnd = dayStartUtc(addDays(day, 1))
   const hubList = hubs.filter(h => (!opts.city || h.city === opts.city.toUpperCase()) && (!opts.hub || h.code === opts.hub))
   const codes = new Set(hubList.map(h => h.code))
   // périmètre : créneaux du jour + reliquat non terminé des jours précédents (retards de la veille)
-  const scope = orders.filter(o => codes.has(o.hubCode) && !(t(o.createdAt) > nowMs) &&
-    ((t(o.slotStart) >= dayStart && t(o.slotStart) < dayStart + DAY) || (t(o.slotStart) < dayStart && !DONE.has(o.status))))
+  // CANCELLED est exclu des totaux « actifs » (ni retard, ni capacité) mais compté à part dans `cancelled`
+  const inScope = orders.filter(o => codes.has(o.hubCode) && !(t(o.createdAt) > nowMs) &&
+    ((t(o.slotStart) >= dayStart && t(o.slotStart) < dayEnd) || (t(o.slotStart) < dayStart && isOpen(o))))
+  const scope = inScope.filter(o => !isCancelled(o.status))
+  const cancelled = inScope.length - scope.length
 
   const hubsOut: LiveHub[] = hubList.map(h => {
     const mine = scope.filter(o => o.hubCode === h.code)
@@ -226,7 +230,7 @@ export function liveSnapshot(orders: OrderLite[], hubs: HubLite[], drivers: Driv
     now: new Date(nowMs).toISOString(), day,
     totals: {
       total: scope.length, done, late: hubsOut.reduce((s, h) => s + h.late, 0), atRisk: hubsOut.reduce((s, h) => s + h.atRisk, 0),
-      unassigned: scope.filter(o => o.status === 'READY_PICKUP').length, pctDone: scope.length ? Math.round((done / scope.length) * 100) : 0,
+      unassigned: scope.filter(o => isUnassigned({ status: o.status, driverId: o.driverCode })).length, cancelled, pctDone: scope.length ? Math.round((done / scope.length) * 100) : 0,
       carriedOver: scope.filter(o => t(o.slotStart) < dayStart).length,
     },
     hubs: hubsOut, points, drivers: [...dMap.values()].sort((a, b) => b.late - a.late || b.active - a.active),

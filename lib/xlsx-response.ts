@@ -21,12 +21,17 @@ function parseCsv(text: string): string[][] {
 }
 
 const TEXT_HEADER = /^(r[ée]f|code|cin|t[ée]l|plaque|immat|p[ée]riode|objet)/i
+// Neutralisation des formules (Sprint 17 A7) : une cellule TEXTE commençant par = + - @ tab ou CR est préfixée d'une apostrophe.
+// Exception : valeurs purement numériques/téléphone (chiffres, espaces, parenthèses, points, tirets, signe initial) — aucune formule possible.
+const DANGER = /^[=+\-@\t\r]/
+const PLAIN_NUMBERISH = /^[+-]?[\d\s().-]+$/
+const safeCell = (v: string): string => (DANGER.test(v) && !PLAIN_NUMBERISH.test(v) ? "'" + v : v)
 const NUM = /^-?(0|[1-9]\d{0,14})([.,]\d+)?$/
 
 export function csvToXlsx(csv: string, sheet = 'Export'): Buffer {
   const rows = parseCsv(csv)
   const head = rows[0] ?? []
-  const data: (string | number)[][] = rows.map((r, ri) => r.map((c, ci) => (ri > 0 && !TEXT_HEADER.test(head[ci] ?? '') && NUM.test(c) ? Number(c.replace(',', '.')) : c)))
+  const data: (string | number)[][] = rows.map((r, ri) => r.map((c, ci) => (ri > 0 && !TEXT_HEADER.test(head[ci] ?? '') && NUM.test(c) ? Number(c.replace(',', '.')) : safeCell(c))))
   const ws = XLSX.utils.aoa_to_sheet(data)
   ws['!cols'] = head.map((_, ci) => ({ wch: Math.min(40, Math.max(8, ...data.slice(0, 200).map(r => String(r[ci] ?? '').length + 2))) }))
   ws['!freeze'] = { xSplit: 0, ySplit: 1 } as never

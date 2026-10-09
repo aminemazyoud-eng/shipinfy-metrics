@@ -1,3 +1,4 @@
+import { requireSession } from '@/lib/api-guard'
 import { NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 
@@ -12,7 +13,8 @@ const DEFAULT_COURSES = [
   { title: 'Administration & Droits', category: 'admin',     description: 'Statut auto-entrepreneur, déclarations CNSS & fiscalité, assurances & gestion revenus.', color: '#dc2626', emoji: '📋', order: 6 },
 ]
 
-export async function GET() {
+export async function GET(req: Request) {
+  const _guard = await requireSession(req, 'VIEWER'); if ('error' in _guard) return _guard.error
   try {
     const includeOpts = {
       lessons:  { orderBy: { order: 'asc' as const } },

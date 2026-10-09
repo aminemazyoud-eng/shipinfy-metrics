@@ -1,22 +1,19 @@
-// Helpers de date côté serveur pour les routes /api/ops/* (heure locale Maroc UTC+1).
-const TZ_MS = 3_600_000
-const DAY = 86_400_000
+// Helpers de date côté serveur pour les routes /api/ops/* — fuseau Africa/Casablanca RÉEL (Sprint 17 B6).
+// Fines enveloppes de lib/tz.ts (mêmes signatures qu'avant, pour ne casser aucun appelant) : plus de décalage fixe +1 h,
+// le Ramadan (UTC+0) est géré par la base IANA via Intl.
+import { localToday as tzToday, dayOfTz, dayBoundsTz, attendanceKeyTz } from '@/lib/tz'
 
-export const localToday = (nowMs = Date.now()) => new Date(nowMs + TZ_MS).toISOString().slice(0, 10)
+export const localToday = (nowMs = Date.now()): string => tzToday(nowMs)
 
-/** 'today' | 'tomorrow' | 'yesterday' | 'YYYY-MM-DD' | ±N  → 'YYYY-MM-DD' */
+/** 'today' | 'tomorrow' | 'yesterday' | 'YYYY-MM-DD' | ±N  → 'YYYY-MM-DD' (jour local) */
 export function dayOf(spec: string | null | undefined, nowMs = Date.now()): string {
-  const base = Math.floor((nowMs + TZ_MS) / DAY)
-  const idx = !spec || spec === 'today' ? base : spec === 'tomorrow' ? base + 1 : spec === 'yesterday' ? base - 1
-    : /^\d{4}-\d\d-\d\d$/.test(spec) ? Math.floor(Date.parse(spec + 'T00:00:00Z') / DAY) : base + (Number(spec) || 0)
-  return new Date(idx * DAY).toISOString().slice(0, 10)
+  return dayOfTz(spec, nowMs)
 }
 
-/** Bornes UTC [début, fin[ d'une journée locale. */
+/** Bornes UTC [début, fin[ d'une journée locale (23 h / 24 h / 25 h selon les bascules). */
 export function dayBounds(day: string): { from: Date; to: Date } {
-  const start = Date.parse(day + 'T00:00:00Z') - TZ_MS
-  return { from: new Date(start), to: new Date(start + DAY) }
+  return dayBoundsTz(day)
 }
 
 /** Clé de pointage : minuit UTC du jour local (une ligne par livreur et par jour). */
-export const attendanceKey = (day: string) => new Date(day + 'T00:00:00Z')
+export const attendanceKey = (day: string): Date => attendanceKeyTz(day)

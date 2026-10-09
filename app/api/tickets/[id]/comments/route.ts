@@ -1,3 +1,4 @@
+import { requireSession } from '@/lib/api-guard'
 import { NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 
@@ -5,6 +6,7 @@ export async function POST(
   request: Request,
   { params }: { params: Promise<{ id: string }> }
 ) {
+  const _guard = await requireSession(request, 'DISPATCHER'); if ('error' in _guard) return _guard.error
   try {
     const { id: ticketId } = await params
     const body = await request.json() as { author: string; content: string }

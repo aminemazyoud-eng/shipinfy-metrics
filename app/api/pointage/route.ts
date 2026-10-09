@@ -1,8 +1,10 @@
+import { requireSession } from '@/lib/api-guard'
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 
 // GET /api/pointage?date=2026-04-12  (date = YYYY-MM-DD, defaults to today)
 export async function GET(req: NextRequest) {
+  const _guard = await requireSession(req, 'VIEWER'); if ('error' in _guard) return _guard.error
   try {
     const { searchParams } = new URL(req.url)
     const dateStr = searchParams.get('date')
@@ -34,6 +36,7 @@ export async function GET(req: NextRequest) {
 // POST /api/pointage — créer ou mettre à jour un pointage
 // Body: { driverName, date, hub?, checkIn?, checkOut?, status?, notes? }
 export async function POST(req: NextRequest) {
+  const _guard = await requireSession(req, 'DISPATCHER'); if ('error' in _guard) return _guard.error
   try {
     const body = await req.json() as {
       driverName: string; date: string

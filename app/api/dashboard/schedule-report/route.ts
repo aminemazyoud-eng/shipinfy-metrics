@@ -1,7 +1,9 @@
+import { requireSession } from '@/lib/api-guard'
 import { NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 
 export async function POST(request: Request) {
+  const _guard = await requireSession(request, 'MANAGER'); if ('error' in _guard) return _guard.error
   try {
     const body = await request.json() as {
       reportId: string
@@ -39,7 +41,8 @@ export async function POST(request: Request) {
   }
 }
 
-export async function GET() {
+export async function GET(req: Request) {
+  const _guard = await requireSession(req, 'MANAGER'); if ('error' in _guard) return _guard.error
   try {
     const schedules = await prisma.scheduledReport.findMany({
       where: { isActive: true },
@@ -56,6 +59,7 @@ export async function GET() {
 }
 
 export async function DELETE(request: Request) {
+  const _guard = await requireSession(request, 'MANAGER'); if ('error' in _guard) return _guard.error
   try {
     const { searchParams } = new URL(request.url)
     const id = searchParams.get('id')

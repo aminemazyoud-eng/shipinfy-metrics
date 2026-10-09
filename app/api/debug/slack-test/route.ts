@@ -1,15 +1,12 @@
 import { NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
-import { getSession, roleAtLeast } from '@/lib/auth'
+import { requireSession } from '@/lib/api-guard'
 
 export const runtime = 'nodejs'
 
 // POST /api/debug/slack-test — envoie un message de test au webhook Slack actif
 export async function POST(req: Request) {
-  const s = await getSession(req)
-  if (s && !roleAtLeast(s.role, 'ADMIN')) {
-    return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
-  }
+  const _guard = await requireSession(req, 'SUPER_ADMIN'); if ('error' in _guard) return _guard.error
 
   const config = await prisma.slackConfig.findFirst({ where: { active: true } })
   if (!config?.webhookUrl) {

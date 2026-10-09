@@ -1,8 +1,10 @@
+import { requireSession } from '@/lib/api-guard'
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 
 // GET /api/alerts/delivery?level=1&mode=standard&ack=false&limit=50
 export async function GET(req: NextRequest) {
+  const _guard = await requireSession(req, 'VIEWER'); if ('error' in _guard) return _guard.error
   try {
     const { searchParams } = req.nextUrl
     const level = searchParams.get('level')

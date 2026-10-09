@@ -1,5 +1,11 @@
 // lib/timezone.ts
-const MOROCCO_OFFSET_MS = 60 * 60 * 1000 // UTC+1 fixe
+//
+// CONVENTION (Sprint 17 B6) :
+//  - `toMoroccoTime` ne sert QU'AUX IMPORTS EXCEL : le back-office exporte des dates « murales » marocaines sans fuseau, parsées
+//    comme si elles étaient UTC ; on ajoute donc le décalage pour retrouver l'instant réel. Il reste un +1 h forfaitaire car le
+//    fichier source n'indique pas la période (Ramadan) ; pour ce cas précis, utiliser localParts() de lib/tz.ts si la date exacte est connue.
+//  - Pour TOUT le reste (jour local, bornes de journée, créneaux, pointage, paie, cron) : utiliser lib/tz.ts (Africa/Casablanca réel via Intl).
+const MOROCCO_OFFSET_MS = 60 * 60 * 1000 // import Excel uniquement — voir la convention ci-dessus
 
 export function toMoroccoTime(rawValue: unknown): Date | null {
   if (!rawValue) return null

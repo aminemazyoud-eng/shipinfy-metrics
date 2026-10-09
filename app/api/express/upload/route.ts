@@ -1,3 +1,4 @@
+import { requireSession } from '@/lib/api-guard'
 import { NextResponse } from 'next/server'
 import { Worker } from 'worker_threads'
 import { prisma } from '@/lib/prisma'
@@ -129,6 +130,7 @@ async function insertBackground(reportId: string, orders: Record<string, unknown
 
 // ── POST handler ──────────────────────────────────────────────────────────────
 export async function POST(request: Request) {
+  const _guard = await requireSession(request, 'MANAGER'); if ('error' in _guard) return _guard.error
   try {
     const formData = await request.formData()
     const file = formData.get('file') as File | null

@@ -1,3 +1,4 @@
+import { requireSession } from '@/lib/api-guard'
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 
@@ -5,6 +6,7 @@ type RouteCtx = { params: Promise<{ id: string }> }
 
 // PATCH /api/support/[id] — mettre à jour le statut / assignation
 export async function PATCH(req: NextRequest, ctx: RouteCtx) {
+  const _guard = await requireSession(req, 'SUPPORT'); if ('error' in _guard) return _guard.error
   try {
     const { id } = await ctx.params
     const body = await req.json() as {

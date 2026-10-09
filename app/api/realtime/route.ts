@@ -1,3 +1,4 @@
+import { requireSession } from '@/lib/api-guard'
 import { NextResponse } from 'next/server'
 
 /**
@@ -120,7 +121,8 @@ function generateMockData(): LiveStats {
 }
 // ─── END MOCK DATA ─────────────────────────────────────────────────────────────
 
-export async function GET() {
+export async function GET(req: Request) {
+  const _guard = await requireSession(req, 'VIEWER'); if ('error' in _guard) return _guard.error
   try {
     // TODO: When back-office API is available, replace with:
     // const BACKOFFICE_API_URL = process.env.BACKOFFICE_API_URL

@@ -1,3 +1,4 @@
+import { requireSession } from '@/lib/api-guard'
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 
@@ -5,6 +6,7 @@ export const runtime = 'nodejs'
 
 // GET /api/notifications?kind=report|alert&status=...&days=30&limit=100
 export async function GET(req: NextRequest) {
+  const _guard = await requireSession(req, 'VIEWER'); if ('error' in _guard) return _guard.error
   try {
     const { searchParams } = new URL(req.url)
     const kind   = searchParams.get('kind') ?? undefined

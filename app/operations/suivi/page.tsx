@@ -5,6 +5,7 @@ import Link from 'next/link'
 import { useSearchParams } from 'next/navigation'
 import OpsNav from '../components/OpsNav'
 import OrderTimeline from '../components/OrderTimeline'
+import { usePolling } from '@/lib/use-polling'
 import type { Step } from '@/lib/ops-steps'
 
 interface Row { id: string; ref: string; hubCode: string | null; district: string | null; status: string; slotLabel: string | null; amount: number | null; customer: string | null; driver: { code: string; name: string } | null; late: boolean; lateMin: number; deliveredLate: boolean; atRisk: boolean }
@@ -38,7 +39,7 @@ function Suivi() {
     const r = await fetch(`/api/ops/orders?${qs}`); if (r.ok) setRes(await r.json())
   }, [day, status, lateOnly, hub, q])
   useEffect(() => { const t = setTimeout(load, q ? 300 : 0); return () => clearTimeout(t) }, [load, q])
-  useEffect(() => { const id = setInterval(load, 30_000); return () => clearInterval(id) }, [load])
+  usePolling(load, 30_000)
   useEffect(() => { fetch('/api/ops/hubs').then(r => r.ok ? r.json() : null).then(j => j && setHubs(j.hubs)).catch(() => {}) }, [])
 
   const open = async (id: string) => { const r = await fetch(`/api/ops/orders/${id}`); if (r.ok) setDetail(await r.json()) }

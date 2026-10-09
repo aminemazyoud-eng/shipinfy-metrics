@@ -1,20 +1,18 @@
-// lib/qr-blacklist.ts — Sprint 16 BLOC 4 — QR Pointage single-use token blacklist
-// Valide uniquement en mode Docker standalone (process persistant) — identique à lib/upload-progress.ts
-//
-// In-memory Map<token, usedAtMs>. A token is single-use : once markUsed() is called,
-// isUsed() returns true until the entry is auto-evicted (60s after use).
+// lib/qr-blacklist.ts — cache de PREMIÈRE LIGNE des nonces QR déjà vus (mémoire du processus).
+// La source de vérité anti-rejeu est la table QrScanNonce (clé primaire = nonce) : ce cache évite seulement
+// un aller-retour base pour un rejeu immédiat. Il se vide seul après 60 s (le jeton expire en 10 s).
 
-const usedTokens = new Map<string, number>()
+const usedNonces = new Map<string, number>()
 
-export function isUsed(token: string): boolean {
-  return usedTokens.has(token)
+export function isUsed(nonce: string): boolean {
+  return usedNonces.has(nonce)
 }
 
-export function markUsed(token: string): void {
-  usedTokens.set(token, Date.now())
+export function markUsed(nonce: string): void {
+  usedNonces.set(nonce, Date.now())
 }
 
-// ─── Auto-cleanup — registered once at module scope ──────────────────────────
+// ─── Auto-cleanup — enregistré une seule fois au niveau du module ────────────
 declare global {
   // eslint-disable-next-line no-var
   var __qrBlacklistInterval: ReturnType<typeof setInterval> | undefined
@@ -23,11 +21,10 @@ declare global {
 if (!globalThis.__qrBlacklistInterval) {
   globalThis.__qrBlacklistInterval = setInterval(() => {
     const now = Date.now()
-    for (const [t, ts] of usedTokens) {
-      if (now - ts > 60_000) usedTokens.delete(t)
+    for (const [t, ts] of usedNonces) {
+      if (now - ts > 60_000) usedNonces.delete(t)
     }
   }, 30_000)
-  // Do not keep the event loop alive just for this timer
   if (typeof globalThis.__qrBlacklistInterval.unref === 'function') {
     globalThis.__qrBlacklistInterval.unref()
   }

@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
-import { getSession, hashPassword, roleAtLeast } from '@/lib/auth'
+import { getSession, hashPassword, roleAtLeast, MIN_PASSWORD_LENGTH } from '@/lib/auth'
+import { randomBytes } from 'crypto'
 
 type RouteCtx = { params: Promise<{ id: string }> }
 
@@ -37,9 +38,14 @@ export async function POST(req: Request, ctx: RouteCtx) {
     const body   = await req.json()
     const { email, name, role, password } = body
 
-    if (!email || !password) {
-      return NextResponse.json({ error: 'email et password requis' }, { status: 400 })
+    if (!email) {
+      return NextResponse.json({ error: 'email requis' }, { status: 400 })
     }
+    if (password && String(password).length < MIN_PASSWORD_LENGTH) {
+      return NextResponse.json({ error: `Mot de passe minimum ${MIN_PASSWORD_LENGTH} caractères` }, { status: 400 })
+    }
+    // Sans mot de passe fourni : mot de passe aléatoire inconnu de tous → l'utilisateur passe par « Mot de passe oublié »
+    const initialPassword: string = password ? String(password) : randomBytes(24).toString('base64url')
 
     const tenant = await prisma.tenant.findUnique({ where: { id } })
     if (!tenant) return NextResponse.json({ error: 'tenant introuvable' }, { status: 404 })
@@ -52,7 +58,7 @@ export async function POST(req: Request, ctx: RouteCtx) {
       update: { name, role: userRole, tenantId: id, active: true },
       create: {
         email:    (email as string).toLowerCase().trim(),
-        password: hashPassword(password ?? 'changeme'),
+        password: hashPassword(initialPassword),
         name:     name ?? null,
         role:     userRole,
         tenantId: id,

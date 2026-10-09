@@ -1,3 +1,4 @@
+import { requireSession } from '@/lib/api-guard'
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 
@@ -10,6 +11,7 @@ type PickingStatus = typeof VALID[number]
 
 // PATCH /api/picking/[orderId] — Body: { status, pickerId? }
 export async function PATCH(req: NextRequest, ctx: RouteCtx) {
+  const _guard = await requireSession(req, 'DISPATCHER'); if ('error' in _guard) return _guard.error
   try {
     const { orderId } = await ctx.params
     const body = await req.json() as { status?: string; pickerId?: string }

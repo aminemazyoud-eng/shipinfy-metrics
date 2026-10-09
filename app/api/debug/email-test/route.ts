@@ -1,15 +1,12 @@
 import { NextResponse } from 'next/server'
 import { sendEmail } from '@/lib/email'
-import { getSession, roleAtLeast } from '@/lib/auth'
+import { requireSession } from '@/lib/api-guard'
 
 export const runtime = 'nodejs'
 
 // GET /api/debug/email-test — envoie un email de test vers SMTP_TEST_TO
 export async function GET(req: Request) {
-  const s = await getSession(req)
-  if (s && !roleAtLeast(s.role, 'ADMIN')) {
-    return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
-  }
+  const _guard = await requireSession(req, 'SUPER_ADMIN'); if ('error' in _guard) return _guard.error
 
   const to = process.env.SMTP_TEST_TO
   if (!to) {

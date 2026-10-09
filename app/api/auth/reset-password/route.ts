@@ -2,9 +2,12 @@ export const runtime = 'nodejs'
 
 import { NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
-import { hashPassword } from '@/lib/auth'
+import { hashPassword, deleteUserSessions, MIN_PASSWORD_LENGTH } from '@/lib/auth'
+import { limited } from '@/lib/rate-limit'
 
 export async function POST(req: Request) {
+  const tooMany = limited(req, 'reset-password', 10, 60 * 60_000)
+  if (tooMany) return tooMany
   try {
     const { token, newPassword } = await req.json()
 
@@ -12,8 +15,8 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: 'Token et nouveau mot de passe requis' }, { status: 400 })
     }
 
-    if (newPassword.length < 6) {
-      return NextResponse.json({ error: 'Le mot de passe doit contenir au moins 6 caractères' }, { status: 400 })
+    if (String(newPassword).length < MIN_PASSWORD_LENGTH) {
+      return NextResponse.json({ error: `Le mot de passe doit contenir au moins ${MIN_PASSWORD_LENGTH} caractères` }, { status: 400 })
     }
 
     // Find token via raw SQL (table not in Prisma schema)
@@ -56,6 +59,9 @@ export async function POST(req: Request) {
       SET "usedAt" = NOW()
       WHERE "id" = ${reset.id}
     `
+
+    // Toutes les sessions existantes sont révoquées
+    await deleteUserSessions(reset.userId)
 
     return NextResponse.json({ ok: true })
   } catch (e) {

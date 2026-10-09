@@ -2,9 +2,10 @@ import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { opsAuth, fail, audit } from '@/lib/ops-auth'
 import { attendanceKey } from '@/lib/ops-time'
+import { localDay as tzLocalDay } from '@/lib/tz'
 
 const DAY = 86_400_000
-const localDay = (d: Date) => new Date(d.getTime() + 3_600_000).toISOString().slice(0, 10)
+const localDay = (d: Date) => tzLocalDay(d.getTime()) // jour local Africa/Casablanca réel (lib/tz)
 
 // GET /api/ops/missions?days=7 — missions (départ / retour du véhicule dans la journée), pleins et entretiens récents horodatés
 export async function GET(req: NextRequest) {

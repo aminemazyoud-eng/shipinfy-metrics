@@ -1,3 +1,4 @@
+import { requireSession } from '@/lib/api-guard'
 import { NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { uploadProgress } from '@/lib/upload-progress'
@@ -5,6 +6,7 @@ import { uploadProgress } from '@/lib/upload-progress'
 type Ctx = { params: Promise<{ reportId: string }> }
 
 export async function GET(_: Request, { params }: Ctx) {
+  const _guard = await requireSession(_, 'MANAGER'); if ('error' in _guard) return _guard.error
   try {
     const { reportId } = await params
 

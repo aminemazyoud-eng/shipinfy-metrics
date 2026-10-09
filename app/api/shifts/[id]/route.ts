@@ -1,3 +1,4 @@
+import { requireSession } from '@/lib/api-guard'
 import { NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 
@@ -7,6 +8,7 @@ type RouteCtx = { params: Promise<{ id: string }> }
 
 // PATCH /api/shifts/[id]
 export async function PATCH(req: Request, ctx: RouteCtx) {
+  const _guard = await requireSession(req, 'DISPATCHER'); if ('error' in _guard) return _guard.error
   try {
     const { id }  = await ctx.params
     const body    = await req.json()
@@ -31,6 +33,7 @@ export async function PATCH(req: Request, ctx: RouteCtx) {
 
 // DELETE /api/shifts/[id]
 export async function DELETE(_req: Request, ctx: RouteCtx) {
+  const _guard = await requireSession(_req, 'DISPATCHER'); if ('error' in _guard) return _guard.error
   try {
     const { id } = await ctx.params
     await prisma.shiftSlot.delete({ where: { id } })

@@ -6,16 +6,14 @@
  * Les créneaux se règlent dans Paramétrage → Calculs & équations (lib/ops-config.ts).
  */
 import { CFG } from '@/lib/ops-config'
+import { localHour } from '@/lib/tz'
 
 export const slotLabels = () => CFG.slots.map(s => s.label)
 
-const TZ_MS = 3_600_000 // Africa/Casablanca UTC+1
-
-/** Créneau officiel d'une commande à partir de l'heure de début promise (ISO ou ms). */
+/** Créneau officiel d'une commande à partir de l'heure de début promise (ISO ou ms). Heure locale réelle (Ramadan inclus). */
 export function canonicalSlot(slotStart: string | number | Date): string {
   const ms = typeof slotStart === 'number' ? slotStart : new Date(slotStart).getTime()
-  const d = new Date(ms + TZ_MS)
-  const h = d.getUTCHours() + d.getUTCMinutes() / 60
+  const h = localHour(ms)
   let best = CFG.slots[0], bd = Infinity
   for (const s of CFG.slots) { const dist = Math.abs(h - s.startHour); if (dist < bd) { bd = dist; best = s } }
   return best.label

@@ -1,13 +1,15 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { opsAuth, fail } from '@/lib/ops-auth'
-import { dayOf, dayBounds } from '@/lib/ops-time'
+import { dayOfTz, dayBoundsTz } from '@/lib/tz'
+import { ACTIVE_SOURCE } from '@/lib/ops-data'
+import { TERMINAL_STATUSES, DONE_STATUSES, isLate, isAtRisk } from '@/lib/ops-defs'
 import { attendanceByName } from '@/lib/ops-attendance'
 import { canonicalSlot } from '@/lib/ops-slots'
-import { CFG } from '@/lib/ops-config'
 import { drivingStatus } from '@/lib/rh'
 
-const DONE = ['DELIVERED', 'NO_SHOW']
+const DONE: string[] = [...DONE_STATUSES]
+const TERMINAL: string[] = [...TERMINAL_STATUSES] // terminées OU annulées : une annulée n'est jamais « ouverte »
 
 // GET /api/ops/dispatch?hub=CAS-MM&day=today
 // Tout ce qu'il faut à l'écran de dispatch : commandes du hub (à dispatcher + en cours), livreurs (charge, présence), hubs.
@@ -17,18 +19,18 @@ export async function GET(req: NextRequest) {
   try {
     const sp = new URL(req.url).searchParams
     const now = Date.now()
-    const day = dayOf(sp.get('day'), now)
-    const { from, to } = dayBounds(day)
+    const day = dayOfTz(sp.get('day'), now)
+    const { from, to } = dayBoundsTz(day)
     const hubs = await prisma.opsHub.findMany({ where: { active: true }, orderBy: { code: 'asc' } })
     // commandes à dispatcher par hub (badge sur chaque bouton hub) ; hub par défaut = celui qui en a le plus
-    const pending = await prisma.opsOrder.groupBy({ by: ['hubCode'], _count: { _all: true }, where: { status: 'READY_PICKUP', driverId: null, OR: [{ slotStart: { gte: from, lt: to } }, { slotStart: { lt: from } }] } })
+    const pending = await prisma.opsOrder.groupBy({ by: ['hubCode'], _count: { _all: true }, where: { source: ACTIVE_SOURCE, status: 'READY_PICKUP', driverId: null, OR: [{ slotStart: { gte: from, lt: to } }, { slotStart: { lt: from } }] } })
     const pendBy = new Map(pending.map(p => [p.hubCode, p._count._all]))
     const hubCode = sp.get('hub') || [...hubs].sort((a, b) => (pendBy.get(b.code) ?? 0) - (pendBy.get(a.code) ?? 0))[0]?.code
     if (!hubCode) return NextResponse.json({ hubs: [], orders: [], drivers: [], day })
 
     const [orders, drivers, att] = await Promise.all([
       prisma.opsOrder.findMany({
-        where: { hubCode, OR: [{ slotStart: { gte: from, lt: to } }, { slotStart: { lt: from }, status: { notIn: DONE } }] },
+        where: { source: ACTIVE_SOURCE, hubCode, status: { not: 'CANCELLED' }, OR: [{ slotStart: { gte: from, lt: to } }, { slotStart: { lt: from }, status: { notIn: TERMINAL } }] },
         orderBy: [{ slotStart: 'asc' }, { externalId: 'asc' }],
         select: { id: true, externalId: true, reference: true, status: true, slotStart: true, slotEnd: true, slotLabel: true, district: true, amount: true, customerName: true, address: true, lat: true, lng: true, driverId: true },
       }),
@@ -39,9 +41,9 @@ export async function GET(req: NextRequest) {
     // charge des livreurs sur TOUT le jour (toutes commandes, tous hubs) pour ne pas surcharger un livreur « emprunté »
     const loads = await prisma.opsOrder.groupBy({
       by: ['driverId', 'status'], _count: { _all: true },
-      where: { driverId: { not: null }, OR: [{ slotStart: { gte: from, lt: to } }, { slotStart: { lt: from }, status: { notIn: DONE } }] },
+      where: { source: ACTIVE_SOURCE, driverId: { not: null }, status: { not: 'CANCELLED' }, OR: [{ slotStart: { gte: from, lt: to } }, { slotStart: { lt: from }, status: { notIn: TERMINAL } }] },
     })
-    const lateRows = await prisma.opsOrder.groupBy({ by: ['driverId'], _count: { _all: true }, where: { driverId: { not: null }, status: { notIn: DONE }, slotEnd: { lt: new Date(now) } } })
+    const lateRows = await prisma.opsOrder.groupBy({ by: ['driverId'], _count: { _all: true }, where: { source: ACTIVE_SOURCE, driverId: { not: null }, status: { notIn: TERMINAL }, slotEnd: { lt: new Date(now) } } })
     const lateBy = new Map(lateRows.map(l => [l.driverId as string, l._count._all]))
     const driverLoad = new Map<string, { active: number; done: number }>()
     for (const l of loads) {
@@ -57,8 +59,7 @@ export async function GET(req: NextRequest) {
         id: o.id, ref: o.reference || o.externalId, status: o.status, slotStart: o.slotStart, slotEnd: o.slotEnd, slotLabel: canonicalSlot(o.slotStart), district: o.district,
         amount: o.amount, customer: o.customerName, address: o.address, lat: o.lat, lng: o.lng,
         driverCode: o.driverId ? drvCode.get(o.driverId) ?? null : null,
-        late: !DONE.includes(o.status) && o.slotEnd.getTime() < now,
-        atRisk: !DONE.includes(o.status) && o.status !== 'START_DELIVERY' && o.slotEnd.getTime() >= now && o.slotEnd.getTime() - now < CFG.atRiskMinutes * 60_000,
+        late: isLate(o, now), atRisk: isAtRisk(o, now), // définitions uniques (lib/ops-defs.ts)
       })),
       drivers: drivers.map(d => ({
         code: d.code, driving: drivingStatus(d), name: `${d.firstName} ${d.lastName}`, hubCode: d.hub?.code ?? null, homeHubId: d.homeHubId, vehicle: d.vehicle?.type ?? null, plate: d.vehicle?.plate ?? null, helper: d.vehicle?.crew[0] ? `${d.vehicle.crew[0].firstName} ${d.vehicle.crew[0].lastName}` : null,

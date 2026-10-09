@@ -1,8 +1,15 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
+import { requireSession } from '@/lib/api-guard'
+import { assertSafeUrl, safeFetch } from '@/lib/safe-fetch'
+
+// Toutes les routes : ADMIN. L'URL du webhook est validée (https + hôte autorisé + adresse non interne) avant tout enregistrement ou appel.
+const badUrl = (e: unknown) => NextResponse.json({ error: `URL de webhook refusée : ${e instanceof Error ? e.message : 'invalide'}` }, { status: 400 })
 
 // GET /api/slack/config — récupère la config active
-export async function GET() {
+export async function GET(req: NextRequest) {
+  const auth = await requireSession(req, 'ADMIN')
+  if ('error' in auth) return auth.error
   try {
     const config = await prisma.slackConfig.findFirst({ where: { active: true } })
     return NextResponse.json(config ?? { webhookUrl: '', channel: '#alertes-livraison', active: false })
@@ -15,11 +22,14 @@ export async function GET() {
 // POST /api/slack/config — crée ou met à jour
 // Body: { webhookUrl, channel, active }
 export async function POST(req: NextRequest) {
+  const auth = await requireSession(req, 'ADMIN')
+  if ('error' in auth) return auth.error
   try {
     const body = await req.json() as { webhookUrl?: string; channel?: string; active?: boolean }
     if (!body.webhookUrl) {
       return NextResponse.json({ error: 'webhookUrl requis' }, { status: 400 })
     }
+    try { await assertSafeUrl(body.webhookUrl) } catch (e) { return badUrl(e) }
 
     // Désactiver les anciennes configs
     await prisma.slackConfig.updateMany({ where: { active: true }, data: { active: false } })
@@ -39,26 +49,25 @@ export async function POST(req: NextRequest) {
   }
 }
 
-// POST /api/slack/config/test via query param ?test=1
-// → tester le webhook avec un message de test
+// PUT /api/slack/config — teste le webhook avec un message de test (le corps de la réponse n'est JAMAIS renvoyé : anti-SSRF lecture)
 export async function PUT(req: NextRequest) {
+  const auth = await requireSession(req, 'ADMIN')
+  if ('error' in auth) return auth.error
   try {
-    const body   = await req.json() as { webhookUrl: string }
+    const body = await req.json() as { webhookUrl?: string }
     if (!body.webhookUrl) return NextResponse.json({ error: 'webhookUrl requis' }, { status: 400 })
+    try { await assertSafeUrl(body.webhookUrl) } catch (e) { return badUrl(e) }
 
-    const res = await fetch(body.webhookUrl, {
+    const res = await safeFetch(body.webhookUrl, {
       method:  'POST',
       headers: { 'Content-Type': 'application/json' },
       body:    JSON.stringify({ text: '✅ *Shipinfy Metrics* — Test de connexion Slack réussi !' }),
     })
 
-    if (!res.ok) {
-      const txt = await res.text()
-      return NextResponse.json({ ok: false, error: txt }, { status: 400 })
-    }
-
+    if (!res.ok) return NextResponse.json({ ok: false, error: `Slack a répondu HTTP ${res.status}` }, { status: 400 })
     return NextResponse.json({ ok: true })
   } catch (e) {
-    return NextResponse.json({ ok: false, error: String(e) }, { status: 500 })
+    console.error('[api/slack/config PUT]', e)
+    return NextResponse.json({ ok: false, error: "Échec de l'appel au webhook" }, { status: 502 })
   }
 }

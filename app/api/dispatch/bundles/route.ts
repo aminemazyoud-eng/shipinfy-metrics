@@ -1,3 +1,4 @@
+import { requireSession } from '@/lib/api-guard'
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { detectBundles } from '@/lib/dispatch-engine'
@@ -8,6 +9,7 @@ const FINISHED = new Set(['DELIVERED', 'NO_SHOW', 'CANCELLED'])
 
 // GET /api/dispatch/bundles?reportId=xxx&radius=500
 export async function GET(req: NextRequest) {
+  const _guard = await requireSession(req, 'VIEWER'); if ('error' in _guard) return _guard.error
   try {
     const { searchParams } = new URL(req.url)
     const reportId = searchParams.get('reportId')

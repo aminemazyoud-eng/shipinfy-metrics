@@ -3,6 +3,7 @@ import { prisma } from '@/lib/prisma'
 import { opsAuth, fail, audit } from '@/lib/ops-auth'
 import { loadTeams, planDemand } from '@/lib/ops-planning-data'
 import { planPdfUrl, fmtDayLong, type PlanTeam, type PlanPerson } from '@/lib/ops-planning'
+import { envUnavailable } from '@/lib/env'
 import { sendWhatsAppDocument, whatsappConfigured } from '@/lib/whatsapp'
 
 const slotText = (s: string) => `${s.slice(0, 2)}h–${s.slice(3)}h`
@@ -66,5 +67,5 @@ export async function POST(req: NextRequest) {
     const count = (s: Res['status']) => results.filter(r => r.status === s).length
     await audit(auth.session, 'planning.send', 'planning', day, { teams: teams.length, sent: count('sent'), failed: count('failed'), noPhone: count('no_phone'), manual: count('manual') })
     return NextResponse.json({ ok: true, whatsapp: live, teams: teams.length, sent: count('sent'), failed: count('failed'), noPhone: count('no_phone'), manual: count('manual'), results })
-  } catch (e) { return fail(e) }
+  } catch (e) { return envUnavailable(e) ?? fail(e) } // PLANNING_LINK_SECRET absent → 503 propre
 }

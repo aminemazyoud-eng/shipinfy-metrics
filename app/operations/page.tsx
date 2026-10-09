@@ -5,7 +5,9 @@ import { Activity, RefreshCw, AlertTriangle, Clock, Users, TrendingUp, Layers } 
 import OpsNav from './components/OpsNav'
 import ForecastBoard from './components/ForecastBoard'
 import HubDrawer from './components/HubDrawer'
-import type { ForecastResult, LiveResult } from '@/lib/ops-analytics'
+import type { LiveResult } from '@/lib/ops-analytics'
+import type { ForecastWithSpecial } from '@/lib/ops-special-days'
+import { usePolling } from '@/lib/use-polling'
 
 const LiveMap = dynamic(() => import('./components/LiveMap'), { ssr: false, loading: () => <div className="h-[520px] rounded-xl bg-gray-100 animate-pulse" /> })
 
@@ -36,7 +38,7 @@ export default function OperationsPage() {
   const [day, setDay] = useState('tomorrow')
   const [perDriver, setPerDriver] = useState(3)
   const [heat, setHeat] = useState(false)
-  const [forecast, setForecast] = useState<ForecastResult | null>(null)
+  const [forecast, setForecast] = useState<ForecastWithSpecial | null>(null)
   const [live, setLive] = useState<LiveResult | null>(null)
   const [hubsGeo, setHubsGeo] = useState<{ code: string; name: string; lat: number | null; lng: number | null }[]>([])
   const [err, setErr] = useState<string | null>(null)
@@ -59,10 +61,7 @@ export default function OperationsPage() {
   }, [tab, city, day, perDriver])
 
   useEffect(() => { load() }, [load])
-  useEffect(() => { // rafraîchissement auto 30 s (live) / 60 s (prévisions)
-    const id = setInterval(load, tab === 'previsions' ? 60_000 : 30_000)
-    return () => clearInterval(id)
-  }, [load, tab])
+  usePolling(load, tab === 'previsions' ? 60_000 : 30_000) // rafraîchissement auto 30 s (live) / 60 s (prévisions) — onglet masqué = pause
   useEffect(() => { fetch('/api/ops/hubs').then(r => r.ok ? r.json() : null).then(j => j && setHubsGeo(j.hubs)).catch(() => {}) }, [])
 
   return (
@@ -104,6 +103,7 @@ export default function OperationsPage() {
               <input type="number" min={1} max={20} value={perDriver} onChange={e => setPerDriver(Math.max(1, Number(e.target.value) || 1))} className="w-16 border border-gray-300 rounded-lg px-2 py-1 text-sm" />
             </label>
             {forecast && <span className="text-xs text-gray-400">{forecast.day} · basé sur {forecast.historyDays} jour(s) d&apos;historique</span>}
+            {forecast?.specialDay && <span className="text-xs font-semibold px-2.5 py-1 rounded-full bg-purple-100 text-purple-700" title="Coefficient appliqué aux commandes prévues (Paramétrage → Calculs & équations → Jours spéciaux)">Jour spécial : {forecast.specialDay.label} ×{String(forecast.specialDay.factor).replace('.', ',')}</span>}
           </div>
 
           {forecast && <ForecastBoard forecast={forecast} perDriver={perDriver} resetKey={`${day}|${city}`} city={city} onApplied={load} />}

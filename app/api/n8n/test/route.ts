@@ -1,18 +1,22 @@
-import { NextResponse } from 'next/server'
+import { NextRequest, NextResponse } from 'next/server'
 import { triggerN8N, type N8NEventType } from '@/lib/n8n-bridge'
 import { prisma } from '@/lib/prisma'
+import { requireSession } from '@/lib/api-guard'
+import { safeFetch } from '@/lib/safe-fetch'
 
 export const runtime = 'nodejs'
 
-// POST /api/n8n/test — fire a test event to a specific config
+// POST /api/n8n/test (ADMIN) — envoie un événement de test à une config précise ou à toutes les configs actives
 // Body: { configId?: string, eventType?: N8NEventType }
-export async function POST(req: Request) {
+export async function POST(req: NextRequest) {
+  const auth = await requireSession(req, 'ADMIN')
+  if ('error' in auth) return auth.error
   try {
     const body      = await req.json()
     const eventType = (body.eventType ?? 'report_ready') as N8NEventType
     const configId  = body.configId as string | undefined
 
-    // If targeting a specific config, fire directly
+    // Config ciblée : appel direct, via safeFetch (anti-SSRF) — le corps de la réponse n'est jamais renvoyé
     if (configId) {
       const cfg = await prisma.n8NConfig.findUnique({ where: { id: configId } })
       if (!cfg) return NextResponse.json({ error: 'Config introuvable' }, { status: 404 })
@@ -30,7 +34,12 @@ export async function POST(req: Request) {
         headers['X-Shipinfy-Signature'] = `sha256=${sig}`
       }
 
-      const res = await fetch(cfg.webhookUrl, { method: 'POST', headers, body: payload })
+      let res: Response
+      try {
+        res = await safeFetch(cfg.webhookUrl, { method: 'POST', headers, body: payload, signal: AbortSignal.timeout(10000) })
+      } catch (e) {
+        return NextResponse.json({ ok: false, error: `URL de webhook refusée ou injoignable : ${e instanceof Error ? e.message : 'erreur'}` }, { status: 400 })
+      }
       await prisma.n8NConfig.update({
         where: { id: configId },
         data:  { lastTriggeredAt: new Date() },
@@ -39,9 +48,8 @@ export async function POST(req: Request) {
       return NextResponse.json({ ok: res.ok, status: res.status, configName: cfg.name })
     }
 
-    // Sprint 19 — vérifier qu'il existe au moins une config active pour cet
-    // event avant de prétendre que le test a réussi (triggerN8N ne fait rien
-    // silencieusement si aucune config ne correspond).
+    // Vérifier qu'il existe au moins une config active pour cet event avant de prétendre que le test a réussi
+    // (triggerN8N ne fait rien silencieusement si aucune config ne correspond).
     const matching = await prisma.n8NConfig.count({
       where: { active: true, OR: [{ eventType }, { eventType: '*' }] },
     })
@@ -49,7 +57,7 @@ export async function POST(req: Request) {
       return NextResponse.json({ ok: false, eventType, warning: 'Aucune config N8N active pour cet événement' })
     }
 
-    // Fan-out to all active configs for this event
+    // Fan-out vers toutes les configs actives pour cet événement
     await triggerN8N(eventType, {
       test: true,
       message: 'Test depuis Shipinfy Paramètres',
@@ -57,6 +65,7 @@ export async function POST(req: Request) {
 
     return NextResponse.json({ ok: true, eventType, configsNotified: matching })
   } catch (e) {
-    return NextResponse.json({ error: String(e) }, { status: 500 })
+    console.error('[api/n8n/test]', e)
+    return NextResponse.json({ error: 'Erreur serveur' }, { status: 500 })
   }
 }

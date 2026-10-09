@@ -1,3 +1,4 @@
+import { requireSession } from '@/lib/api-guard'
 import { NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 
@@ -5,6 +6,7 @@ export const runtime = 'nodejs'
 
 // GET /api/shifts?zone=xxx&date=YYYY-MM-DD&week=YYYY-MM-DD
 export async function GET(req: Request) {
+  const _guard = await requireSession(req, 'VIEWER'); if ('error' in _guard) return _guard.error
   try {
     const { searchParams } = new URL(req.url)
     const zone = searchParams.get('zone')
@@ -44,6 +46,7 @@ export async function GET(req: Request) {
 
 // POST /api/shifts — créer un slot
 export async function POST(req: Request) {
+  const _guard = await requireSession(req, 'DISPATCHER'); if ('error' in _guard) return _guard.error
   try {
     const body = await req.json()
     const { zone, date, startTime, endTime, maxDrivers, minDrivers, premiumOnly, tenantId } = body

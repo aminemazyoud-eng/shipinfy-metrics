@@ -10,15 +10,16 @@ export async function GET(req: NextRequest) {
   if ('error' in auth) return auth.error
   try {
     const sp = new URL(req.url).searchParams
+    const isAdmin = ['ADMIN', 'SUPER_ADMIN'].includes(auth.session.role) // PII (CIN, adresse, naissance, permis) réservée à l'ADMIN
     const type = sp.get('type'), q = sp.get('q')?.trim()
     const rows = await prisma.opsDriver.findMany({
-      where: { ...(type && type !== 'all' ? { jobType: type } : {}), ...(q ? { OR: [{ firstName: { contains: q, mode: 'insensitive' } }, { lastName: { contains: q, mode: 'insensitive' } }, { code: { contains: q, mode: 'insensitive' } }, { cin: { contains: q, mode: 'insensitive' } }] } : {}) },
+      where: { ...(type && type !== 'all' ? { jobType: type } : {}), ...(q ? { OR: [{ firstName: { contains: q, mode: 'insensitive' } }, { lastName: { contains: q, mode: 'insensitive' } }, { code: { contains: q, mode: 'insensitive' } }, ...(isAdmin ? [{ cin: { contains: q, mode: 'insensitive' as const } }] : [])] } : {}) },
       include: { hub: { select: { code: true, name: true, city: true } }, vehicle: { select: { id: true, plate: true } } }, orderBy: [{ jobType: 'asc' }, { code: 'asc' }],
     })
     return NextResponse.json({
-      canEdit: ['ADMIN', 'SUPER_ADMIN'].includes(auth.session.role),
+      canEdit: isAdmin,
       people: rows.map(p => ({
-        code: p.code, firstName: p.firstName, lastName: p.lastName, jobType: p.jobType, phone: p.phone, cin: p.cin, address: p.address, birthDate: p.birthDate, hireDate: p.hireDate, licenseNo: p.licenseNo,
+        code: p.code, firstName: p.firstName, lastName: p.lastName, jobType: p.jobType, phone: p.phone, cin: isAdmin ? p.cin : null, address: isAdmin ? p.address : null, birthDate: isAdmin ? p.birthDate : null, hireDate: p.hireDate, licenseNo: isAdmin ? p.licenseNo : null,
         contractType: p.contractType, licenseExpiry: p.licenseExpiry, licenseCategory: p.licenseCategory, medicalVisitExpiry: p.medicalVisitExpiry, driving: drivingStatus(p), status: p.status, onboardingStatus: p.onboardingStatus, trainingDone: p.trainingDone, quizScore: p.quizScore, dailyRate: p.dailyRate, notes: p.notes,
         hubCode: p.hub?.code ?? null, hubName: p.hub?.name ?? null, city: p.hub?.city ?? null, vehicleId: p.vehicle?.id ?? null, vehiclePlate: p.vehicle?.plate ?? null,
         contractGeneratedAt: p.contractGeneratedAt, contractReady: contractReady(p),

@@ -1,7 +1,10 @@
+import { requireSession } from '@/lib/api-guard'
 import { NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { Prisma } from '@prisma/client'
 import { livreurName, isUnassigned, summarizeUnassigned } from '@/lib/driver-utils'
+// Sprint 17 B6 : plus de getHours()/setHours() (fuseau du serveur) — jours et heures LOCAUX Africa/Casablanca via lib/tz.ts
+import { localParts, localToday, addDays, dayStartUtc, dayBoundsTz } from '@/lib/tz'
 
 function splitParam(p: string | null): string[] {
   if (!p || p.trim() === '') return []
@@ -23,16 +26,18 @@ function buildWhere(params: URLSearchParams): Prisma.DeliveryOrderWhereInput {
   let to: Date | undefined
 
   if (dateFrom && dateTo) {
-    from = new Date(dateFrom)
-    to   = new Date(dateTo)
-    to.setHours(23, 59, 59, 999)
+    const isDay = (v: string) => /^\d{4}-\d\d-\d\d$/.test(v)
+    // 'YYYY-MM-DD' = jour local marocain (bornes réelles, Ramadan inclus) ; sinon instant ISO tel quel
+    from = isDay(dateFrom) ? dayBoundsTz(dateFrom).from : new Date(dateFrom)
+    to   = isDay(dateTo)   ? new Date(dayBoundsTz(dateTo).to.getTime() - 1) : new Date(dateTo)
   } else if (preset !== 'all') {
-    const today    = new Date(); today.setHours(0, 0, 0, 0)
-    const tomorrow = new Date(today); tomorrow.setDate(tomorrow.getDate() + 1)
+    const todayStr = localToday()
+    const startOf  = (n: number) => new Date(dayStartUtc(addDays(todayStr, n)))
+    const today = startOf(0), tomorrow = startOf(1)
     if (preset === 'today')          { from = today; to = tomorrow }
-    else if (preset === 'yesterday') { from = new Date(today); from.setDate(from.getDate() - 1); to = today }
-    else if (preset === 'week')      { from = new Date(today); from.setDate(from.getDate() - 7);  to = tomorrow }
-    else if (preset === 'month')     { from = new Date(today); from.setDate(from.getDate() - 30); to = tomorrow }
+    else if (preset === 'yesterday') { from = startOf(-1); to = today }
+    else if (preset === 'week')      { from = startOf(-7);  to = tomorrow }
+    else if (preset === 'month')     { from = startOf(-30); to = tomorrow }
   }
 
   if (from && to) where.dateTimeWhenOrderSent = { gte: from, lte: to }
@@ -60,6 +65,7 @@ function avgMinutes(arr: (number | null)[]): number {
 export const runtime = 'nodejs'
 
 export async function GET(request: Request) {
+  const _guard = await requireSession(request, 'VIEWER'); if ('error' in _guard) return _guard.error
   try {
     const { searchParams } = new URL(request.url)
 
@@ -75,14 +81,12 @@ export async function GET(request: Request) {
     } else if (isCompare) {
       // shift preset window back by reportOffset days
       const preset = searchParams.get('preset') ?? 'week'
-      const today  = new Date(); today.setHours(0, 0, 0, 0)
-      const shiftMs = reportOffset * 24 * 60 * 60 * 1000
-      let windowDays = preset === 'today' ? 1 : preset === 'yesterday' ? 1 : preset === 'week' ? 7 : 30
-      const dateTo   = new Date(today.getTime() - shiftMs)
-      const dateFrom = new Date(dateTo.getTime() - windowDays * 24 * 60 * 60 * 1000)
+      const windowDays = preset === 'today' ? 1 : preset === 'yesterday' ? 1 : preset === 'week' ? 7 : 30
+      const dateTo   = addDays(localToday(), -reportOffset)   // jours LOCAUX (chaînes YYYY-MM-DD)
+      const dateFrom = addDays(dateTo, -windowDays)
       searchParams.set('preset', 'custom')
-      searchParams.set('dateFrom', dateFrom.toISOString().slice(0, 10))
-      searchParams.set('dateTo',   dateTo.toISOString().slice(0, 10))
+      searchParams.set('dateFrom', dateFrom)
+      searchParams.set('dateTo',   dateTo)
     }
 
     const selectedCreneaux = splitParam(searchParams.get('creneaux'))
@@ -124,7 +128,7 @@ export async function GET(request: Request) {
 
     const filtered = creneauRanges.length === 0 ? orders : orders.filter(o => {
       if (!o.deliveryTimeStart) return false
-      const h = o.deliveryTimeStart.getHours()
+      const h = localParts(o.deliveryTimeStart.getTime()).hour
       return creneauRanges.some(r => h >= r.startH && h < r.endH)
     })
 
@@ -170,7 +174,7 @@ export async function GET(request: Request) {
     const byCreneau = creneauxDefs.map(c => {
       const crOrds   = filtered.filter(o => {
         if (!o.deliveryTimeStart) return false
-        const h = o.deliveryTimeStart.getHours()
+        const h = localParts(o.deliveryTimeStart.getTime()).hour
         return h >= c.startH && h < c.endH
       })
       const crDel    = crOrds.filter(o => o.shippingWorkflowStatus === 'DELIVERED')

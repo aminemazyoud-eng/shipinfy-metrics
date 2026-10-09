@@ -8,7 +8,11 @@
 import { prisma } from '@/lib/prisma'
 import { opsSyncConfig } from '@/lib/ops-sync'
 import { canonicalSlot } from '@/lib/ops-slots'
+import { TERMINAL_STATUSES } from '@/lib/ops-defs'
 import type { OrderLite, HubLite, DriverLite } from '@/lib/ops-analytics'
+
+/** Source de données lue par TOUTES les routes (Sprint 17 B4) : évite de mélanger mock et back-office réel dans la même base. */
+export const ACTIVE_SOURCE: string = process.env.OPS_ACTIVE_SOURCE ?? process.env.OPS_SOURCE ?? 'mock'
 
 export const directMode = () => process.env.OPS_DIRECT === '1' && process.env.NODE_ENV !== 'production'
 
@@ -47,19 +51,22 @@ async function directOrders(): Promise<OrderLite[]> {
 }
 
 /** Commandes dont le créneau est dans [from, to[ — plus le reliquat non terminé antérieur si `includeOpenBefore`. */
-export async function loadOrders(from: Date, to: Date, opts: { includeOpenBefore?: boolean } = {}): Promise<OrderLite[]> {
+export async function loadOrders(from: Date, to: Date, opts: { includeOpenBefore?: boolean; includeCancelled?: boolean } = {}): Promise<OrderLite[]> {
   if (directMode()) {
     const f = from.getTime(), t1 = to.getTime()
     return (await directOrders()).filter(o => {
+      if (o.status === 'CANCELLED' && !opts.includeCancelled) return false // annulée : ni retard ni capacité
       const s = Date.parse(o.slotStart)
-      return (s >= f && s < t1) || (opts.includeOpenBefore && s < f && o.status !== 'DELIVERED' && o.status !== 'NO_SHOW')
+      return (s >= f && s < t1) || (opts.includeOpenBefore && s < f && !(TERMINAL_STATUSES as readonly string[]).includes(o.status))
     })
   }
   const rows = await prisma.opsOrder.findMany({
     where: {
+      source: ACTIVE_SOURCE,
+      ...(opts.includeCancelled ? {} : { status: { not: 'CANCELLED' } }),
       OR: [
         { slotStart: { gte: from, lt: to } },
-        ...(opts.includeOpenBefore ? [{ slotStart: { lt: from }, status: { notIn: ['DELIVERED', 'NO_SHOW'] } }] : []),
+        ...(opts.includeOpenBefore ? [{ slotStart: { lt: from }, status: { notIn: [...TERMINAL_STATUSES] as string[] } }] : []),
       ],
     },
     select: {

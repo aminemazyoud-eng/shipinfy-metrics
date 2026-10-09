@@ -3,6 +3,8 @@
  * Un planning = une ligne par CHAUFFEUR (hub du jour, heure de départ, créneaux) ; son helper (même véhicule) suit la même ligne.
  */
 import { createHmac, timingSafeEqual } from 'crypto'
+import { requireEnv } from '@/lib/env'
+import { dayStartUtc, addDays } from '@/lib/tz'
 
 export interface PlanPerson { code: string; name: string; phone: string | null; role: 'chauffeur' | 'helper'; homeHub: string | null }
 export interface PlanTeam {
@@ -12,14 +14,18 @@ export interface PlanTeam {
 }
 
 // ─── Liens signés (le chauffeur ouvre le PDF depuis WhatsApp sans compte) ──────────────────────────
-const secret = () => process.env.PLANNING_LINK_SECRET || process.env.DATABASE_URL || 'shipinfy-planning'
-export const signPlan = (day: string, code: string) => createHmac('sha256', secret()).update(`${day}|${code}`).digest('hex').slice(0, 24)
-export function verifyPlan(day: string, code: string, token: string): boolean {
-  const a = Buffer.from(signPlan(day, code)), b = Buffer.from(token || '')
+// Secret obligatoire (PLANNING_LINK_SECRET) : plus de repli sur DATABASE_URL ni sur une constante.
+// Le HMAC couvre jour|code|exp ; exp (ms epoch) = fin du jour planifié + 24 h → le lien expire seul.
+const secret = () => requireEnv('PLANNING_LINK_SECRET')
+export const planExpiry = (day: string): number => dayStartUtc(addDays(day, 1)) + 86_400_000
+export const signPlan = (day: string, code: string, exp: number) => createHmac('sha256', secret()).update(`${day}|${code}|${exp}`).digest('hex').slice(0, 24)
+export function verifyPlan(day: string, code: string, exp: number, token: string): boolean {
+  if (!Number.isFinite(exp) || Date.now() > exp) return false // lien expiré
+  const a = Buffer.from(signPlan(day, code, exp)), b = Buffer.from(token || '')
   return a.length === b.length && timingSafeEqual(a, b)
 }
 export const appUrl = () => (process.env.APP_URL || process.env.NEXT_PUBLIC_APP_URL || 'https://metrics.mediflows.shop').replace(/\/$/, '')
-export const planPdfUrl = (day: string, code: string) => `${appUrl()}/api/planning/pdf?d=${day}&c=${encodeURIComponent(code)}&t=${signPlan(day, code)}`
+export const planPdfUrl = (day: string, code: string) => { const e = planExpiry(day); return `${appUrl()}/api/planning/pdf?d=${day}&c=${encodeURIComponent(code)}&e=${e}&t=${signPlan(day, code, e)}` }
 
 /** 06 12 34 56 78 / 0612345678 / +212612345678 → +212612345678 (null si inexploitable). */
 export function normalizePhone(raw: string | null | undefined): string | null {

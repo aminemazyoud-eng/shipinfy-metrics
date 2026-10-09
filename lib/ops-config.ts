@@ -25,6 +25,8 @@ export interface OpsConfig {
   // Scoring
   scoreCritical: number      // score < N → critique
   scoreGood: number          // score ≥ N → excellent
+  // Caisse
+  cashGapAlert: number       // clôture de caisse : alerte si |écart| > N MAD
 }
 
 export const DEFAULT_CFG: OpsConfig = {
@@ -33,6 +35,7 @@ export const DEFAULT_CFG: OpsConfig = {
   atRiskMinutes: 45, autoDistWeight: 0.25,
   fuelPriceDiesel: 11.4, fuelPriceEssence: 13.6, consumptionAlertPct: 15, docAlertDays: 30, maintKmMargin: 500,
   scoreCritical: 60, scoreGood: 80,
+  cashGapAlert: 50,
 }
 
 /** Configuration vivante (mutable) lue par les fonctions de calcul. */

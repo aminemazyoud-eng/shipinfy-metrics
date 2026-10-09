@@ -1,0 +1,8 @@
+.git
+.env*
+docs
+mock-backoffice
+node_modules
+.next
+*.md
+data

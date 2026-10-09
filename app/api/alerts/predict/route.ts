@@ -1,8 +1,10 @@
+import { requireSession } from '@/lib/api-guard'
 import { NextResponse } from 'next/server'
 import { runPredictiveAlerts, checkStandardDelays } from '@/lib/alert-engine'
 
 // POST /api/alerts/predict — déclenchement manuel (depuis UI)
-export async function POST() {
+export async function POST(req: Request) {
+  const _guard = await requireSession(req, 'DISPATCHER'); if ('error' in _guard) return _guard.error
   try {
     const [predictive, standard] = await Promise.all([
       runPredictiveAlerts(),

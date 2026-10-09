@@ -980,3 +980,77 @@ CREATE UNIQUE INDEX IF NOT EXISTS "OpsPlanLine_day_driverCode_key" ON "OpsPlanLi
 CREATE INDEX IF NOT EXISTS "OpsPlanLine_day_idx" ON "OpsPlanLine"("day");
 ALTER TABLE "OpsPlanDay" ENABLE ROW LEVEL SECURITY;
 ALTER TABLE "OpsPlanLine" ENABLE ROW LEVEL SECURITY;
+
+-- ═══ SPRINT 17 — sécurité, intégrité des données, quick wins (idempotent ; aucun CONCURRENTLY au démarrage) ═══════════
+-- QR de pointage : jeton à usage unique, persistant (survit aux redémarrages / multi-réplicas)
+CREATE TABLE IF NOT EXISTS "QrScanNonce" (
+  "nonce" TEXT NOT NULL PRIMARY KEY, "driverName" TEXT NOT NULL, "usedAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+CREATE INDEX IF NOT EXISTS "QrScanNonce_usedAt_idx" ON "QrScanNonce"("usedAt");
+ALTER TABLE "QrScanNonce" ENABLE ROW LEVEL SECURITY;
+
+-- Synchro : mesures techniques + quarantaine + file de poussées vers le back-office
+ALTER TABLE "OpsSyncRun" ADD COLUMN IF NOT EXISTS "durationMs" INTEGER;
+ALTER TABLE "OpsSyncRun" ADD COLUMN IF NOT EXISTS "liveRefreshMs" INTEGER;
+ALTER TABLE "OpsSyncRun" ADD COLUMN IF NOT EXISTS "pages" INTEGER;
+ALTER TABLE "OpsSyncRun" ADD COLUMN IF NOT EXISTS "rejected" INTEGER NOT NULL DEFAULT 0;
+CREATE TABLE IF NOT EXISTS "OpsSyncReject" (
+  "id" TEXT NOT NULL PRIMARY KEY, "source" TEXT NOT NULL, "externalId" TEXT, "reason" TEXT NOT NULL, "payload" TEXT,
+  "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+CREATE INDEX IF NOT EXISTS "OpsSyncReject_createdAt_idx" ON "OpsSyncReject"("createdAt");
+ALTER TABLE "OpsSyncReject" ENABLE ROW LEVEL SECURITY;
+CREATE TABLE IF NOT EXISTS "OpsOutbox" (
+  "id" TEXT NOT NULL PRIMARY KEY, "kind" TEXT NOT NULL DEFAULT 'assign', "externalId" TEXT NOT NULL, "courierRef" TEXT,
+  "attempts" INTEGER NOT NULL DEFAULT 0, "nextRetryAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP, "doneAt" TIMESTAMP(3),
+  "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+CREATE INDEX IF NOT EXISTS "OpsOutbox_pending_idx" ON "OpsOutbox"("nextRetryAt") WHERE "doneAt" IS NULL;
+ALTER TABLE "OpsOutbox" ENABLE ROW LEVEL SECURITY;
+
+-- Notifications Ops rejouables
+ALTER TABLE "OpsNotifLog" ADD COLUMN IF NOT EXISTS "attempts" INTEGER NOT NULL DEFAULT 0;
+ALTER TABLE "OpsNotifLog" ADD COLUMN IF NOT EXISTS "nextRetryAt" TIMESTAMP(3);
+ALTER TABLE "OpsNotifLog" ADD COLUMN IF NOT EXISTS "dead" BOOLEAN NOT NULL DEFAULT false;
+
+-- Commandes : KPIs de référence
+ALTER TABLE "OpsOrder" ADD COLUMN IF NOT EXISTS "missingItems" INTEGER;
+ALTER TABLE "OpsOrder" ADD COLUMN IF NOT EXISTS "cancelReason" TEXT;
+
+-- Jours spéciaux (Ramadan, Aïd, fin de mois…) : coefficient appliqué à la prévision
+CREATE TABLE IF NOT EXISTS "OpsSpecialDay" (
+  "day" TEXT NOT NULL PRIMARY KEY, "label" TEXT NOT NULL, "kind" TEXT NOT NULL DEFAULT 'event',
+  "factor" DOUBLE PRECISION NOT NULL DEFAULT 1, "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+ALTER TABLE "OpsSpecialDay" ENABLE ROW LEVEL SECURITY;
+
+-- Clôture de caisse COD (écart attendu / remis)
+CREATE TABLE IF NOT EXISTS "OpsCashClose" (
+  "id" TEXT NOT NULL PRIMARY KEY, "day" TEXT NOT NULL, "hubCode" TEXT NOT NULL, "driverCode" TEXT NOT NULL DEFAULT '',
+  "expected" DOUBLE PRECISION NOT NULL, "declared" DOUBLE PRECISION NOT NULL, "gap" DOUBLE PRECISION NOT NULL,
+  "note" TEXT, "closedBy" TEXT, "closedAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+CREATE UNIQUE INDEX IF NOT EXISTS "OpsCashClose_day_hub_driver_key" ON "OpsCashClose"("day","hubCode","driverCode");
+ALTER TABLE "OpsCashClose" ENABLE ROW LEVEL SECURITY;
+
+-- Index de performance (partiels = petits et très sélectifs) + unicité des événements de parcours.
+-- Chaque instruction est protégée : une erreur d'index ne doit JAMAIS empêcher le conteneur de démarrer.
+DO $$
+BEGIN
+  BEGIN CREATE INDEX IF NOT EXISTS "OpsOrder_open_slotStart_idx" ON "OpsOrder"("slotStart") WHERE "status" NOT IN ('DELIVERED','NO_SHOW'); EXCEPTION WHEN OTHERS THEN RAISE NOTICE 'index ignoré: %', SQLERRM; END;
+  BEGIN CREATE INDEX IF NOT EXISTS "OpsOrder_open_hub_slotEnd_idx" ON "OpsOrder"("hubCode","slotEnd") WHERE "status" NOT IN ('DELIVERED','NO_SHOW'); EXCEPTION WHEN OTHERS THEN RAISE NOTICE 'index ignoré: %', SQLERRM; END;
+  BEGIN CREATE INDEX IF NOT EXISTS "OpsOrder_toDispatch_idx" ON "OpsOrder"("hubCode","slotStart") WHERE "status" = 'READY_PICKUP' AND "driverId" IS NULL; EXCEPTION WHEN OTHERS THEN RAISE NOTICE 'index ignoré: %', SQLERRM; END;
+  BEGIN CREATE INDEX IF NOT EXISTS "OpsOrder_cashPending_idx" ON "OpsOrder"("deliveredAt") WHERE "status" = 'DELIVERED' AND "collectedAt" IS NULL; EXCEPTION WHEN OTHERS THEN RAISE NOTICE 'index ignoré: %', SQLERRM; END;
+  BEGIN CREATE INDEX IF NOT EXISTS "OpsOrder_delivered_driver_idx" ON "OpsOrder"("deliveredAt","driverId") WHERE "status" = 'DELIVERED'; EXCEPTION WHEN OTHERS THEN RAISE NOTICE 'index ignoré: %', SQLERRM; END;
+  BEGIN CREATE INDEX IF NOT EXISTS "OpsOrder_noshow_driver_idx" ON "OpsOrder"("noShowAt","driverId") WHERE "status" = 'NO_SHOW'; EXCEPTION WHEN OTHERS THEN RAISE NOTICE 'index ignoré: %', SQLERRM; END;
+  BEGIN CREATE INDEX IF NOT EXISTS "OpsOrder_hub_collectedAt_idx" ON "OpsOrder"("hubCode","collectedAt" DESC) WHERE "collectedAt" IS NOT NULL; EXCEPTION WHEN OTHERS THEN RAISE NOTICE 'index ignoré: %', SQLERRM; END;
+  BEGIN CREATE INDEX IF NOT EXISTS "OpsOrderEvent_order_at_idx" ON "OpsOrderEvent"("orderId","at"); EXCEPTION WHEN OTHERS THEN RAISE NOTICE 'index ignoré: %', SQLERRM; END;
+  BEGIN CREATE INDEX IF NOT EXISTS "OpsAuditLog_hub_at_idx" ON "OpsAuditLog"("hubCode","at" DESC); EXCEPTION WHEN OTHERS THEN RAISE NOTICE 'index ignoré: %', SQLERRM; END;
+  BEGIN CREATE INDEX IF NOT EXISTS "DeliveryAlert_dedupe_idx" ON "DeliveryAlert"("orderId","type","level","triggeredAt" DESC); EXCEPTION WHEN OTHERS THEN RAISE NOTICE 'index ignoré: %', SQLERRM; END;
+  BEGIN CREATE INDEX IF NOT EXISTS "DeliveryAlert_open_idx" ON "DeliveryAlert"("createdAt" DESC) WHERE "acknowledged" = false; EXCEPTION WHEN OTHERS THEN RAISE NOTICE 'index ignoré: %', SQLERRM; END;
+  BEGIN CREATE INDEX IF NOT EXISTS "ReliabilityScore_driver_calc_idx" ON "ReliabilityScore"("driverName","calculatedAt" DESC); EXCEPTION WHEN OTHERS THEN RAISE NOTICE 'index ignoré: %', SQLERRM; END;
+  BEGIN
+    DELETE FROM "OpsOrderEvent" a USING "OpsOrderEvent" b WHERE a.ctid < b.ctid AND a."orderId" = b."orderId" AND a."toStatus" = b."toStatus" AND a."at" = b."at";
+    CREATE UNIQUE INDEX IF NOT EXISTS "OpsOrderEvent_dedupe_key" ON "OpsOrderEvent"("orderId","toStatus","at");
+  EXCEPTION WHEN OTHERS THEN RAISE NOTICE 'unicité des événements ignorée: %', SQLERRM; END;
+END $$;

@@ -1,3 +1,4 @@
+import { requireSession } from '@/lib/api-guard'
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import type { DriverStatus } from '@/lib/dispatch-engine'
@@ -65,6 +66,7 @@ async function buildDriversStatus(reportId: string): Promise<DriverStatus[]> {
 
 // GET /api/dispatch/drivers-status?reportId=xxx
 export async function GET(req: NextRequest) {
+  const _guard = await requireSession(req, 'VIEWER'); if ('error' in _guard) return _guard.error
   try {
     const { searchParams } = new URL(req.url)
     const reportId = searchParams.get('reportId')

@@ -1,3 +1,4 @@
+import { requireSession } from '@/lib/api-guard'
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 
@@ -8,6 +9,7 @@ async function generateReference(): Promise<string> {
 
 // GET /api/support?status=ouvert&priority=urgent&limit=50
 export async function GET(req: NextRequest) {
+  const _guard = await requireSession(req, 'SUPPORT'); if ('error' in _guard) return _guard.error
   try {
     const { searchParams } = new URL(req.url)
     const status   = searchParams.get('status')   ?? undefined
@@ -35,6 +37,7 @@ export async function GET(req: NextRequest) {
 
 // POST /api/support — créer un ticket
 export async function POST(req: NextRequest) {
+  const _guard = await requireSession(req, 'SUPPORT'); if ('error' in _guard) return _guard.error
   try {
     const body = await req.json() as {
       category: string; priority?: string; subject: string; description: string

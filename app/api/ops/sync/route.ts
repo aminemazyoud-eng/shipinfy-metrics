@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { getSession, roleAtLeast } from '@/lib/auth'
 import { runOpsSync, opsSyncConfig } from '@/lib/ops-sync'
+import { ACTIVE_SOURCE } from '@/lib/ops-data'
 
 // GET /api/ops/sync — état de la synchro back-office (derniers runs, source, volumétrie)
 export async function GET(req: NextRequest) {
@@ -11,7 +12,7 @@ export async function GET(req: NextRequest) {
     const { url, source } = opsSyncConfig()
     const [runs, orders, lastEvent] = await Promise.all([
       prisma.opsSyncRun.findMany({ where: { source }, orderBy: { startedAt: 'desc' }, take: 10 }),
-      prisma.opsOrder.count({ where: { source } }),
+      prisma.opsOrder.count({ where: { source: ACTIVE_SOURCE } }),
       prisma.opsOrderEvent.findFirst({ orderBy: { at: 'desc' }, select: { at: true } }),
     ])
     return NextResponse.json({

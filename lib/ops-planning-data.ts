@@ -1,13 +1,14 @@
 import { prisma } from '@/lib/prisma'
 import { loadOrders, loadHubs, loadDrivers, opsNow } from '@/lib/ops-data'
 import { forecastDay } from '@/lib/ops-analytics'
+import { forecastWithSpecialDays } from '@/lib/ops-special-days'
 import { normalizePhone, type PlanTeam } from '@/lib/ops-planning'
 
 /** Commandes prévues par hub et par créneau pour un jour (même moteur que le Cockpit → Prévisions). */
 export async function planDemand(day: string): Promise<Record<string, Record<string, number>>> {
   const now = await opsNow(); const dayMs = Date.parse(day + 'T00:00:00Z')
   const [orders, hubs, drivers] = await Promise.all([loadOrders(new Date(dayMs - 43 * 86_400_000), new Date(dayMs + 86_400_000)), loadHubs(), loadDrivers()])
-  const f = forecastDay(orders, hubs, drivers, day, now)
+  const f = await forecastWithSpecialDays(forecastDay(orders, hubs, drivers, day, now), day) // jours spéciaux (Ramadan, fin de mois…)
   const out: Record<string, Record<string, number>> = {}
   for (const h of f.hubs) { out[h.code] = {}; for (const s of f.slots) out[h.code][s] = h.cells[s].expected }
   return out

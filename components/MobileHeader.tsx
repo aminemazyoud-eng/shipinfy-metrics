@@ -16,6 +16,7 @@ const ROUTE_LABELS: Record<string, string> = {
   '/operations/historique': 'Historique',
   '/rh/onboarding': 'Onboarding',
   '/rh/paie':       'Paie & Bonus',
+  '/rh/pointage':   'Pointage — historique',
   '/incidents':     'Incidents & Support',
   '/performance/analyse': 'Metrics',
   '/admin/journal':      'Journal des actions',

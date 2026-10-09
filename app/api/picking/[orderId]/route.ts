@@ -1,6 +1,7 @@
 import { requireSession } from '@/lib/api-guard'
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
+import { audit } from '@/lib/ops-auth'
 
 export const runtime = 'nodejs'
 
@@ -49,6 +50,7 @@ export async function PATCH(req: NextRequest, ctx: RouteCtx) {
       data,
     })
 
+    await audit(_guard.session, 'picking.update', 'expressOrder', orderId, { status, pickerChanged: !!body.pickerId })
     return NextResponse.json(updated)
   } catch (e) {
     console.error('[api/picking/[orderId] PATCH]', e)

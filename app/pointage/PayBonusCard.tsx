@@ -4,7 +4,7 @@ import Link from 'next/link'
 import { Wallet, Download, ArrowRight } from 'lucide-react'
 
 interface Line { code: string; name: string; paidDays: number; delivered: number; bonusOrders: number; bonus: number; net: number }
-interface Pay { from: string; to: string; lines: Line[]; totals: { gross: number; bonus: number; deductions: number; net: number } }
+interface Pay { from: string; to: string; locked?: boolean; status?: string | null; lines: Line[]; totals: { gross: number; bonus: number; deductions: number; net: number } }
 const mad = (n: number) => `${n.toLocaleString('fr-FR', { maximumFractionDigits: 0 })} MAD`
 
 // Paie & bonus du mois, calculés à partir de CE pointage (RH) + des livraisons du cockpit Opérations.
@@ -16,7 +16,7 @@ export default function PayBonusCard() {
   return (
     <div className="bg-white border border-gray-200 rounded-xl p-4">
       <div className="flex items-center justify-between flex-wrap gap-2">
-        <div className="font-semibold text-gray-900 flex items-center gap-2"><Wallet className="w-4 h-4 text-teal-600" />Paie & bonus du mois {pay && <span className="text-xs font-normal text-gray-400">{pay.from} → {pay.to}</span>}</div>
+        <div className="font-semibold text-gray-900 flex items-center gap-2"><Wallet className="w-4 h-4 text-teal-600" />Paie & bonus du mois {pay && <span className="text-xs font-normal text-gray-400">{pay.from} → {pay.to}</span>}{pay?.locked && <span className="text-xs font-normal px-2 py-0.5 rounded-full bg-amber-50 border border-amber-200 text-amber-800">Figé ({pay.status === 'paid' ? 'payée' : 'validée'}) · lecture seule</span>}</div>
         <div className="flex gap-2">
           {pay && <a href={`/api/ops/pay?from=${pay.from}&to=${pay.to}&format=xlsx`} className="flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-lg bg-gray-100 border border-gray-200 text-gray-700"><Download className="w-3.5 h-3.5" />Fichier de paie (Excel)</a>}
           <Link href="/operations/pointage" className="flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-lg border border-teal-300 text-teal-700">Règles & détail dans Opérations <ArrowRight className="w-3.5 h-3.5" /></Link>

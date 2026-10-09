@@ -1054,3 +1054,59 @@ BEGIN
     CREATE UNIQUE INDEX IF NOT EXISTS "OpsOrderEvent_dedupe_key" ON "OpsOrderEvent"("orderId","toStatus","at");
   EXCEPTION WHEN OTHERS THEN RAISE NOTICE 'unicité des événements ignorée: %', SQLERRM; END;
 END $$;
+
+-- ═══ SPRINT 18 — clôture de paie, historique du pointage, traçabilité (idempotent) ═══════════
+-- Clôture mensuelle de la paie : instantané figé (tarifs, jours, primes, net) + validation
+CREATE TABLE IF NOT EXISTS "OpsPayRun" (
+  "id" TEXT NOT NULL PRIMARY KEY, "period" TEXT NOT NULL, "status" TEXT NOT NULL DEFAULT 'draft',
+  "config" TEXT, "totals" TEXT, "note" TEXT,
+  "createdBy" TEXT, "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  "validatedBy" TEXT, "validatedAt" TIMESTAMP(3), "paidBy" TEXT, "paidAt" TIMESTAMP(3),
+  "updatedAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+CREATE UNIQUE INDEX IF NOT EXISTS "OpsPayRun_period_key" ON "OpsPayRun"("period");
+ALTER TABLE "OpsPayRun" ENABLE ROW LEVEL SECURITY;
+CREATE TABLE IF NOT EXISTS "OpsPayRunLine" (
+  "id" TEXT NOT NULL PRIMARY KEY, "runId" TEXT NOT NULL, "driverCode" TEXT NOT NULL, "driverName" TEXT NOT NULL,
+  "jobType" TEXT NOT NULL DEFAULT 'chauffeur', "hubCode" TEXT,
+  "dailyRate" DOUBLE PRECISION NOT NULL DEFAULT 0, "paidDays" DOUBLE PRECISION NOT NULL DEFAULT 0,
+  "daysLate" INTEGER NOT NULL DEFAULT 0, "daysAbsent" INTEGER NOT NULL DEFAULT 0, "daysLeave" INTEGER NOT NULL DEFAULT 0,
+  "delivered" INTEGER NOT NULL DEFAULT 0, "onTime" INTEGER NOT NULL DEFAULT 0, "deliveredLate" INTEGER NOT NULL DEFAULT 0,
+  "noShow" INTEGER NOT NULL DEFAULT 0, "bonusOrders" INTEGER NOT NULL DEFAULT 0,
+  "gross" DOUBLE PRECISION NOT NULL DEFAULT 0, "bonus" DOUBLE PRECISION NOT NULL DEFAULT 0, "deductions" DOUBLE PRECISION NOT NULL DEFAULT 0,
+  "net" DOUBLE PRECISION NOT NULL DEFAULT 0, "adjustment" DOUBLE PRECISION NOT NULL DEFAULT 0, "adjustmentNote" TEXT,
+  "final" DOUBLE PRECISION NOT NULL DEFAULT 0
+);
+CREATE UNIQUE INDEX IF NOT EXISTS "OpsPayRunLine_run_driver_key" ON "OpsPayRunLine"("runId","driverCode");
+CREATE INDEX IF NOT EXISTS "OpsPayRunLine_runId_idx" ON "OpsPayRunLine"("runId");
+ALTER TABLE "OpsPayRunLine" ENABLE ROW LEVEL SECURITY;
+
+-- Pointage : durées calculées côté serveur
+ALTER TABLE "DriverAttendance" ADD COLUMN IF NOT EXISTS "workedMinutes" INTEGER;
+ALTER TABLE "DriverAttendance" ADD COLUMN IF NOT EXISTS "lateMinutes" INTEGER;
+ALTER TABLE "DriverAttendance" ADD COLUMN IF NOT EXISTS "plannedDepart" TEXT;
+
+-- Score IA : traçabilité du calcul (rapport, coefficients, nombre de commandes) — plus de score invérifiable
+ALTER TABLE "ReliabilityScore" ADD COLUMN IF NOT EXISTS "reportId" TEXT;
+ALTER TABLE "ReliabilityScore" ADD COLUMN IF NOT EXISTS "coefficients" TEXT;
+ALTER TABLE "ReliabilityScore" ADD COLUMN IF NOT EXISTS "ordersCount" INTEGER;
+ALTER TABLE "ReliabilityScore" ADD COLUMN IF NOT EXISTS "scoreVersion" INTEGER NOT NULL DEFAULT 1;
+
+-- Journal des actions : append-only (UPDATE interdit ; DELETE interdit sauf purge de rétention explicite). Protégé : ne doit jamais empêcher le démarrage.
+DO $$
+BEGIN
+  BEGIN
+    CREATE OR REPLACE FUNCTION ops_audit_append_only() RETURNS trigger AS $f$
+    BEGIN
+      IF TG_OP = 'UPDATE' THEN RAISE EXCEPTION 'OpsAuditLog est en ajout seul (UPDATE interdit)'; END IF;
+      IF TG_OP = 'DELETE' AND coalesce(current_setting('app.audit_purge', true), '') <> 'on' THEN RAISE EXCEPTION 'OpsAuditLog est en ajout seul (DELETE interdit)'; END IF;
+      RETURN OLD;
+    END;
+    $f$ LANGUAGE plpgsql;
+  EXCEPTION WHEN OTHERS THEN RAISE NOTICE 'fonction audit ignorée: %', SQLERRM; END;
+  BEGIN
+    IF NOT EXISTS (SELECT 1 FROM pg_trigger WHERE tgname = 'ops_audit_no_update_delete') THEN
+      CREATE TRIGGER ops_audit_no_update_delete BEFORE UPDATE OR DELETE ON "OpsAuditLog" FOR EACH ROW EXECUTE FUNCTION ops_audit_append_only();
+    END IF;
+  EXCEPTION WHEN OTHERS THEN RAISE NOTICE 'trigger audit ignoré: %', SQLERRM; END;
+END $$;

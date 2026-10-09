@@ -6,6 +6,9 @@ import { requireEnv, envUnavailable } from '@/lib/env'
 import { limited } from '@/lib/rate-limit'
 import { isUsed, markUsed } from '@/lib/qr-blacklist'
 import { localToday, attendanceKeyTz } from '@/lib/tz'
+import { isDayLocked, LOCKED_MESSAGE } from '@/lib/ops-lock'
+import { deriveFields } from '@/lib/ops-attendance'
+import { workedMinutes } from '@/lib/ops-attendance-calc'
 
 export const runtime = 'nodejs'
 
@@ -55,7 +58,10 @@ export async function POST(req: NextRequest) {
 
     // Clé du jour = jour LOCAL (Africa/Casablanca), même clé que ops-attendance
     const now = new Date()
-    const dateKey = attendanceKeyTz(localToday(now.getTime()))
+    const day = localToday(now.getTime())
+    const dateKey = attendanceKeyTz(day)
+    // Verrou de période : plus de scan sur un mois dont la paie est validée
+    if (await isDayLocked(day)) return NextResponse.json({ error: 'PERIOD_LOCKED', message: LOCKED_MESSAGE }, { status: 423 })
     const normalizedRole = role === 'PICKER' ? 'PICKER' : 'LIVREUR'
 
     const existing = await prisma.driverAttendance.findUnique({ where: { driverName_date: { driverName, date: dateKey } } })
@@ -69,10 +75,13 @@ export async function POST(req: NextRequest) {
     let record
     if (!existing || !existing.checkIn) {
       action = 'check-in'
+      // Retard calculé vs départ prévu du planning (tolérance LATE_GRACE_MIN) ; une override explicite remplace absent/congé
+      const f = await deriveFields(driverName, day, { checkIn: now, checkOut: null, status: override ? 'present' : existing?.status ?? 'present' })
+      const calc = { workedMinutes: 0, lateMinutes: f.lateMinutes, plannedDepart: f.plannedDepart }
       record = await prisma.driverAttendance.upsert({
         where:  { driverName_date: { driverName, date: dateKey } },
-        create: { driverName, date: dateKey, checkIn: now, status: 'present', role: normalizedRole, scannedBy, qrScanId: nonce },
-        update: { checkIn: now, status: 'present', role: normalizedRole, scannedBy, qrScanId: nonce },
+        create: { driverName, date: dateKey, checkIn: now, status: f.status, role: normalizedRole, scannedBy, qrScanId: nonce, ...calc },
+        update: { checkIn: now, status: f.status, role: normalizedRole, scannedBy, qrScanId: nonce, ...calc },
       })
     } else if (!existing.checkOut) {
       const elapsedMin = (now.getTime() - existing.checkIn.getTime()) / 60_000
@@ -81,7 +90,7 @@ export async function POST(req: NextRequest) {
         return NextResponse.json({ error: 'MIN_WORK_TIME', message: `Check-out impossible : ${MIN_WORK_MINUTES} min de présence minimum (encore ${reste} min)`, remainingMinutes: reste }, { status: 409 })
       }
       action = 'check-out'
-      record = await prisma.driverAttendance.update({ where: { id: existing.id }, data: { checkOut: now, scannedBy } })
+      record = await prisma.driverAttendance.update({ where: { id: existing.id }, data: { checkOut: now, scannedBy, workedMinutes: workedMinutes(existing.checkIn, now) } })
     } else {
       return NextResponse.json({
         success: false, driverName, role: normalizedRole, action: 'already-complete',

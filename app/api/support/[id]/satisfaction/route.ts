@@ -1,6 +1,7 @@
 import { requireSession } from '@/lib/api-guard'
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
+import { audit } from '@/lib/ops-auth'
 
 export const runtime = 'nodejs'
 
@@ -27,6 +28,7 @@ export async function POST(req: NextRequest, ctx: RouteCtx) {
       },
     })
 
+    await audit(_guard.session, 'support.satisfaction', 'supportTicket', id, { score: Math.round(score) })
     return NextResponse.json(ticket)
   } catch (e) {
     console.error('[api/support/[id]/satisfaction POST]', e)

@@ -3,6 +3,7 @@ export const runtime = 'nodejs'
 import { NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { getSession, roleAtLeast } from '@/lib/auth'
+import { audit } from '@/lib/ops-auth'
 
 export async function POST(req: Request) {
   const session = await getSession(req)
@@ -25,6 +26,8 @@ export async function POST(req: Request) {
         "payValidatedBy" = ${session.email}
     WHERE "id" = ${reportId}
   `
+
+  await audit(session, 'remuneration.validate', 'report', String(reportId), { payValidated: true })
 
   return NextResponse.json({ ok: true, validatedBy: session.email, validatedAt: new Date().toISOString() })
 }

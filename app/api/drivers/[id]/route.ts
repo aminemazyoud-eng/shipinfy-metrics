@@ -2,6 +2,7 @@ import { requireSession } from '@/lib/api-guard'
 import { NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { triggerN8N } from '@/lib/n8n-bridge'
+import { audit } from '@/lib/ops-auth'
 
 export const runtime = 'nodejs'
 
@@ -62,6 +63,7 @@ export async function PATCH(req: Request, { params }: RouteCtx) {
         }).catch(() => {})
       }
 
+      await audit(_guard.session, 'driver.onboarding_step', 'driver', id, { stepId: body.stepId, step: step.step, status: step.status, driverStatus })
       return NextResponse.json(step)
     }
     // Otherwise update driver fields
@@ -78,6 +80,9 @@ export async function PATCH(req: Request, { params }: RouteCtx) {
         reliabilityScore: body.reliabilityScore ?? undefined,
       },
     })
+    // Journal : uniquement les NOMS des champs modifiés (jamais téléphone / e-mail / notes)
+    const changed = ['firstName', 'lastName', 'phone', 'email', 'city', 'status', 'notes', 'reliabilityScore'].filter(k => body[k] != null)
+    await audit(_guard.session, 'driver.update', 'driver', id, { fields: changed, status: body.status ?? undefined })
     return NextResponse.json(driver)
   } catch (e) {
     return NextResponse.json({ error: String(e) }, { status: 500 })
@@ -89,6 +94,7 @@ export async function DELETE(_: Request, { params }: RouteCtx) {
   try {
     const { id } = await params
     await prisma.driver.delete({ where: { id } })
+    await audit(_guard.session, 'driver.delete', 'driver', id)
     return NextResponse.json({ deleted: true })
   } catch (e) {
     return NextResponse.json({ error: String(e) }, { status: 500 })

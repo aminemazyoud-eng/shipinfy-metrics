@@ -1,7 +1,9 @@
 'use client'
 import { useState, useEffect, useCallback } from 'react'
+import Link from 'next/link'
 import PayBonusCard from './PayBonusCard'
-import { Clock, CheckCircle2, XCircle, UserCheck, Loader2, Plus, X, Download, QrCode, ScanLine, RefreshCw } from 'lucide-react'
+import { localToday, dayStartUtc } from '@/lib/tz'
+import { Clock, CheckCircle2, XCircle, UserCheck, Loader2, Plus, X, Download, QrCode, ScanLine, RefreshCw, History } from 'lucide-react'
 
 interface Attendance {
   id: string; driverName: string; date: string; hub: string | null
@@ -59,13 +61,13 @@ function duration(checkIn: string | null, checkOut: string | null): string {
   return fmtHours(mins)
 }
 
+// Jour LOCAL (Africa/Casablanca), pas le jour UTC
 function toDateInput(d: Date): string {
-  return d.toISOString().slice(0, 10)
+  return localToday(d.getTime())
 }
 
 function currentMonth(): string {
-  const d = new Date()
-  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`
+  return localToday().slice(0, 7)
 }
 
 // ─── Section: Générer mon QR ──────────────────────────────────────────────────
@@ -280,6 +282,8 @@ export default function PointagePage() {
   const [fStatus, setFStatus]   = useState('present')
   const [fRole, setFRole]       = useState<'LIVREUR' | 'PICKER'>('LIVREUR')
   const [fNotes, setFNotes]     = useState('')
+  const [fReason, setFReason]   = useState('')
+  const [formErr, setFormErr]   = useState('')
 
   const load = useCallback(async () => {
     setLoading(true)
@@ -303,8 +307,11 @@ export default function PointagePage() {
     if (!fDriver) return
     setSaving(true)
     try {
-      const checkInIso = fCheckIn ? `${date}T${fCheckIn}:00.000Z` : undefined
-      await fetch('/api/pointage', {
+      // Heure saisie = heure LOCALE du jour choisi, convertie en instant UTC réel
+      const [hh, mm] = fCheckIn ? fCheckIn.split(':').map(Number) : [0, 0]
+      const checkInIso = fCheckIn ? new Date(dayStartUtc(date) + (hh * 60 + mm) * 60_000).toISOString() : undefined
+      setFormErr('')
+      const res = await fetch('/api/pointage', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -314,20 +321,27 @@ export default function PointagePage() {
           status:  fStatus,
           role:    fRole,
           notes:   fNotes   || undefined,
+          reason:  fReason.trim() || undefined,
         }),
       })
-      setShowForm(false); setFDriver(''); setFHub(''); setFCheckIn(''); setFStatus('present'); setFRole('LIVREUR'); setFNotes('')
+      if (!res.ok) {
+        const e = await res.json().catch(() => ({} as { error?: string }))
+        setFormErr(e.error ?? 'Enregistrement impossible')
+        return
+      }
+      setShowForm(false); setFDriver(''); setFHub(''); setFCheckIn(''); setFStatus('present'); setFRole('LIVREUR'); setFNotes(''); setFReason('')
       await load()
     } finally { setSaving(false) }
   }
 
   const checkout = async (record: Attendance) => {
     const now = new Date().toISOString()
-    await fetch(`/api/pointage/${record.id}`, {
+    const res = await fetch(`/api/pointage/${record.id}`, {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ checkOut: now }),
     })
+    if (!res.ok) { const e = await res.json().catch(() => ({} as { error?: string })); alert(e.error ?? 'Check-out impossible') }
     await load()
   }
 
@@ -367,12 +381,18 @@ export default function PointagePage() {
             onChange={e => setDate(e.target.value)}
             className="border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-teal-400"
           />
+          <Link
+            href="/rh/pointage"
+            className="flex items-center gap-1.5 px-3 py-2 bg-gray-100 text-gray-700 text-sm font-medium rounded-lg hover:bg-gray-200 min-h-[44px] border border-gray-200"
+          >
+            <History size={15} /> Historique jour / mois
+          </Link>
           <a
             href={`/api/pointage/export?month=${currentMonth()}`}
             download
             className="flex items-center gap-1.5 px-3 py-2 bg-gray-100 text-gray-700 text-sm font-medium rounded-lg hover:bg-gray-200 min-h-[44px] border border-gray-200"
           >
-            <Download size={15} /> Rapport mensuel CSV
+            <Download size={15} /> Rapport mensuel Excel
           </a>
           <button
             onClick={() => setShowForm(v => !v)}
@@ -493,6 +513,14 @@ export default function PointagePage() {
               </select>
             </div>
             <div className="md:col-span-2">
+              <label className="block text-xs text-teal-700 mb-1">Motif (obligatoire pour corriger un pointage existant)</label>
+              <input
+                value={fReason} onChange={e => setFReason(e.target.value)}
+                placeholder="Ex. oubli de scan, erreur de saisie…"
+                className="w-full border border-teal-200 rounded-lg px-3 py-2 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-teal-400"
+              />
+            </div>
+            <div className="md:col-span-2">
               <label className="block text-xs text-teal-700 mb-1">Notes</label>
               <input
                 value={fNotes} onChange={e => setFNotes(e.target.value)}
@@ -501,6 +529,7 @@ export default function PointagePage() {
               />
             </div>
           </div>
+          {formErr && <p className="mt-3 text-sm text-red-600">{formErr}</p>}
           <button
             onClick={save} disabled={saving || !fDriver}
             className="mt-3 flex items-center gap-2 px-4 py-2 bg-teal-600 text-white text-sm font-medium rounded-lg hover:bg-teal-700 disabled:opacity-50"

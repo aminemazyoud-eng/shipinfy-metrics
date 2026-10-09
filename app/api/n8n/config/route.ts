@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { requireSession } from '@/lib/api-guard'
 import { assertSafeUrl } from '@/lib/safe-fetch'
+import { audit } from '@/lib/ops-auth'
 
 export const runtime = 'nodejs'
 
@@ -49,6 +50,7 @@ export async function POST(req: NextRequest) {
       data: { name, webhookUrl, eventType, secret: secret ?? null, active: active !== false },
       select: SAFE_SELECT,
     })
+    await audit(auth.session, 'n8n.config', 'n8nConfig', config.id, { op: 'create', name: config.name, eventType: config.eventType, active: config.active, hasSecret: !!secret })
     return NextResponse.json({ ...config, hasSecret: !!secret }, { status: 201 })
   } catch (e) {
     console.error('[api/n8n/config POST]', e)

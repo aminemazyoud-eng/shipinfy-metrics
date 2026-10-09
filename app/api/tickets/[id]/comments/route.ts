@@ -1,6 +1,7 @@
 import { requireSession } from '@/lib/api-guard'
 import { NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
+import { audit } from '@/lib/ops-auth'
 
 export async function POST(
   request: Request,
@@ -13,6 +14,7 @@ export async function POST(
     const comment = await prisma.ticketComment.create({
       data: { ticketId, author: body.author, content: body.content },
     })
+    await audit(_guard.session, 'ticket.comment', 'ticket', ticketId, { commentId: comment.id })
     return NextResponse.json(comment)
   } catch (e) {
     console.error(e)

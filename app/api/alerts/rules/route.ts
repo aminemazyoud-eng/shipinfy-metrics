@@ -1,6 +1,7 @@
 import { requireSession } from '@/lib/api-guard'
 import { NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
+import { audit } from '@/lib/ops-auth'
 
 export async function GET(req: Request) {
   const _guard = await requireSession(req, 'VIEWER'); if ('error' in _guard) return _guard.error
@@ -20,6 +21,7 @@ export async function POST(request: Request) {
       name: string; metric: string; operator: string; threshold: number; severity: string
     }
     const rule = await prisma.alertRule.create({ data: body })
+    await audit(_guard.session, 'alert_rule.create', 'alertRule', rule.id, { metric: body.metric, operator: body.operator, threshold: body.threshold, severity: body.severity })
     return NextResponse.json(rule)
   } catch (e) {
     console.error(e)
@@ -33,6 +35,7 @@ export async function PATCH(request: Request) {
     const body = await request.json() as { id: string; enabled?: boolean; threshold?: number; severity?: string }
     const { id, ...data } = body
     const rule = await prisma.alertRule.update({ where: { id }, data })
+    await audit(_guard.session, 'alert_rule.update', 'alertRule', id, { fields: Object.keys(data), ...data })
     return NextResponse.json(rule)
   } catch (e) {
     console.error(e)
@@ -47,6 +50,7 @@ export async function DELETE(request: Request) {
     const id = searchParams.get('id')
     if (!id) return NextResponse.json({ error: 'Missing id' }, { status: 400 })
     await prisma.alertRule.delete({ where: { id } })
+    await audit(_guard.session, 'alert_rule.delete', 'alertRule', id)
     return NextResponse.json({ success: true })
   } catch (e) {
     console.error(e)

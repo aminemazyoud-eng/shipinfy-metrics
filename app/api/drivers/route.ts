@@ -1,6 +1,7 @@
 import { requireSession } from '@/lib/api-guard'
 import { NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
+import { audit } from '@/lib/ops-auth'
 
 export const runtime = 'nodejs'
 
@@ -42,6 +43,7 @@ export async function POST(req: Request) {
       },
       include: { onboardingSteps: true },
     })
+    await audit(_guard.session, 'driver.create', 'driver', driver.id, { status: driver.status })
     return NextResponse.json(driver)
   } catch (e) {
     return NextResponse.json({ error: String(e) }, { status: 500 })

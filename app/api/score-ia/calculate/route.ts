@@ -22,7 +22,7 @@ export async function POST(req: Request) {
 
     const r = await calculateScores({ reportId: bodyReportId, tenantId: session?.tenantId })
     if (!r.ok) return NextResponse.json({ error: r.error }, { status: r.status })
-    return NextResponse.json({ calculated: r.calculated, drivers: r.drivers, purged: r.purged, reportId: r.reportId })
+    return NextResponse.json({ calculated: r.calculated, drivers: r.drivers, purged: r.purged, reportId: r.reportId, scoreVersion: r.scoreVersion })
   } catch (e) {
     return NextResponse.json({ error: String(e) }, { status: 500 })
   }

@@ -7,6 +7,9 @@ import { CFG } from '@/lib/ops-config'
 import { applyOpsSettings } from '@/lib/ops-settings'
 import { prisma } from '@/lib/prisma'
 
+/** Version de la formule de score (à incrémenter à chaque changement de calcul) — stockée dans chaque ligne ReliabilityScore. */
+export const SCORE_VERSION = 1
+
 export interface ScoreResult {
   ok: boolean
   /** 404 si aucun rapport actif / trouvé */
@@ -14,8 +17,10 @@ export interface ScoreResult {
   error?: string
   calculated: number
   drivers: string[]
+  /** Toujours 0 : l'historique n'est plus purgé ici (la rétention nocturne s'en charge). Conservé pour compatibilité de l'API. */
   purged: number
   reportId?: string
+  scoreVersion?: number
 }
 
 /**
@@ -88,6 +93,13 @@ export async function calculateScores(opts: { reportId?: string; tenantId?: stri
     const effNoShow   = hasAcademyData ? coeffNoShow   : (remainder > 0 ? coeffNoShow   / remainder : 0.5)
     const effAcademy  = hasAcademyData ? coeffAcademy  : 0
     const score = deliveryRate * effDelivery + academyScore * effAcademy + (100 - noShowRate) * effNoShow
+    // Poids effectivement utilisés (après renormalisation éventuelle) — traçabilité de chaque score
+    const coefficients = JSON.stringify({
+      delivery: effDelivery, academy: effAcademy, noShow: effNoShow,
+      academyDataAvailable: hasAcademyData,
+      // Transparence : tout NO_SHOW est imputé au livreur (aucune donnée ne distingue l'absence du client)
+      noShowCountedAgainstDriver: true,
+    })
 
     let recommendation: string | null = null
     if (score < CFG.scoreCritical) recommendation = 'Formation Academy recommandée — score critique'
@@ -95,17 +107,22 @@ export async function calculateScores(opts: { reportId?: string; tenantId?: stri
     else if (deliveryRate < 70) recommendation = 'Taux de livraison insuffisant — coaching recommandé'
 
     await prisma.reliabilityScore.create({
-      data: { driverName: name, deliveryRate, academyScore, noShowRate, score, recommendation },
+      data: {
+        driverName: name, deliveryRate, academyScore, noShowRate, score, recommendation,
+        reportId: report.id, coefficients, ordersCount: stats.total, scoreVersion: SCORE_VERSION,
+      },
     })
 
     // Alerte automatique si score critique
     if (score < CFG.scoreCritical) {
-      const existing = await prisma.alert.findFirst({ where: { title: { contains: name }, status: { not: 'resolved' }, type: 'auto' } })
+      // Clé exacte (titre complet, nom entier) : « Jean Dupont » ne masque plus l'alerte de « Jean Dupont-Martin »
+      const alertTitle = `Score IA critique — ${name}`
+      const existing = await prisma.alert.findFirst({ where: { title: alertTitle, status: { not: 'resolved' }, type: 'auto' } })
       if (!existing) {
         await prisma.alert.create({
           data: {
             type: 'auto', severity: 'critical',
-            title: `Score IA critique — ${name}`,
+            title: alertTitle,
             description: `Score de fiabilité ${score.toFixed(1)}/100. Livraison: ${deliveryRate.toFixed(1)}%, NO_SHOW: ${noShowRate.toFixed(1)}%`,
             metricValue: score, threshold: CFG.scoreCritical,
           },
@@ -115,9 +132,8 @@ export async function calculateScores(opts: { reportId?: string; tenantId?: stri
     created.push(name)
   }
 
-  // Une seule source de vérité : on retire les scores de livreurs absents du rapport utilisé (anciens imports Excel, par ex.)
-  let purged = 0
-  if (created.length > 0) purged = (await prisma.reliabilityScore.deleteMany({ where: { driverName: { notIn: created } } })).count
+  // Plus de purge destructrice : l'historique des livreurs absents du rapport est conservé (rétention : lib/ops-retention.ts)
+  const purged = 0
 
-  return { ok: true, status: 200, calculated: created.length, drivers: created, purged, reportId: report.id }
+  return { ok: true, status: 200, calculated: created.length, drivers: created, purged, reportId: report.id, scoreVersion: SCORE_VERSION }
 }

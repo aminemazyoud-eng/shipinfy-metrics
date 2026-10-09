@@ -1,6 +1,7 @@
 import { requireSession } from '@/lib/api-guard'
 import { NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
+import { audit } from '@/lib/ops-auth'
 
 export const runtime = 'nodejs'
 
@@ -25,6 +26,7 @@ export async function PATCH(req: Request, ctx: RouteCtx) {
       },
       include: { assignments: true },
     })
+    await audit(_guard.session, 'shift.update', 'shiftSlot', id, { fields: ['zone', 'startTime', 'endTime', 'maxDrivers', 'minDrivers', 'premiumOnly'].filter(k => body[k] !== undefined) })
     return NextResponse.json(slot)
   } catch (e) {
     return NextResponse.json({ error: String(e) }, { status: 500 })
@@ -37,6 +39,7 @@ export async function DELETE(_req: Request, ctx: RouteCtx) {
   try {
     const { id } = await ctx.params
     await prisma.shiftSlot.delete({ where: { id } })
+    await audit(_guard.session, 'shift.delete', 'shiftSlot', id)
     return NextResponse.json({ ok: true })
   } catch (e) {
     return NextResponse.json({ error: String(e) }, { status: 500 })

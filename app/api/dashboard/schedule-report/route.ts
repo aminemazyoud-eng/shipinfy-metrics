@@ -1,6 +1,7 @@
 import { requireSession } from '@/lib/api-guard'
 import { NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
+import { audit } from '@/lib/ops-auth'
 
 export async function POST(request: Request) {
   const _guard = await requireSession(request, 'MANAGER'); if ('error' in _guard) return _guard.error
@@ -34,6 +35,7 @@ export async function POST(request: Request) {
       // Cron not available in Edge — will be picked up on next minute tick
     }
 
+    await audit(_guard.session, 'report.schedule_create', 'scheduledReport', schedule.id, { reportId: body.reportId, frequency: body.frequency, time: body.time, recipients: body.emails?.length ?? 0 })
     return NextResponse.json({ success: true, scheduleId: schedule.id })
   } catch (e) {
     console.error(e)
@@ -75,6 +77,7 @@ export async function DELETE(request: Request) {
       unregisterSchedule(id)
     } catch { /* noop */ }
 
+    await audit(_guard.session, 'report.schedule_delete', 'scheduledReport', id)
     return NextResponse.json({ success: true })
   } catch (e) {
     console.error(e)

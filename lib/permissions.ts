@@ -22,7 +22,7 @@ export const MODULE_ROUTES: Record<string, string[]> = {
   rapports:     ['/rapports'],
   notifications:['/notifications'],
   support:      ['/support'],
-  rh:           ['/pointage', '/onboarding', '/academy', '/rh', '/rh/onboarding', '/rh/paie'],
+  rh:           ['/pointage', '/onboarding', '/academy', '/rh', '/rh/onboarding', '/rh/paie', '/rh/pointage'],
   parametres:   ['/parametres', '/parametres/calculs', '/parametres/scoring', '/parametres/paie', '/parametres/notifications'],
   admin:        ['/admin'],
 }

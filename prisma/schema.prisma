@@ -273,6 +273,10 @@ model ReliabilityScore {
 
   @@index([driverName])
   @@index([calculatedAt])
+  reportId     String?
+  coefficients String?
+  ordersCount  Int?
+  scoreVersion Int     @default(1)
 }
 
 // ─── SPRINT 7 — ALERTES PRÉDICTIVES + SLACK ───────────────────────────────────
@@ -363,6 +367,9 @@ model DriverAttendance {
   @@unique([driverName, date])
   @@index([date])
   @@index([driverName])
+  workedMinutes Int?
+  lateMinutes   Int?
+  plannedDepart String?
 }
 
 model SupportTicket {
@@ -982,4 +989,50 @@ model OpsCashClose {
   closedAt   DateTime @default(now())
 
   @@unique([day, hubCode, driverCode])
+}
+
+// ─── SPRINT 18 — clôture de paie ─────────────────────────────────────────────
+model OpsPayRun {
+  id          String    @id @default(cuid())
+  period      String    @unique // YYYY-MM
+  status      String    @default("draft") // draft | validated | paid
+  config      String?   // JSON : barème figé (OpsPayConfig) au moment du calcul
+  totals      String?   // JSON : totaux de la période
+  note        String?
+  createdBy   String?
+  createdAt   DateTime  @default(now())
+  validatedBy String?
+  validatedAt DateTime?
+  paidBy      String?
+  paidAt      DateTime?
+  updatedAt   DateTime  @default(now()) @updatedAt
+}
+
+model OpsPayRunLine {
+  id             String  @id @default(cuid())
+  runId          String
+  driverCode     String
+  driverName     String
+  jobType        String  @default("chauffeur")
+  hubCode        String?
+  dailyRate      Float   @default(0)
+  paidDays       Float   @default(0)
+  daysLate       Int     @default(0)
+  daysAbsent     Int     @default(0)
+  daysLeave      Int     @default(0)
+  delivered      Int     @default(0)
+  onTime         Int     @default(0)
+  deliveredLate  Int     @default(0)
+  noShow         Int     @default(0)
+  bonusOrders    Int     @default(0)
+  gross          Float   @default(0)
+  bonus          Float   @default(0)
+  deductions     Float   @default(0)
+  net            Float   @default(0)
+  adjustment     Float   @default(0)
+  adjustmentNote String?
+  final          Float   @default(0)
+
+  @@unique([runId, driverCode])
+  @@index([runId])
 }

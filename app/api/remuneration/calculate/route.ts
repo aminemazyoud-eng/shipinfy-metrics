@@ -2,6 +2,7 @@ import { requireSession } from '@/lib/api-guard'
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { livreurName, isUnassigned } from '@/lib/driver-utils'
+import { audit } from '@/lib/ops-auth'
 
 // POST /api/remuneration/calculate
 // Body: { reportId, mode? }  — mode defaults to "standard"
@@ -95,6 +96,7 @@ export async function POST(req: NextRequest) {
     }
 
     results.sort((a, b) => b.netPay - a.netPay)
+    await audit(_guard.session, 'remuneration.calculate', 'report', body.reportId, { mode, drivers: results.length })
 
     return NextResponse.json({
       reportId: body.reportId,

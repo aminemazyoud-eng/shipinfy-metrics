@@ -1,6 +1,7 @@
 import { requireSession } from '@/lib/api-guard'
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
+import { audit } from '@/lib/ops-auth'
 
 const DEFAULTS = [
   { mode: 'standard', label: 'Standard', baseRate: 15, bonusRate: 5, penaltyRate: 5, active: true },
@@ -58,6 +59,7 @@ export async function POST(req: NextRequest) {
       },
     })
 
+    await audit(_guard.session, 'remuneration.config', 'payConfig', config.id, { mode: body.mode, baseRate: config.baseRate, bonusRate: config.bonusRate, penaltyRate: config.penaltyRate, active: config.active })
     return NextResponse.json(config)
   } catch (e) {
     console.error('[api/remuneration/config POST]', e)

@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { getSession, hashPassword, roleAtLeast } from '@/lib/auth'
 import { transporter } from '@/lib/mailer'
+import { audit } from '@/lib/ops-auth'
 
 export const runtime = 'nodejs'
 
@@ -101,6 +102,7 @@ export async function POST(req: Request) {
       `,
     }).catch(err => console.error('[admin/users] email send failed:', err))
 
+    await audit(session, 'admin.user_create', 'User', user.id, { tenantId: tenantId ?? null, role: userRole })
     return NextResponse.json(user, { status: 201 })
   } catch (e: unknown) {
     const msg = (e as Error).message ?? ''

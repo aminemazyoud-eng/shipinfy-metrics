@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { getSession, roleAtLeast } from '@/lib/auth'
 import { xlsxResponse } from '@/lib/xlsx-response'
+import { localToday } from '@/lib/tz'
 
 export const runtime = 'nodejs'
 
@@ -18,8 +19,8 @@ export async function GET(req: NextRequest) {
 
     const { searchParams } = new URL(req.url)
     const monthParam = searchParams.get('month') // YYYY-MM
-    const today = new Date()
-    const month = monthParam ?? `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}`
+    // Mois courant = mois LOCAL (Africa/Casablanca)
+    const month = monthParam && /^\d{4}-\d\d$/.test(monthParam) ? monthParam : localToday().slice(0, 7)
 
     const [year, mon] = month.split('-').map(Number)
     const from = new Date(Date.UTC(year, mon - 1, 1))
@@ -38,14 +39,16 @@ export async function GET(req: NextRequest) {
     }
 
     // Build CSV
-    const lines: string[] = ['Livreur,Jours présents,Absences,Retards,Taux présence']
+    const lines: string[] = ['Livreur,Jours présents,Absences,Retards,Minutes de retard,Heures travaillées,Taux présence']
     for (const [driver, recs] of byDriver.entries()) {
       const present  = recs.filter(r => r.status === 'present').length
       const late     = recs.filter(r => r.status === 'late').length
       const absent   = recs.filter(r => r.status === 'absent').length
       const total    = recs.length
       const rate     = total > 0 ? Math.round(((present + late) / total) * 100) : 0
-      lines.push(`"${driver}",${present + late},${absent},${late},${rate}%`)
+      const lateMin = recs.reduce((s, r) => s + (r.lateMinutes ?? 0), 0)
+      const hours = Math.round(recs.reduce((s, r) => s + (r.workedMinutes ?? 0), 0) / 6) / 10
+      lines.push(`"${driver.replace(/"/g, '""')}",${present + late},${absent},${late},${lateMin},${hours},${rate}%`)
     }
 
     const csv = lines.join('\n')

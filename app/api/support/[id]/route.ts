@@ -1,6 +1,7 @@
 import { requireSession } from '@/lib/api-guard'
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
+import { audit } from '@/lib/ops-auth'
 
 type RouteCtx = { params: Promise<{ id: string }> }
 
@@ -28,6 +29,7 @@ export async function PATCH(req: NextRequest, ctx: RouteCtx) {
       },
     })
 
+    await audit(_guard.session, 'support.update', 'supportTicket', id, { status: body.status, priority: body.priority, assignedTo: body.assignedTo, resolvedAtChanged: body.resolvedAt !== undefined })
     return NextResponse.json(ticket)
   } catch (e) {
     console.error('[api/support/[id] PATCH]', e)

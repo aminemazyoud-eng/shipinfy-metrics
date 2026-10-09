@@ -3,6 +3,7 @@ import { NextResponse } from 'next/server'
 import { assignDriver } from '@/lib/shift-engine'
 import { prisma } from '@/lib/prisma'
 import { triggerN8N } from '@/lib/n8n-bridge'
+import { audit } from '@/lib/ops-auth'
 
 export const runtime = 'nodejs'
 
@@ -49,6 +50,7 @@ export async function POST(req: Request, ctx: RouteCtx) {
       endTime:    slot?.endTime ?? null,
     }).catch(() => {})
 
+    await audit(_guard.session, 'shift.assign', 'shiftSlot', id, { driverName, scoreIA: scoreIA ?? null })
     return NextResponse.json(slot)
   } catch (e) {
     return NextResponse.json({ error: String(e) }, { status: 500 })
@@ -73,6 +75,7 @@ export async function DELETE(req: Request, ctx: RouteCtx) {
       where:   { id },
       include: { assignments: { orderBy: { scoreIA: 'desc' } } },
     })
+    await audit(_guard.session, 'shift.unassign', 'shiftSlot', id, { driverName })
     return NextResponse.json(slot)
   } catch (e) {
     return NextResponse.json({ error: String(e) }, { status: 500 })

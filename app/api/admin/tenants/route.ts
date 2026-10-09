@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { getSession, roleAtLeast } from '@/lib/auth'
+import { audit } from '@/lib/ops-auth'
 
 // GET /api/admin/tenants — list all tenants with user count (SUPER_ADMIN)
 export async function GET(req: Request) {
@@ -52,6 +53,7 @@ export async function POST(req: Request) {
         active:       true,
       },
     })
+    await audit(session, 'admin.tenant_create', 'Tenant', tenant.id, { slug: tenant.slug, plan: tenant.plan })
     return NextResponse.json({ ...tenant, _count: { users: 0 } }, { status: 201 })
   } catch (e) {
     console.error('[admin/tenants POST]', e)

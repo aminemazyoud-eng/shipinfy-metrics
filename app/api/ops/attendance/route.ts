@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { opsAuth, fail, audit } from '@/lib/ops-auth'
 import { dayOf, dayBounds, attendanceKey } from '@/lib/ops-time'
-import { attendanceByName, setAttendance, fullName } from '@/lib/ops-attendance'
+import { attendanceByName, setAttendance, fullName, guardCorrection, isCorrection, snapshot, deriveFields } from '@/lib/ops-attendance'
 
 const STATUSES = ['present', 'late', 'absent', 'leave']
 
@@ -22,7 +22,7 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({
       day, source: 'RH & Formation → Pointage',
       drivers: drivers.map(d => { const a = att.get(fullName(d)); return { code: d.code, name: fullName(d), hubCode: d.hub?.code ?? null, hubName: d.hub?.name ?? null, dailyRate: d.dailyRate,
-        status: a?.status ?? null, checkIn: a?.checkIn ?? null, checkOut: a?.checkOut ?? null, notes: a?.notes ?? null, delivered: dl.get(d.id) ?? 0 } }),
+        status: a?.status ?? null, checkIn: a?.checkIn ?? null, checkOut: a?.checkOut ?? null, notes: a?.notes ?? null, workedMinutes: a?.workedMinutes ?? null, lateMinutes: a?.lateMinutes ?? null, plannedDepart: a?.plannedDepart ?? null, delivered: dl.get(d.id) ?? 0 } }),
     })
   } catch (e) { return fail(e) }
 }
@@ -34,28 +34,41 @@ export async function POST(req: NextRequest) {
   const auth = await opsAuth(req, 'DISPATCHER')
   if ('error' in auth) return auth.error
   try {
-    const b = await req.json() as { day?: string; driverCode?: string; status?: string; checkIn?: string; checkOut?: string; notes?: string; all?: boolean; hubCode?: string }
+    const b = await req.json() as { day?: string; driverCode?: string; status?: string; checkIn?: string; checkOut?: string; notes?: string; all?: boolean; hubCode?: string; reason?: string; override?: boolean }
     const day = dayOf(b.day); const now = new Date()
     if (b.status && !STATUSES.includes(b.status)) return NextResponse.json({ error: 'Statut invalide' }, { status: 400 })
     const t = (v?: string) => (v === 'now' ? now : v ? new Date(v) : undefined)
 
+    // Verrou de période (paie validée) : 423 sauf ADMIN+ avec override + motif — journalisé
     if (b.all) {
+      const g = await guardCorrection(auth.session, day, { needsReason: false, reason: b.reason, override: b.override })
+      if (g.error) return g.error
       const drivers = await prisma.opsDriver.findMany({ where: { status: 'active', ...(b.hubCode ? { hub: { code: b.hubCode } } : {}) }, include: { hub: { select: { name: true } } } })
       const done = await attendanceByName(day)
       const todo = drivers.filter(d => !done.has(fullName(d)))
       const status = b.status || 'present'
-      if (todo.length) await prisma.driverAttendance.createMany({ skipDuplicates: true, data: todo.map(d => ({ driverName: fullName(d), date: attendanceKey(day), hub: d.hub?.name ?? null, status, role: 'LIVREUR', checkIn: status === 'present' ? now : null })) })
-      await audit(auth.session, 'attendance.bulk', 'attendance', day, { count: todo.length, status }, b.hubCode)
+      if (todo.length) {
+        // Heures / retard / départ prévu calculés par livreur (statut 'present' → 'late' automatique si retard > tolérance)
+        const data = await Promise.all(todo.map(async d => {
+          const checkIn = status === 'present' ? now : null
+          const f = await deriveFields(fullName(d), day, { checkIn, checkOut: null, status }, status !== 'present')
+          return { driverName: fullName(d), date: attendanceKey(day), hub: d.hub?.name ?? null, status: f.status, role: 'LIVREUR', checkIn, workedMinutes: f.workedMinutes, lateMinutes: f.lateMinutes, plannedDepart: f.plannedDepart }
+        }))
+        await prisma.driverAttendance.createMany({ skipDuplicates: true, data })
+      }
+      await audit(auth.session, 'pointage.create', 'attendance', day, { bulk: true, day, count: todo.length, status, reason: g.reason, override: g.overridden }, b.hubCode)
       return NextResponse.json({ ok: true, created: todo.length })
     }
 
     if (!b.driverCode) return NextResponse.json({ error: 'driverCode requis' }, { status: 400 })
     const driver = await prisma.opsDriver.findUnique({ where: { code: b.driverCode }, include: { hub: { select: { code: true, name: true } } } })
     if (!driver) return NextResponse.json({ error: 'Livreur inconnu' }, { status: 404 })
-    const rec = await setAttendance(driver, driver.hub?.name ?? null, day,
-      { ...(b.status ? { status: b.status } : {}), ...(b.checkIn !== undefined ? { checkIn: t(b.checkIn) ?? null } : {}), ...(b.checkOut !== undefined ? { checkOut: t(b.checkOut) ?? null } : {}), ...(b.notes !== undefined ? { notes: b.notes } : {}) },
-      { status: 'present', checkIn: (b.status || 'present') === 'present' ? now : null })
-    await audit(auth.session, 'attendance.set', 'attendance', driver.code, { day, status: rec.status }, driver.hub?.code)
-    return NextResponse.json({ ok: true, status: rec.status })
+    const patch = { ...(b.status ? { status: b.status } : {}), ...(b.checkIn !== undefined ? { checkIn: t(b.checkIn) ?? null } : {}), ...(b.checkOut !== undefined ? { checkOut: t(b.checkOut) ?? null } : {}), ...(b.notes !== undefined ? { notes: b.notes } : {}) }
+    const existing = await prisma.driverAttendance.findUnique({ where: { driverName_date: { driverName: fullName(driver), date: attendanceKey(day) } } })
+    const g = await guardCorrection(auth.session, day, { needsReason: isCorrection(existing, patch), reason: b.reason, override: b.override })
+    if (g.error) return g.error
+    const { rec, before } = await setAttendance(driver, driver.hub?.name ?? null, day, patch, { status: 'present', checkIn: (b.status || 'present') === 'present' ? now : null })
+    await audit(auth.session, before ? 'pointage.update' : 'pointage.create', 'attendance', rec.id, { driverName: rec.driverName, driverCode: driver.code, day, before: snapshot(before), after: snapshot(rec), reason: g.reason, override: g.overridden }, driver.hub?.code)
+    return NextResponse.json({ ok: true, status: rec.status, workedMinutes: rec.workedMinutes, lateMinutes: rec.lateMinutes })
   } catch (e) { return fail(e) }
 }

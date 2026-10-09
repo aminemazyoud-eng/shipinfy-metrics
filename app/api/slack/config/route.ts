@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { requireSession } from '@/lib/api-guard'
 import { assertSafeUrl, safeFetch } from '@/lib/safe-fetch'
+import { audit } from '@/lib/ops-auth'
 
 // Toutes les routes : ADMIN. L'URL du webhook est validée (https + hôte autorisé + adresse non interne) avant tout enregistrement ou appel.
 const badUrl = (e: unknown) => NextResponse.json({ error: `URL de webhook refusée : ${e instanceof Error ? e.message : 'invalide'}` }, { status: 400 })
@@ -42,6 +43,7 @@ export async function POST(req: NextRequest) {
       },
     })
 
+    await audit(auth.session, 'slack.config', 'slackConfig', config.id, { channel: config.channel, active: config.active }) // l'URL du webhook n'est jamais journalisée
     return NextResponse.json(config)
   } catch (e) {
     console.error('[api/slack/config POST]', e)
@@ -65,6 +67,7 @@ export async function PUT(req: NextRequest) {
     })
 
     if (!res.ok) return NextResponse.json({ ok: false, error: `Slack a répondu HTTP ${res.status}` }, { status: 400 })
+    await audit(auth.session, 'slack.test', 'slackConfig', null, { ok: true })
     return NextResponse.json({ ok: true })
   } catch (e) {
     console.error('[api/slack/config PUT]', e)

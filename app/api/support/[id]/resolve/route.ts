@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { getSession, roleAtLeast } from '@/lib/auth'
+import { audit } from '@/lib/ops-auth'
 
 export const runtime = 'nodejs'
 
@@ -35,6 +36,7 @@ export async function POST(req: NextRequest, ctx: RouteCtx) {
       },
     })
 
+    await audit(session, 'support.resolve', 'supportTicket', id, { slaBreached })
     return NextResponse.json(ticket)
   } catch (e) {
     console.error('[api/support/[id]/resolve POST]', e)

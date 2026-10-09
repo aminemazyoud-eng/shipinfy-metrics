@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { requireSession } from '@/lib/api-guard'
 import { assertSafeUrl } from '@/lib/safe-fetch'
+import { audit } from '@/lib/ops-auth'
 
 export const runtime = 'nodejs'
 
@@ -32,6 +33,8 @@ export async function PATCH(req: NextRequest, ctx: RouteCtx) {
       },
     })
     const { secret, ...safe } = config
+    // Journal : noms des champs modifiés seulement (ni URL de webhook, ni secret)
+    await audit(auth.session, 'n8n.config', 'n8nConfig', id, { op: 'update', fields: ['name', 'webhookUrl', 'eventType', 'secret', 'active'].filter(k => body[k] !== undefined), active: body.active })
     return NextResponse.json({ ...safe, hasSecret: !!secret })
   } catch (e) {
     console.error('[api/n8n/config PATCH]', e)
@@ -46,6 +49,7 @@ export async function DELETE(req: NextRequest, ctx: RouteCtx) {
   try {
     const { id } = await ctx.params
     await prisma.n8NConfig.delete({ where: { id } })
+    await audit(auth.session, 'n8n.config', 'n8nConfig', id, { op: 'delete' })
     return NextResponse.json({ ok: true })
   } catch (e) {
     console.error('[api/n8n/config DELETE]', e)

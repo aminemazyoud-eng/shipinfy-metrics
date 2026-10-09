@@ -7,7 +7,7 @@ import OpsNav from '../components/OpsNav'
 interface Att { code: string; name: string; hubCode: string | null; hubName: string | null; dailyRate: number; status: string | null; checkIn: string | null; checkOut: string | null; delivered: number }
 interface Cfg { dailyRate: number; bonusThreshold: number; bonusPerOrder: number; onTimeBonus: number; noShowPenalty: number; latePenalty: number; paidLeave: boolean }
 interface Line { code: string; name: string; hubCode: string | null; dailyRate: number; paidDays: number; daysLate: number; daysAbsent: number; daysLeave: number; delivered: number; onTime: number; deliveredLate: number; noShow: number; bonusOrders: number; gross: number; bonus: number; deductions: number; net: number }
-interface Pay { from: string; to: string; config: Cfg; lines: Line[]; totals: { gross: number; bonus: number; deductions: number; net: number; delivered: number } }
+interface Pay { from: string; to: string; locked?: boolean; status?: string | null; config: Cfg; lines: Line[]; totals: { gross: number; bonus: number; deductions: number; net: number; delivered: number } }
 
 const BTN = [['present', 'Présent', 'bg-green-600'], ['late', 'Retard', 'bg-amber-500'], ['absent', 'Absent', 'bg-red-600'], ['leave', 'Congé', 'bg-gray-500']] as const
 const t = (d: string | null) => (d ? new Date(d).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit', timeZone: 'Africa/Casablanca' }) : '—')
@@ -95,6 +95,7 @@ export default function PointagePage() {
 
           <div className="text-xs bg-purple-50 border border-purple-200 text-purple-800 rounded-lg p-3">Les règles de rémunération (fixe, bonus, retenues) se gèrent dans <Link href="/rh/paie" className="underline font-medium">RH & Formation → Paie & Bonus</Link>. Ici : indicateurs de la période.</div>
 
+          {pay?.locked && <div className="text-xs bg-amber-50 border border-amber-200 text-amber-800 rounded-lg p-3">Période clôturée ({pay.status === 'paid' ? 'payée' : 'validée'}) : montants figés, lecture seule.</div>}
           {pay && (
             <>
               <div className="grid grid-cols-2 md:grid-cols-4 gap-3">

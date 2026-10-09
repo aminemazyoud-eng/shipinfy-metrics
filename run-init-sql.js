@@ -97,6 +97,9 @@ async function main() {
     } catch (e) {
       if (e.message && e.message.includes('already exists')) {
         // idempotent — safe to ignore
+      } else if (/ignoré/.test(stmt)) {
+        // bloc OPTIONNEL (index, trigger d'audit…) : son échec ne doit JAMAIS empêcher le démarrage de l'application
+        console.warn('Bloc optionnel ignoré :', String(e.message).split('\n')[0].slice(0, 200));
       } else {
         throw e;
       }

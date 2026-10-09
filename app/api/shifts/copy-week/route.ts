@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { getSession } from '@/lib/auth'
+import { audit } from '@/lib/ops-auth'
 
 export const runtime = 'nodejs'
 
@@ -78,6 +79,7 @@ export async function POST(req: Request) {
       }),
     )
 
+    await audit(session, 'shift.copy_week', 'shift', null, { fromWeek: weekStart, toWeek: targetStart.toISOString().slice(0, 10), copied: newSlots.length })
     return NextResponse.json({
       copied:    newSlots.length,
       weekStart: targetStart.toISOString().slice(0, 10),

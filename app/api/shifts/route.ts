@@ -1,6 +1,7 @@
 import { requireSession } from '@/lib/api-guard'
 import { NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
+import { audit } from '@/lib/ops-auth'
 
 export const runtime = 'nodejs'
 
@@ -71,6 +72,7 @@ export async function POST(req: Request) {
       },
       include: { assignments: true },
     })
+    await audit(_guard.session, 'shift.create', 'shiftSlot', slot.id, { zone, date, startTime, endTime })
     return NextResponse.json(slot, { status: 201 })
   } catch (e) {
     return NextResponse.json({ error: String(e) }, { status: 500 })

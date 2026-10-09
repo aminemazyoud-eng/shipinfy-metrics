@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { getSession, roleAtLeast, ROLES } from '@/lib/auth'
+import { audit } from '@/lib/ops-auth'
 
 export const runtime = 'nodejs'
 
@@ -31,6 +32,7 @@ export async function PATCH(req: Request, ctx: RouteCtx) {
       data,
       select: { id: true, email: true, name: true, role: true, tenantId: true, active: true, createdAt: true },
     })
+    await audit(session, 'admin.user_update', 'User', id, { fields: Object.keys(data), role: data.role, active: data.active })
     return NextResponse.json(user)
   } catch (e) {
     console.error('[admin/users PATCH]', e)
@@ -54,6 +56,7 @@ export async function DELETE(req: Request, ctx: RouteCtx) {
       data:  { active: false },
       select: { id: true, email: true, name: true, role: true, tenantId: true, active: true, createdAt: true },
     })
+    await audit(session, 'admin.user_deactivate', 'User', id)
     return NextResponse.json(user)
   } catch (e) {
     console.error('[admin/users DELETE]', e)

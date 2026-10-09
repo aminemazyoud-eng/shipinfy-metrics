@@ -1,6 +1,7 @@
 import { requireSession } from '@/lib/api-guard'
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
+import { audit } from '@/lib/ops-auth'
 
 async function generateReference(): Promise<string> {
   const count = await prisma.supportTicket.count()
@@ -65,6 +66,7 @@ export async function POST(req: NextRequest) {
       },
     })
 
+    await audit(_guard.session, 'support.create', 'supportTicket', ticket.id, { reference, category: body.category, priority: ticket.priority })
     return NextResponse.json(ticket, { status: 201 })
   } catch (e) {
     console.error('[api/support POST]', e)

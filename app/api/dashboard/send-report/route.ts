@@ -3,6 +3,7 @@ import { NextResponse } from 'next/server'
 import { buildEmailText, type EmailKpisData } from '@/lib/email-template'
 import { generateReportPDF } from '@/lib/pdf-report'
 import { notify } from '@/lib/notify'
+import { audit } from '@/lib/ops-auth'
 
 export const runtime = 'nodejs'
 
@@ -144,6 +145,9 @@ export async function POST(request: Request) {
       emailText:        textContent,
       emailAttachments: [{ filename: pdfFilename, content: pdfBuffer, contentType: 'application/pdf' }],
     })
+
+    // Journal : nombre de destinataires seulement (jamais les adresses e-mail)
+    await audit(_guard.session, 'report.send', 'report', body.reportId ?? null, { recipients: emails.length, mode: r.mode, notificationId: r.notificationId })
 
     // En mode direct : si l'email a échoué → 502. En mode n8n : delivery asynchrone → 202.
     if (r.mode === 'direct') {

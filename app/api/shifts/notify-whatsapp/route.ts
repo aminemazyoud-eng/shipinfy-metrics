@@ -2,6 +2,7 @@ import { requireSession } from '@/lib/api-guard'
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { sendWhatsApp, formatShiftPlanning, type ShiftSlotLite } from '@/lib/whatsapp'
+import { audit } from '@/lib/ops-auth'
 
 export const runtime = 'nodejs'
 
@@ -79,6 +80,7 @@ export async function POST(req: NextRequest) {
       }
     }
 
+    await audit(_guard.session, 'shift.notify', 'shift', null, { week: body.week, sent, failed })
     return NextResponse.json({ sent, failed, details })
   } catch (e) {
     console.error('[api/shifts/notify-whatsapp]', e)

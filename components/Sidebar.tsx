@@ -8,7 +8,7 @@ import {
   Activity, BarChart3, Users, MapPin, XCircle,
   TrendingUp, Bell, Mail, Settings,
   UserCheck, GraduationCap, ChevronRight, Brain, DollarSign,
-  Truck, Clock, HeadphonesIcon, Shield, Calendar, Package, Send,
+  Truck, Clock, HeadphonesIcon, Shield, Calendar, Package, Send, History,
 } from 'lucide-react'
 import { useCurrentUser } from '@/hooks/useCurrentUser'
 import { getAllowedRoutes } from '@/lib/permissions'
@@ -68,6 +68,7 @@ const SECTIONS: NavSection[] = [
     items: [
       { href: '/rh/onboarding', label: 'Onboarding',    icon: UserCheck,    disabled: false },
       { href: '/pointage',      label: 'Pointage',      icon: Clock,        disabled: false },
+      { href: '/rh/pointage',   label: 'Pointage — historique', icon: History, disabled: false },
       { href: '/rh/paie',       label: 'Paie & Bonus',  icon: DollarSign,   disabled: false },
       { href: '/academy',       label: 'Academy',       icon: GraduationCap,disabled: false },
     ],

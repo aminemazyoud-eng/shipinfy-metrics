@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { getSession } from '@/lib/auth'
+import { audit } from '@/lib/ops-auth'
 
 export const runtime = 'nodejs'
 
@@ -22,6 +23,7 @@ export async function PATCH(req: NextRequest, ctx: RouteCtx) {
         ...(enabled !== undefined && { enabled: Boolean(enabled) }),
       },
     })
+    await audit(session, 'alert_rule.update', 'alertRule', id, { threshold: threshold !== undefined ? Number(threshold) : undefined, enabled: enabled !== undefined ? Boolean(enabled) : undefined })
     return NextResponse.json(rule)
   } catch (e) {
     return NextResponse.json({ error: 'Règle non trouvée' }, { status: 404 })

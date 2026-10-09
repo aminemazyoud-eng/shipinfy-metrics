@@ -15,6 +15,8 @@ import { notify } from '@/lib/notify'
 // Sprint 17 B5 : logique appelée DIRECTEMENT (plus de fetch HTTP sans session vers notre propre API)
 import { runAlertCheck } from '@/lib/alert-check'
 import { calculateScores } from '@/lib/score-ia-engine'
+// Sprint 18 : rétention nocturne des tables techniques
+import { runRetention } from '@/lib/ops-retention'
 // Sprint 17 B6 : fuseau Africa/Casablanca réel (plus de getHours()/setHours() du serveur)
 import { localParts, localDay, dayStartUtc, offsetMs, attendanceKeyTz, addDays } from '@/lib/tz'
 
@@ -218,6 +220,16 @@ export function startCronScheduler() {
   // Hourly alert check — vérifier les seuils toutes les heures
   cron.schedule('0 * * * *', () => {
     runAlertCheckJob().catch(console.error)
+  }, { timezone: 'Africa/Casablanca' })
+
+  // Rétention des tables techniques — chaque nuit à 04:15 (Africa/Casablanca), purge par lots
+  cron.schedule('15 4 * * *', async () => {
+    try {
+      const summary = await runRetention()
+      console.log('[cron] Rétention terminée', JSON.stringify(summary))
+    } catch (e) {
+      console.error('[cron] Rétention en échec:', e)
+    }
   }, { timezone: 'Africa/Casablanca' })
 
   // Score IA recalculation — every day at 02:00

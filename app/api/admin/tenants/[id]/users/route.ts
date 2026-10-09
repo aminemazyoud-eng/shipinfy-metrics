@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { getSession, hashPassword, roleAtLeast, MIN_PASSWORD_LENGTH } from '@/lib/auth'
 import { randomBytes } from 'crypto'
+import { audit } from '@/lib/ops-auth'
 
 type RouteCtx = { params: Promise<{ id: string }> }
 
@@ -66,6 +67,7 @@ export async function POST(req: Request, ctx: RouteCtx) {
       },
       select: { id: true, email: true, name: true, role: true, tenantId: true, active: true, createdAt: true },
     })
+    await audit(session, 'admin.user_create', 'User', user.id, { tenantId: id, role: userRole, via: 'tenant_users_upsert' })
     return NextResponse.json(user, { status: 201 })
   } catch (e) {
     console.error('[admin/tenants/users POST]', e)

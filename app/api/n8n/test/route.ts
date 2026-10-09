@@ -3,6 +3,7 @@ import { triggerN8N, type N8NEventType } from '@/lib/n8n-bridge'
 import { prisma } from '@/lib/prisma'
 import { requireSession } from '@/lib/api-guard'
 import { safeFetch } from '@/lib/safe-fetch'
+import { audit } from '@/lib/ops-auth'
 
 export const runtime = 'nodejs'
 
@@ -45,6 +46,7 @@ export async function POST(req: NextRequest) {
         data:  { lastTriggeredAt: new Date() },
       }).catch(() => {})
 
+      await audit(auth.session, 'n8n.test', 'n8nConfig', configId, { eventType, ok: res.ok, status: res.status })
       return NextResponse.json({ ok: res.ok, status: res.status, configName: cfg.name })
     }
 
@@ -63,6 +65,7 @@ export async function POST(req: NextRequest) {
       message: 'Test depuis Shipinfy Paramètres',
     })
 
+    await audit(auth.session, 'n8n.test', 'n8nConfig', null, { eventType, configsNotified: matching })
     return NextResponse.json({ ok: true, eventType, configsNotified: matching })
   } catch (e) {
     console.error('[api/n8n/test]', e)

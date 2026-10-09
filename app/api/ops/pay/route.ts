@@ -1,20 +1,19 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { opsAuth, fail, audit } from '@/lib/ops-auth'
-import { dayOf, dayBounds, attendanceKey } from '@/lib/ops-time'
-import { computePay, payCsv, type PayConfig } from '@/lib/ops-pay'
+import { dayOf } from '@/lib/ops-time'
+import { payCsv, type PayConfig } from '@/lib/ops-pay'
 import { xlsxResponse } from '@/lib/xlsx-response'
-import { localDay as tzLocalDay } from '@/lib/tz'
-import { ACTIVE_SOURCE } from '@/lib/ops-data'
-
-// jour LOCAL (Africa/Casablanca réel, Ramadan inclus) d'une date
-const localDay = (d: Date) => tzLocalDay(d.getTime())
+import { computeRange, getRun } from '@/lib/ops-payrun'
 
 async function getConfig(): Promise<PayConfig & { id: string }> {
   return prisma.opsPayConfig.upsert({ where: { id: 'default' }, update: {}, create: { id: 'default' } })
 }
 
+const r2 = (n: number) => Math.round(n * 100) / 100
+
 // GET /api/ops/pay?from=YYYY-MM-DD&to=YYYY-MM-DD&hub=&format=csv   (défaut : mois en cours)
+// Si la plage est dans UN mois dont la paie est validée/payée : renvoie les lignes FIGÉES (locked:true), jamais un recalcul.
 export async function GET(req: NextRequest) {
   const auth = await opsAuth(req, 'MANAGER')
   if ('error' in auth) return auth.error
@@ -24,32 +23,34 @@ export async function GET(req: NextRequest) {
     const from = sp.get('from') || today.slice(0, 8) + '01'
     const to = sp.get('to') || today
     const hub = sp.get('hub') || undefined
-    const start = dayBounds(from).from, end = dayBounds(to).to
-    const cfg = await getConfig()
 
-    const drivers = await prisma.opsDriver.findMany({ where: { status: { not: 'off' }, ...(hub ? { hub: { code: hub } } : {}) }, include: { hub: { select: { code: true } } }, orderBy: { code: 'asc' } })
-    // un helper partage les livraisons du chauffeur de son véhicule (c'est l'équipe qui livre)
-    const chauffeurOfVehicle = new Map(drivers.filter(d => d.jobType === 'chauffeur' && d.vehicleId).map(d => [d.vehicleId as string, d.id]))
-    const ordersOwner = (d: (typeof drivers)[number]) => (d.jobType === 'helper' && d.vehicleId ? chauffeurOfVehicle.get(d.vehicleId) ?? d.id : d.id)
-    const ids = [...new Set(drivers.map(ordersOwner))]
-    const byName = new Map(drivers.map(d => [`${d.firstName} ${d.lastName}`, d]))
-    const [att, orders] = await Promise.all([
-      prisma.driverAttendance.findMany({ where: { driverName: { in: drivers.map(d => `${d.firstName} ${d.lastName}`) }, date: { gte: attendanceKey(from), lte: attendanceKey(to) } }, select: { driverName: true, date: true, status: true } }),
-      prisma.opsOrder.findMany({ where: { source: ACTIVE_SOURCE, driverId: { in: ids }, OR: [{ status: 'DELIVERED', deliveredAt: { gte: start, lt: end } }, { status: 'NO_SHOW', noShowAt: { gte: start, lt: end } }] }, select: { driverId: true, status: true, deliveredAt: true, noShowAt: true, slotEnd: true } }),
-    ])
-    const lines = computePay(cfg, drivers.map(d => ({ id: d.id, code: d.code, name: `${d.firstName} ${d.lastName}`, hubCode: d.hub?.code ?? null, dailyRate: d.dailyRate })),
-      att.flatMap(a => { const d = byName.get(a.driverName); return d ? [{ driverId: d.id, day: a.date.toISOString().slice(0, 10), status: a.status }] : [] }),
-      orders.flatMap(o => { const at = (o.deliveredAt ?? o.noShowAt) as Date; return drivers.filter(d => ordersOwner(d) === o.driverId).map(d => ({ driverId: d.id, day: localDay(at), status: o.status, onTime: o.status === 'DELIVERED' && at <= o.slotEnd })) }))
+    // mois clôturé : lecture des lignes enregistrées (tarifs et jours figés)
+    if (from.slice(0, 7) === to.slice(0, 7)) {
+      const run = await getRun(from.slice(0, 7))
+      if (run && run.locked) {
+        const lines = run.lines.filter(l => !hub || l.hubCode === hub)
+        if (sp.get('format') === 'xlsx') return xlsxResponse(payCsv(lines.map(l => ({ ...l, net: l.final })), `${run.period} (clôturé ${run.status})`), `paie_livreurs_${run.period}_fige`, 'Paie')
+        const sum = (k: 'gross' | 'bonus' | 'deductions' | 'net' | 'final') => r2(lines.reduce((s, l) => s + l[k], 0))
+        return NextResponse.json({
+          from, to, period: run.period, locked: true, status: run.status, config: run.config ?? await getConfig(), lines,
+          totals: { gross: sum('gross'), bonus: sum('bonus'), deductions: sum('deductions'), net: sum('final'), computedNet: sum('net'), adjustments: r2(lines.reduce((s, l) => s + l.adjustment, 0)), delivered: lines.reduce((s, l) => s + l.delivered, 0) },
+          validatedBy: run.validatedBy, validatedAt: run.validatedAt,
+          message: 'Mois clôturé : valeurs figées (tarifs et jours du jour de la validation), plage affichée = mois entier.',
+        })
+      }
+    }
 
+    const { cfg, lines } = await computeRange(from, to, hub)
     if (sp.get('format') === 'xlsx') {
       return xlsxResponse(payCsv(lines, `${from} → ${to}`), `paie_livreurs_${from}_${to}`, 'Paie')
     }
-    const sum = (k: 'gross' | 'bonus' | 'deductions' | 'net') => Math.round(lines.reduce((s, l) => s + l[k], 0) * 100) / 100
-    return NextResponse.json({ from, to, config: cfg, lines, totals: { gross: sum('gross'), bonus: sum('bonus'), deductions: sum('deductions'), net: sum('net'), delivered: lines.reduce((s, l) => s + l.delivered, 0) } })
+    const sum = (k: 'gross' | 'bonus' | 'deductions' | 'net') => r2(lines.reduce((s, l) => s + l[k], 0))
+    return NextResponse.json({ from, to, locked: false, status: null, config: cfg, lines, totals: { gross: sum('gross'), bonus: sum('bonus'), deductions: sum('deductions'), net: sum('net'), delivered: lines.reduce((s, l) => s + l.delivered, 0) } })
   } catch (e) { return fail(e) }
 }
 
-// PUT /api/ops/pay — modifie la configuration de paie ; applyToAll=true propage le tarif journalier à tous les livreurs
+// PUT /api/ops/pay — modifie la configuration de paie ; applyToAll=true propage le tarif journalier à tous les livreurs.
+// Ne touche JAMAIS un mois clôturé : seuls les tarifs courants (calculs futurs / brouillons recalculés) changent.
 export async function PUT(req: NextRequest) {
   const auth = await opsAuth(req, 'MANAGER')
   if ('error' in auth) return auth.error
@@ -64,6 +65,10 @@ export async function PUT(req: NextRequest) {
     })
     if (b.applyToAll) { await prisma.opsDriver.updateMany({ where: { jobType: 'chauffeur' }, data: { dailyRate: next.dailyRate } }); await prisma.opsDriver.updateMany({ where: { jobType: 'helper' }, data: { dailyRate: next.helperDailyRate } }) }
     await audit(auth.session, 'pay.config', 'config', 'default', { before: cur, after: next, applyToAll: !!b.applyToAll })
-    return NextResponse.json({ ok: true, config: next })
+    const locked = await prisma.opsPayRun.findMany({ where: { status: { in: ['validated', 'paid'] } }, select: { period: true } })
+    return NextResponse.json({
+      ok: true, config: next, lockedPeriodsUntouched: locked.map(l => l.period),
+      note: 'Les nouveaux tarifs ne s’appliquent qu’aux calculs futurs et aux brouillons recalculés : les mois validés/payés restent figés.',
+    })
   } catch (e) { return fail(e) }
 }

@@ -36,6 +36,5 @@ USER nextjs
 EXPOSE 3001
 ENV PORT=3001
 ENV HOSTNAME="0.0.0.0"
-# node:20-alpine embarque busybox wget. start-period large : run-init-sql.js peut durer jusqu'à ~3 min au premier démarrage.
-HEALTHCHECK --interval=30s --timeout=5s --start-period=60s --retries=3 CMD wget -qO- http://localhost:3001/api/health || exit 1
+# HEALTHCHECK volontairement absent : le test wget sur localhost (IPv6) faisait tuer le conteneur (exit 137). /api/health reste disponible pour une supervision externe.
 CMD ["sh", "start.sh"]

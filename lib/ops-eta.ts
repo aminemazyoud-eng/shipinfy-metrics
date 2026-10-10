@@ -6,6 +6,9 @@
  * Les fonctions de calcul sont PURES (testées sans base) ; l'accès base est importé à l'usage (import dynamique de prisma).
  */
 import { canonicalSlot } from '@/lib/ops-slots'
+import { haversineM } from '@/lib/geo'
+import { localHour } from '@/lib/tz'
+import { DEFAULT_ROUTE_SETTINGS, type Pt, type RouteSettings, type TravelFn } from '@/lib/ops-route'
 
 export type EtaStage = 'READY_PICKUP' | 'ASSIGNED' | 'IN_TRANSPORT' | 'START_DELIVERY'
 export const ETA_MIN_SAMPLES = 3          // en dessous, la médiane n'est pas jugée fiable : repli au niveau suivant
@@ -116,6 +119,14 @@ export async function etaForOrder(orderId: string): Promise<{ etaAt: string | nu
   const { cached } = await import('@/lib/ops-cache')
   const o = await prisma.opsOrder.findUnique({ where: { id: orderId }, select: { ...SEL, status: true, slotEnd: true } })
   if (!o) return { etaAt: null, basis: 'Commande introuvable' }
+  // Agent C : si la commande est dans une tournée, l'ETA de son stop (trajet + service) prime sur la médiane historique.
+  // (La mesure de précision / MAE ci-dessous reste calculée sur les médianes : computeEtaAccuracy n'est pas modifiée.)
+  if (o.status !== 'DELIVERED' && o.status !== 'NO_SHOW' && o.status !== 'CANCELLED') {
+    try {
+      const st = await prisma.opsStop.findUnique({ where: { orderId }, select: { etaAt: true, updatedAt: true } })
+      if (st?.etaAt && st.etaAt.getTime() > Date.now() - 2 * 60_000) return { etaAt: st.etaAt.toISOString(), basis: `tournée · ${ETA_LABEL_NO_LIVE.toLowerCase()}` }
+    } catch { /* table de tournées absente : repli sur la médiane */ }
+  }
   const stageAt = o.status === 'START_DELIVERY' ? o.startDeliveryAt : o.status === 'IN_TRANSPORT' ? o.inTransportAt : o.status === 'ASSIGNED' ? o.assignedAt : o.status === 'READY_PICKUP' ? o.createdAtSrc : null
   const now = Date.now()
   const samples = await cached('eta-samples', 5 * 60_000, () => loadSamples(new Date(now - ETA_LOOKBACK_DAYS * 86_400_000), new Date(now + 86_400_000)))
@@ -129,4 +140,63 @@ export async function etaAccuracy(from: string, to: string, hub?: string): Promi
   const a = dayBoundsTz(from).from, b = dayBoundsTz(to).to
   const evaluated = await loadSamples(a, b, hub)
   return computeEtaAccuracy(evaluated)
+}
+
+// ═══ Agent C — ETA dynamique par stop (trajet haversine ÷ vitesse par tranche horaire + temps de service) ═══════════════════════
+/** Libellé à afficher partout où une ETA de tournée est montrée : aucun trafic temps réel n'est utilisé par défaut. */
+export const ETA_LABEL_NO_LIVE = 'Estimée sans trafic live'
+
+export type TrafficParams = Pick<RouteSettings, 'baseSpeedKmh' | 'roadFactor' | 'trafficCoef' | 'defaultLegMin' | 'minLegMin' | 'trafficCurve'>
+export const DEFAULT_TRAFFIC: TrafficParams = {
+  baseSpeedKmh: DEFAULT_ROUTE_SETTINGS.baseSpeedKmh, roadFactor: DEFAULT_ROUTE_SETTINGS.roadFactor, trafficCoef: DEFAULT_ROUTE_SETTINGS.trafficCoef,
+  defaultLegMin: DEFAULT_ROUTE_SETTINGS.defaultLegMin, minLegMin: DEFAULT_ROUTE_SETTINGS.minLegMin, trafficCurve: DEFAULT_ROUTE_SETTINGS.trafficCurve,
+}
+
+/** Vitesse moyenne (km/h) à l'instant `atMs` : base × facteur de l'heure locale ÷ coefficient de trafic (plancher 5 km/h). */
+export function speedKmhAt(atMs: number, p: TrafficParams = DEFAULT_TRAFFIC): number {
+  const f = p.trafficCurve[localHour(atMs)] ?? 1
+  return Math.max(5, (p.baseSpeedKmh * f) / Math.max(0.1, p.trafficCoef))
+}
+
+/** Minutes de trajet entre deux points : distance haversine × détour ÷ vitesse (selon l'heure). Position inconnue → trajet par défaut. */
+export function legMinutes(a: Pt | null, b: Pt | null, atMs: number, p: TrafficParams = DEFAULT_TRAFFIC): number {
+  if (!a || !b) return p.defaultLegMin
+  const km = (haversineM(a.lat, a.lng, b.lat, b.lng) * p.roadFactor) / 1000
+  return Math.max(p.minLegMin, (km / speedKmhAt(atMs, p)) * 60)
+}
+
+/** Fonction de trajet pour ops-route. `live` = durées fournies par un fournisseur externe (clé « lat,lng>lat,lng » → minutes), prioritaires. */
+export function makeTravel(p: TrafficParams = DEFAULT_TRAFFIC, live?: Map<string, number>): TravelFn {
+  return (a, b, atMs) => (a && b && live?.get(legKey(a, b))) || legMinutes(a, b, atMs, p)
+}
+export const legKey = (a: Pt, b: Pt) => `${a.lat.toFixed(4)},${a.lng.toFixed(4)}>${b.lat.toFixed(4)},${b.lng.toFixed(4)}`
+
+// ── Adaptateur de trafic externe (ISOLÉ, DÉSACTIVÉ PAR DÉFAUT) ──────────────────────────────────────────────────────────────
+// Activé uniquement si TRAFFIC_API_URL est défini. Contrat générique supposé (à adapter à votre fournisseur) :
+//   GET {TRAFFIC_API_URL}?origin=lat,lng&destination=lat,lng&departure_time=ISO   (Authorization: Bearer {TRAFFIC_API_KEY} si défini)
+//   -> JSON { duration_min: number } ou { durationMinutes: number } ou { duration_seconds: number }
+// Aucun fournisseur gratuit de trafic temps réel n'existe sans clé : sans cette configuration, les ETA restent « estimées sans trafic live ».
+export const trafficProviderEnabled = () => !!process.env.TRAFFIC_API_URL
+const liveCache = new Map<string, { exp: number; min: number | null }>()
+
+export async function liveLegMinutes(a: Pt, b: Pt, atMs: number): Promise<number | null> {
+  const url = process.env.TRAFFIC_API_URL
+  if (!url) return null
+  const key = `${legKey(a, b)}@${Math.floor(atMs / 300_000)}`
+  const hit = liveCache.get(key)
+  if (hit && hit.exp > Date.now()) return hit.min
+  let min: number | null = null
+  try {
+    const u = new URL(url)
+    u.searchParams.set('origin', `${a.lat},${a.lng}`); u.searchParams.set('destination', `${b.lat},${b.lng}`); u.searchParams.set('departure_time', new Date(atMs).toISOString())
+    const r = await fetch(u, { headers: process.env.TRAFFIC_API_KEY ? { Authorization: `Bearer ${process.env.TRAFFIC_API_KEY}` } : {}, signal: AbortSignal.timeout(3000), cache: 'no-store' })
+    if (r.ok) {
+      const j = await r.json() as Record<string, unknown>
+      const v = typeof j.duration_min === 'number' ? j.duration_min : typeof j.durationMinutes === 'number' ? j.durationMinutes : typeof j.duration_seconds === 'number' ? j.duration_seconds / 60 : null
+      if (v != null && Number.isFinite(v) && v > 0 && v < 600) min = v
+    }
+  } catch { /* fournisseur indisponible : repli sur le modèle horaire */ }
+  if (liveCache.size > 2000) liveCache.clear()
+  liveCache.set(key, { exp: Date.now() + 5 * 60_000, min })
+  return min
 }

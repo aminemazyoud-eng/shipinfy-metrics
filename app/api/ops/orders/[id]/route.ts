@@ -22,7 +22,7 @@ export async function GET(req: NextRequest, ctx: { params: Promise<{ id: string 
     return NextResponse.json({
       steps, totalMin, collected: o.collectedAt ? { by: o.collectedBy, method: o.collectionMethod, amount: o.collectedAmount, note: o.collectionNote } : null,
       id: o.id, ref: o.reference || o.externalId, externalId: o.externalId, hubCode: o.hubCode, status: o.status, slotStart: o.slotStart, slotEnd: o.slotEnd, slotLabel: o.slotLabel,
-      cancelReason: o.cancelReason ?? null, otpVerifiedAt: o.otpVerifiedAt ?? null, otpVerifiedBy: o.otpVerifiedBy ?? null, customer: o.customerName, address: o.address, district: o.district, amount: o.amount, attempts: o.attemptCount,
+      cancelReason: o.cancelReason ?? null, reasonCode: o.reasonCode ?? null, arrivedAt: o.arrivedAt ?? null, postponedAt: o.postponedAt ?? null, otpVerifiedAt: o.otpVerifiedAt ?? null, otpVerifiedBy: o.otpVerifiedBy ?? null, customer: o.customerName, address: o.address, district: o.district, amount: o.amount, attempts: o.attemptCount,
       driver: o.driver ? { code: o.driver.code, name: `${o.driver.firstName} ${o.driver.lastName}`, phone: o.driver.phone, hub: o.driver.hub?.name ?? null } : null,
       geo: { lat: o.deliveredLat ?? null, lng: o.deliveredLng ?? null, distanceM: o.deliveryDistanceM ?? null, ok: o.deliveryGeoOk ?? null }, proofCount, geofenceMeters: CFG.deliveryGeofenceMeters,
       events: o.events.map(e => ({ from: e.fromStatus, to: e.toStatus, at: e.at, source: e.source })), tickets,

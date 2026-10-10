@@ -31,7 +31,7 @@ export async function GET(req: NextRequest) {
       take: 300,
       select: {
         id: true, reference: true, externalId: true, status: true, slotLabel: true, slotStart: true, slotEnd: true, customerName: true, district: true, address: true,
-        lat: true, lng: true, amount: true, customerPhone: true, otpAttempts: true, otpVerifiedAt: true,
+        lat: true, lng: true, amount: true, customerPhone: true, otpAttempts: true, otpVerifiedAt: true, arrivedAt: true, reasonCode: true,
       },
     })
     const withProof = new Set((rows.length
@@ -45,6 +45,7 @@ export async function GET(req: NextRequest) {
         customerName: shortName(o.customerName), district: o.district, address: o.address, lat: o.lat, lng: o.lng, amount: o.amount, customerPhone: o.customerPhone,
         otpRequired, otpVerified: o.otpVerifiedAt != null, otpAttempts: o.otpAttempts,
         lateMin: lateMinutes({ status: o.status, slotEnd: o.slotEnd }, now), hasProof: withProof.has(o.id),
+        arrivedAt: o.arrivedAt?.toISOString() ?? null, reasonCode: o.reasonCode,
       })),
     })
   } catch (e) { console.error('[api/driver/orders]', e); return driverJson({ error: 'Erreur serveur' }, 500) }

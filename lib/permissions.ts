@@ -10,7 +10,7 @@ export type RoleKey = typeof ALL_ROLES[number]
 // Module key → route prefixes that belong to it
 export const MODULE_ROUTES: Record<string, string[]> = {
   dashboard:    ['/', '/kpis', '/previsions'],
-  operations:   ['/operations', '/operations/dispatch', '/operations/suivi', '/operations/encaissement', '/operations/pointage', '/operations/flotte', '/operations/historique'],
+  operations:   ['/operations', '/operations/dispatch', '/operations/suivi', '/operations/encaissement', '/operations/pointage', '/operations/flotte', '/operations/historique', '/operations/tournees', '/operations/controle', '/operations/vagues', '/operations/secteurs', '/operations/chiffrage', '/operations/froid', '/operations/integrations'],
   livreurs:     ['/livreurs', '/score-ia', '/performance/analyse'],
   journal:      ['/admin/journal'],
   remuneration: ['/remuneration'],
@@ -23,7 +23,7 @@ export const MODULE_ROUTES: Record<string, string[]> = {
   notifications:['/notifications'],
   support:      ['/support'],
   rh:           ['/pointage', '/onboarding', '/academy', '/rh', '/rh/onboarding', '/rh/paie', '/rh/pointage'],
-  parametres:   ['/parametres', '/parametres/calculs', '/parametres/scoring', '/parametres/paie', '/parametres/notifications'],
+  parametres:   ['/parametres', '/parametres/calculs', '/parametres/scoring', '/parametres/paie', '/parametres/notifications', '/parametres/motifs'],
   admin:        ['/admin'],
 }
 

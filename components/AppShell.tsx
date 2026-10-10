@@ -69,6 +69,7 @@ const SECTIONS: NavSection[] = [
       { href: '/parametres/scoring',       label: 'Scoring livreur',           icon: Brain    },
       { href: '/parametres/paie',          label: 'Paie & bonus',              icon: DollarSign },
       { href: '/parametres/notifications', label: 'Notifications & incidents', icon: Send     },
+      { href: '/parametres/motifs', label: 'Motifs de non-livraison', icon: Send },
       { href: '/rapports',                 label: 'Rapports planifiés',        icon: Mail     },
     ],
   },

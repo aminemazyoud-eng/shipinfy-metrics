@@ -40,3 +40,38 @@ export function sniffImage(buf: Uint8Array): 'image/jpeg' | 'image/png' | 'image
   if (buf.length >= 12 && buf[0] === 0x52 && buf[1] === 0x49 && buf[2] === 0x46 && buf[3] === 0x46 && buf[8] === 0x57 && buf[9] === 0x45 && buf[10] === 0x42 && buf[11] === 0x50) return 'image/webp'
   return null
 }
+
+export type GeoGate = { pass: true; check: GeoCheck | null } | { pass: false; code: 'OUT_OF_RANGE' | 'GEO_REQUIRED'; check: GeoCheck | null }
+
+/**
+ * Décision de géofence pour une action « à un endroit précis » (check-in au hub, arrivée chez le client).
+ * - cible sans coordonnées valides : on ne peut rien prouver, l'action passe (check = null) ;
+ * - mode 'soft' : l'action passe toujours, le contrôle sert de simple signalement (check.ok) ;
+ * - mode 'block' : position absente => GEO_REQUIRED, distance > rayon => OUT_OF_RANGE.
+ */
+export function geoGate(geo: { lat?: unknown; lng?: unknown } | null | undefined, target: { lat?: number | null; lng?: number | null }, radiusM: number, mode: string): GeoGate {
+  if (!validLatLng(target.lat, target.lng)) return { pass: true, check: null }
+  const check = geoCheck(geo, target, radiusM)
+  if (mode !== 'block') return { pass: true, check }
+  if (!check) return { pass: false, code: 'GEO_REQUIRED', check: null }
+  return check.ok ? { pass: true, check } : { pass: false, code: 'OUT_OF_RANGE', check }
+}
+
+export interface TrackPoint { lat: number; lng: number; at: number }
+
+/** Échantillonnage du suivi GPS : on garde un point s'il est le premier, à >= minMs du dernier gardé, ou à >= minM mètres de lui. */
+export function shouldKeepPoint(last: TrackPoint | null | undefined, p: TrackPoint, minMs = 30_000, minM = 50): boolean {
+  if (!validLatLng(p.lat, p.lng)) return false
+  if (!last) return true
+  if (p.at - last.at >= minMs) return true
+  return haversineM(last.lat, last.lng, p.lat, p.lng) >= minM
+}
+
+/** Liens de navigation 1 clic (Waze / Google Maps) vers une destination. Null si coordonnées invalides. */
+export function navLinks(lat: number | null | undefined, lng: number | null | undefined): { waze: string; google: string } | null {
+  if (!validLatLng(lat, lng)) return null
+  return {
+    waze: `https://waze.com/ul?ll=${lat},${lng}&navigate=yes`,
+    google: `https://www.google.com/maps/dir/?api=1&destination=${lat},${lng}`,
+  }
+}

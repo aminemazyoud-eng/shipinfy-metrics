@@ -1170,3 +1170,99 @@ ALTER TABLE "DriverAttendance" ADD COLUMN IF NOT EXISTS "checkInLat" DOUBLE PREC
 ALTER TABLE "DriverAttendance" ADD COLUMN IF NOT EXISTS "checkInLng" DOUBLE PRECISION;
 ALTER TABLE "DriverAttendance" ADD COLUMN IF NOT EXISTS "checkInDistanceM" INTEGER;
 ALTER TABLE "DriverAttendance" ADD COLUMN IF NOT EXISTS "checkInGeoOk" BOOLEAN;
+
+-- ═══ Sprint 21 : cahier des charges Track & Trace + module Chiffrage (coûts) ═══
+-- Tournées (1 tournée = 1 rotation d'un chauffeur sur un jour) et stops ordonnés
+CREATE TABLE IF NOT EXISTS "OpsTour" (
+  "id" TEXT NOT NULL PRIMARY KEY, "day" TEXT NOT NULL, "hubCode" TEXT, "vehicleRef" TEXT, "driverCode" TEXT NOT NULL, "helperCode" TEXT,
+  "rotation" INTEGER NOT NULL DEFAULT 1, "status" TEXT NOT NULL DEFAULT 'PLANNED',
+  "kmStart" DOUBLE PRECISION, "kmEnd" DOUBLE PRECISION, "startedAt" TIMESTAMP(3), "endedAt" TIMESTAMP(3),
+  "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP, "updatedAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+CREATE UNIQUE INDEX IF NOT EXISTS "OpsTour_day_driver_rot_key" ON "OpsTour"("day","driverCode","rotation");
+CREATE INDEX IF NOT EXISTS "OpsTour_day_idx" ON "OpsTour"("day");
+ALTER TABLE "OpsTour" ENABLE ROW LEVEL SECURITY;
+
+CREATE TABLE IF NOT EXISTS "OpsStop" (
+  "id" TEXT NOT NULL PRIMARY KEY, "tourId" TEXT NOT NULL, "orderId" TEXT NOT NULL, "seq" INTEGER NOT NULL,
+  "etaAt" TIMESTAMP(3), "serviceMin" INTEGER, "postponedCount" INTEGER NOT NULL DEFAULT 0,
+  "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP, "updatedAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+CREATE UNIQUE INDEX IF NOT EXISTS "OpsStop_orderId_key" ON "OpsStop"("orderId");
+CREATE INDEX IF NOT EXISTS "OpsStop_tour_seq_idx" ON "OpsStop"("tourId","seq");
+ALTER TABLE "OpsStop" ENABLE ROW LEVEL SECURITY;
+
+-- Secteurs / polygones de livraison et vagues de préparation
+CREATE TABLE IF NOT EXISTS "OpsSector" (
+  "id" TEXT NOT NULL PRIMARY KEY, "code" TEXT NOT NULL, "name" TEXT NOT NULL, "hubCode" TEXT,
+  "polygon" TEXT NOT NULL DEFAULT '[]', "active" BOOLEAN NOT NULL DEFAULT true,
+  "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+CREATE UNIQUE INDEX IF NOT EXISTS "OpsSector_code_key" ON "OpsSector"("code");
+ALTER TABLE "OpsSector" ENABLE ROW LEVEL SECURITY;
+
+-- Articles / bacs d'une commande (contrôle du chargement par scan)
+CREATE TABLE IF NOT EXISTS "OpsOrderItem" (
+  "id" TEXT NOT NULL PRIMARY KEY, "orderId" TEXT NOT NULL, "sku" TEXT, "label" TEXT, "qty" INTEGER NOT NULL DEFAULT 1,
+  "barcode" TEXT, "loadedQty" INTEGER NOT NULL DEFAULT 0, "loadedAt" TIMESTAMP(3), "loadedBy" TEXT, "coldChain" BOOLEAN NOT NULL DEFAULT false,
+  "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+CREATE INDEX IF NOT EXISTS "OpsOrderItem_orderId_idx" ON "OpsOrderItem"("orderId");
+CREATE INDEX IF NOT EXISTS "OpsOrderItem_barcode_idx" ON "OpsOrderItem"("barcode");
+ALTER TABLE "OpsOrderItem" ENABLE ROW LEVEL SECURITY;
+
+-- Motifs de non-livraison standardisés (paramétrables)
+CREATE TABLE IF NOT EXISTS "OpsReason" (
+  "id" TEXT NOT NULL PRIMARY KEY, "code" TEXT NOT NULL, "label" TEXT NOT NULL, "labelAr" TEXT, "kind" TEXT NOT NULL DEFAULT 'NON_DELIVERY',
+  "cod" BOOLEAN NOT NULL DEFAULT false, "rto" BOOLEAN NOT NULL DEFAULT true, "sort" INTEGER NOT NULL DEFAULT 0, "active" BOOLEAN NOT NULL DEFAULT true
+);
+CREATE UNIQUE INDEX IF NOT EXISTS "OpsReason_code_key" ON "OpsReason"("code");
+ALTER TABLE "OpsReason" ENABLE ROW LEVEL SECURITY;
+
+-- Colonnes commande : secteur, vague, motif, report, arrivée chez le client
+ALTER TABLE "OpsOrder" ADD COLUMN IF NOT EXISTS "sectorCode" TEXT;
+ALTER TABLE "OpsOrder" ADD COLUMN IF NOT EXISTS "waveId" TEXT;
+ALTER TABLE "OpsOrder" ADD COLUMN IF NOT EXISTS "reasonCode" TEXT;
+ALTER TABLE "OpsOrder" ADD COLUMN IF NOT EXISTS "postponedAt" TIMESTAMP(3);
+ALTER TABLE "OpsOrder" ADD COLUMN IF NOT EXISTS "arrivedAt" TIMESTAMP(3);
+ALTER TABLE "OpsOrder" ADD COLUMN IF NOT EXISTS "lat" DOUBLE PRECISION;
+ALTER TABLE "OpsOrder" ADD COLUMN IF NOT EXISTS "lng" DOUBLE PRECISION;
+ALTER TABLE "OpsOrder" ADD COLUMN IF NOT EXISTS "tourId" TEXT;
+
+-- Positions GPS en continu (arrière-plan)
+CREATE TABLE IF NOT EXISTS "OpsDriverPosition" (
+  "id" TEXT NOT NULL PRIMARY KEY, "driverCode" TEXT NOT NULL, "tourId" TEXT, "lat" DOUBLE PRECISION NOT NULL, "lng" DOUBLE PRECISION NOT NULL,
+  "accuracy" DOUBLE PRECISION, "speed" DOUBLE PRECISION, "at" TIMESTAMP(3) NOT NULL, "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+CREATE INDEX IF NOT EXISTS "OpsDriverPosition_driver_at_idx" ON "OpsDriverPosition"("driverCode","at");
+CREATE INDEX IF NOT EXISTS "OpsDriverPosition_at_idx" ON "OpsDriverPosition"("at");
+ALTER TABLE "OpsDriverPosition" ENABLE ROW LEVEL SECURITY;
+
+-- Température du caisson frigorifique (capteurs IoT)
+CREATE TABLE IF NOT EXISTS "OpsTempReading" (
+  "id" TEXT NOT NULL PRIMARY KEY, "vehicleRef" TEXT NOT NULL, "sensor" TEXT, "celsius" DOUBLE PRECISION NOT NULL, "at" TIMESTAMP(3) NOT NULL,
+  "lat" DOUBLE PRECISION, "lng" DOUBLE PRECISION, "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+CREATE INDEX IF NOT EXISTS "OpsTempReading_veh_at_idx" ON "OpsTempReading"("vehicleRef","at");
+ALTER TABLE "OpsTempReading" ENABLE ROW LEVEL SECURITY;
+
+-- Webhooks sortants vers le SI du donneur d'ordre (file fiable avec relance)
+CREATE TABLE IF NOT EXISTS "OpsWebhookEndpoint" (
+  "id" TEXT NOT NULL PRIMARY KEY, "name" TEXT NOT NULL, "url" TEXT NOT NULL, "secret" TEXT NOT NULL, "events" TEXT NOT NULL DEFAULT '*',
+  "active" BOOLEAN NOT NULL DEFAULT true, "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+ALTER TABLE "OpsWebhookEndpoint" ENABLE ROW LEVEL SECURITY;
+CREATE TABLE IF NOT EXISTS "OpsWebhookDelivery" (
+  "id" TEXT NOT NULL PRIMARY KEY, "endpointId" TEXT NOT NULL, "event" TEXT NOT NULL, "dedupeKey" TEXT NOT NULL, "payload" TEXT NOT NULL,
+  "status" TEXT NOT NULL DEFAULT 'PENDING', "attempts" INTEGER NOT NULL DEFAULT 0, "nextAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  "lastError" TEXT, "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP, "deliveredAt" TIMESTAMP(3)
+);
+CREATE UNIQUE INDEX IF NOT EXISTS "OpsWebhookDelivery_dedupe_key" ON "OpsWebhookDelivery"("endpointId","dedupeKey");
+CREATE INDEX IF NOT EXISTS "OpsWebhookDelivery_status_next_idx" ON "OpsWebhookDelivery"("status","nextAt");
+ALTER TABLE "OpsWebhookDelivery" ENABLE ROW LEVEL SECURITY;
+
+-- Chiffrage : paramètres de coût (carburant/maintenance/véhicules : OpsFuelLog, OpsMaintenance, OpsVehicle existants)
+CREATE TABLE IF NOT EXISTS "OpsCostParam" (
+  "key" TEXT NOT NULL PRIMARY KEY, "value" DOUBLE PRECISION NOT NULL, "note" TEXT, "updatedAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+ALTER TABLE "OpsCostParam" ENABLE ROW LEVEL SECURITY;

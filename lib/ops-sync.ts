@@ -347,6 +347,14 @@ export async function runOpsSync(opts: { full?: boolean } = {}): Promise<OpsSync
         console.warn('[ops-sync] rapport LIVE non rafraîchi:', e)
       }
     }
+    // Agent C : secteur des commandes créées / modifiées (repli quartier si pas de GPS) puis ETA des tournées du jour. JAMAIS bloquant.
+    try {
+      if (changed.size) {
+        const { tagSectorsForExternal } = await import('@/lib/ops-sectors')
+        await tagSectorsForExternal(source, [...changed])
+        void import('@/lib/ops-tours').then(m => m.recomputeEtaForDay()).catch(() => {})
+      }
+    } catch (e) { console.warn('[ops-sync] secteurs / ETA ignorés:', e instanceof Error ? e.message : e) }
     bumpOpsEpoch() // les vues en cache (prévisions, etc.) doivent refléter la synchro
     res.ok = true
     res.cursor = cursor

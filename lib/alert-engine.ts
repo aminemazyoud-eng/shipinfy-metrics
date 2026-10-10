@@ -17,7 +17,7 @@ import { notify } from '@/lib/notify'
 
 export type AlertMode  = 'standard' | 'express'
 export type AlertLevel = 1 | 2 | 3
-export type AlertType  = 'delay_risk' | 'delay_confirmed' | 'gps_blocked' | 'predictive'
+export type AlertType  = 'delay_risk' | 'delay_confirmed' | 'gps_blocked' | 'predictive' | 'cold_chain'
 
 export interface AlertPayload {
   orderId?:    string
@@ -226,4 +226,18 @@ export async function runPredictiveAlerts(): Promise<{ checked: number; created:
   }
 
   return { checked: lowScores.length, created }
+}
+
+// ── Chaîne du froid — rupture de température d'un véhicule (lib/ops-cold-chain.ts) ───────────────────────
+/**
+ * Émet l'alerte d'une rupture (niveau 2 = Slack, niveau 3 = Slack + email). Dédoublonnée par (rupture, niveau) : `key` identifie la rupture
+ * (véhicule + capteur + début) et figure dans le message ; la fenêtre de 48 h couvre toute rupture en cours. Retourne true si créée.
+ */
+export async function emitColdChainAlert(p: { key: string; level: 2 | 3; message: string }): Promise<boolean> {
+  const recent = await prisma.deliveryAlert.findFirst({
+    where: { type: 'cold_chain', level: p.level, message: { contains: p.key }, triggeredAt: { gte: new Date(Date.now() - 48 * 3_600_000) } },
+    select: { id: true },
+  })
+  if (recent) return false
+  return createDeliveryAlert({ mode: 'standard', level: p.level, type: 'cold_chain', message: p.message })
 }

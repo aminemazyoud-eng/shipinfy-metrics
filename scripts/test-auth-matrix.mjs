@@ -4,7 +4,7 @@ import fs from 'fs'
 import path from 'path'
 
 const ROOT = path.resolve(process.cwd(), 'app', 'api')
-const GUARD = /requireSession|getSession|opsAuth|verifyPlan|createHmac|timingSafeEqual|driverFromRequest/ // driverFromRequest : jeton HMAC par livreur (application livreur, lib/ops-driver-token.ts)
+const GUARD = /requireSession|getSession|opsAuth|verifyPlan|createHmac|timingSafeEqual|driverFromRequest|guardApiKey|verifyApiKey/ // driverFromRequest : jeton HMAC par livreur (application livreur, lib/ops-driver-token.ts)
 // Routes volontairement publiques (la sécurité est portée par la route elle-même : login, lien signé, signature HMAC…)
 const WHITELIST = new Set([
   'auth/login', 'auth/logout', 'auth/bootstrap', 'auth/forgot-password', 'auth/reset-password',

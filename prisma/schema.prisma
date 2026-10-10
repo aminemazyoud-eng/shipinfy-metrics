@@ -678,6 +678,12 @@ model OpsDriver {
 }
 
 model OpsOrder {
+  sectorCode       String?
+  waveId           String?
+  reasonCode       String?
+  postponedAt      DateTime?
+  arrivedAt        DateTime?
+  tourId           String?
   id               String        @id @default(cuid())
   tenantId         String?
   source           String        @default("mock") // mock | shipinfy-bo
@@ -1108,4 +1114,135 @@ model OpsProof {
 
   @@index([orderId])
   @@index([createdAt])
+}
+
+
+// ═══ Sprint 21 : cahier des charges Track & Trace + Chiffrage ═══
+model OpsTour {
+  id         String    @id @default(cuid())
+  day        String
+  hubCode    String?
+  vehicleRef String?
+  driverCode String
+  helperCode String?
+  rotation   Int       @default(1)
+  status     String    @default("PLANNED") // PLANNED | LOADING | ONGOING | DONE
+  kmStart    Float?
+  kmEnd      Float?
+  startedAt  DateTime?
+  endedAt    DateTime?
+  createdAt  DateTime  @default(now())
+  updatedAt  DateTime  @default(now()) @updatedAt
+  @@unique([day, driverCode, rotation])
+  @@index([day])
+}
+
+model OpsStop {
+  id             String   @id @default(cuid())
+  tourId         String
+  orderId        String   @unique
+  seq            Int
+  etaAt          DateTime?
+  serviceMin     Int?
+  postponedCount Int      @default(0)
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @default(now()) @updatedAt
+  @@index([tourId, seq])
+}
+
+model OpsSector {
+  id        String   @id @default(cuid())
+  code      String   @unique
+  name      String
+  hubCode   String?
+  polygon   String   @default("[]") // JSON [[lat,lng],…]
+  active    Boolean  @default(true)
+  createdAt DateTime @default(now())
+}
+
+model OpsOrderItem {
+  id        String    @id @default(cuid())
+  orderId   String
+  sku       String?
+  label     String?
+  qty       Int       @default(1)
+  barcode   String?
+  loadedQty Int       @default(0)
+  loadedAt  DateTime?
+  loadedBy  String?
+  coldChain Boolean   @default(false)
+  createdAt DateTime  @default(now())
+  @@index([orderId])
+  @@index([barcode])
+}
+
+model OpsReason {
+  id      String  @id @default(cuid())
+  code    String  @unique
+  label   String
+  labelAr String?
+  kind    String  @default("NON_DELIVERY")
+  cod     Boolean @default(false)
+  rto     Boolean @default(true)
+  sort    Int     @default(0)
+  active  Boolean @default(true)
+}
+
+model OpsDriverPosition {
+  id         String   @id @default(cuid())
+  driverCode String
+  tourId     String?
+  lat        Float
+  lng        Float
+  accuracy   Float?
+  speed      Float?
+  at         DateTime
+  createdAt  DateTime @default(now())
+  @@index([driverCode, at])
+  @@index([at])
+}
+
+model OpsTempReading {
+  id         String   @id @default(cuid())
+  vehicleRef String
+  sensor     String?
+  celsius    Float
+  at         DateTime
+  lat        Float?
+  lng        Float?
+  createdAt  DateTime @default(now())
+  @@index([vehicleRef, at])
+}
+
+model OpsWebhookEndpoint {
+  id        String   @id @default(cuid())
+  name      String
+  url       String
+  secret    String
+  events    String   @default("*")
+  active    Boolean  @default(true)
+  createdAt DateTime @default(now())
+}
+
+model OpsWebhookDelivery {
+  id          String    @id @default(cuid())
+  endpointId  String
+  event       String
+  dedupeKey   String
+  payload     String
+  status      String    @default("PENDING") // PENDING | OK | FAILED
+  attempts    Int       @default(0)
+  nextAt      DateTime  @default(now())
+  lastError   String?
+  createdAt   DateTime  @default(now())
+  deliveredAt DateTime?
+  @@unique([endpointId, dedupeKey])
+  @@index([status, nextAt])
+}
+
+model OpsCostParam {
+  key       String   @id
+  value     Float
+  note      String?
+  updatedAt DateTime @default(now()) @updatedAt
 }

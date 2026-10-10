@@ -255,6 +255,16 @@ export function startCronScheduler() {
     }
   }, { timezone: 'Africa/Casablanca' })
 
+  // Intégrations — webhooks sortants (file + envoi + relances) chaque minute ; sans endpoint actif la tâche ne fait qu'une lecture
+  cron.schedule('* * * * *', async () => {
+    try { const { webhookTick } = await import('@/lib/ops-webhooks'); await webhookTick() } catch (e) { console.error('[cron] webhooks:', e) }
+  }, { timezone: 'Africa/Casablanca' })
+
+  // Chaîne du froid — évaluation des ruptures de température toutes les 2 min (sans lecture récente : requête vide)
+  cron.schedule('*/2 * * * *', async () => {
+    try { const { evaluateColdChain } = await import('@/lib/ops-cold-chain'); await evaluateColdChain() } catch (e) { console.error('[cron] chaîne du froid:', e) }
+  }, { timezone: 'Africa/Casablanca' })
+
   // Module 0 — Synchro back-office -> OpsOrder toutes les 5 min (opt-in : OPS_SYNC_ENABLED=true)
   if (process.env.OPS_SYNC_ENABLED === 'true') {
     cron.schedule('2-59/5 * * * *', async () => {

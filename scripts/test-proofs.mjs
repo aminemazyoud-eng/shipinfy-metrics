@@ -47,7 +47,7 @@ ok('actions application livreur', () => {
   assert.equal(z.count, null); assert.equal(z.failRate, null)
 })
 ok('paramètres : bornes des rayons et liste fermée proofRequired', () => {
-  assert.equal(c.DEFAULT_CFG.geofenceMeters, 300); assert.equal(c.DEFAULT_CFG.deliveryGeofenceMeters, 300); assert.equal(c.DEFAULT_CFG.proofRequired, 'otp_or_photo')
+  assert.equal(c.DEFAULT_CFG.geofenceMeters, 400); assert.equal(c.DEFAULT_CFG.deliveryGeofenceMeters, 400); assert.equal(c.DEFAULT_CFG.proofRequired, 'otp_or_photo')
   assert.equal(c.sanitizeCfgValue('geofenceMeters', 50), 50)
   assert.equal(c.sanitizeCfgValue('geofenceMeters', 2000), 2000)
   assert.equal(c.sanitizeCfgValue('geofenceMeters', 49), undefined)
@@ -60,6 +60,6 @@ ok('paramètres : bornes des rayons et liste fermée proofRequired', () => {
   assert.equal(c.sanitizeCfgValue('cashGapAlert', 10), 10) // paramètres existants inchangés
   assert.equal(c.sanitizeCfgValue('cashGapAlert', -1), undefined)
   c.setCfg({ geofenceMeters: 99999, proofRequired: 'photo' })
-  assert.equal(c.CFG.geofenceMeters, 300); assert.equal(c.CFG.proofRequired, 'photo')
+  assert.equal(c.CFG.geofenceMeters, 400); assert.equal(c.CFG.proofRequired, 'photo')
 })
 console.log(`\ntest-proofs : ${n} groupes de tests OK`)

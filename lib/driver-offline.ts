@@ -2,7 +2,8 @@
 // traitement des résultats de synchro (fonctions PURES, testées par scripts/test-driver-offline.mjs) et
 // stockage IndexedDB avec repli en mémoire (navigation privée). Aucun accès DOM à l'import.
 
-export type ActionType = 'accept' | 'start' | 'deliver' | 'noshow' | 'checkin' | 'checkout'
+// 'postpone' (report du stop) n'est PAS envoyé à /api/driver/sync mais à /api/driver/stop/postpone (voir useDriver.runSync)
+export type ActionType = 'accept' | 'start' | 'arrive' | 'deliver' | 'noshow' | 'postpone' | 'checkin' | 'checkout'
 export type QueueState = 'pending' | 'sending' | 'error'
 export interface Geo { lat: number; lng: number; accuracy?: number }
 
@@ -10,11 +11,11 @@ export interface DriverOrder {
   id: string; ref: string; status: string; slotLabel: string | null; slotStart: string | null; slotEnd: string | null
   customerName: string | null; district: string | null; address: string | null; lat: number | null; lng: number | null
   amount: number | null; customerPhone: string | null; otpRequired: boolean; otpVerified: boolean; otpAttempts: number
-  lateMin: number | null; hasProof: boolean
+  lateMin: number | null; hasProof: boolean; arrivedAt?: string | null; reasonCode?: string | null
 }
 
 export interface QueueItem {
-  id: string; seq: number; type: ActionType; orderId?: string; at: string; geo?: Geo; otp?: string; reason?: string
+  id: string; seq: number; type: ActionType; orderId?: string; at: string; geo?: Geo; otp?: string; reason?: string; reasonCode?: string
   proofClientIds?: string[]; tries: number; state: QueueState; errorCode?: string; lastTryAt?: string
 }
 
@@ -23,19 +24,20 @@ export interface ProofRec {
   geo?: Geo; takenAt: string; uploaded: boolean; tries?: number
 }
 
-export interface SyncResult { id: string; ok: boolean; code?: string; error?: string; order?: { id: string; status: string }; attendance?: unknown }
+export interface SyncResult { id: string; ok: boolean; code?: string; error?: string; message?: string; order?: { id: string; status: string }; attendance?: unknown; autoCheckout?: { at: string }; remaining?: number; distanceM?: number; radiusM?: number }
 
 export interface OrdersSnapshot {
-  key: 'snap'; orders: DriverOrder[]; serverTime: string | null; driver: unknown; config: unknown; savedAt: string
+  key: 'snap'; orders: DriverOrder[]; serverTime: string | null; driver: unknown; config: unknown; savedAt: string; tour?: TourState | null
 }
 
-export type ViewOrder = DriverOrder & { localPending: boolean; errorItem: QueueItem | null }
+export type ViewOrder = DriverOrder & { localPending: boolean; errorItem: QueueItem | null; arrived: boolean; postponed: boolean }
 
 // ───────────────────────── machine à états (miroir du serveur) ─────────────────────────
 
 const TRANSITIONS: Record<string, [string, string]> = {
   accept: ['ASSIGNED', 'IN_TRANSPORT'],
   start: ['IN_TRANSPORT', 'START_DELIVERY'],
+  arrive: ['START_DELIVERY', 'START_DELIVERY'], // pas de changement de statut : pose arrivedAt
   deliver: ['START_DELIVERY', 'DELIVERED'],
   noshow: ['START_DELIVERY', 'NO_SHOW'],
 }
@@ -44,7 +46,7 @@ export const DONE_STATUSES = ['DELIVERED', 'NO_SHOW']
 
 /** Statut résultant d'une action, ou null si la transition est interdite. checkin/checkout ne changent aucun statut (renvoient `status`). */
 export function nextStatus(status: string, type: ActionType): string | null {
-  if (type === 'checkin' || type === 'checkout') return status
+  if (type === 'checkin' || type === 'checkout' || type === 'postpone') return status
   const t = TRANSITIONS[type]
   if (!t) return null
   return t[0] === status ? t[1] : null
@@ -77,6 +79,8 @@ export function effectiveOrders(orders: DriverOrder[], queue: QueueItem[]): View
       status: effectiveStatus(o.status, mine),
       localPending: live.length > 0,
       errorItem: mine.find(q => q.state === 'error') ?? null,
+      arrived: o.arrivedAt != null || live.some(q => q.type === 'arrive'),
+      postponed: live.some(q => q.type === 'postpone'),
     }
   })
 }
@@ -88,6 +92,12 @@ export function validateAction(type: ActionType, d: { otp?: string; reason?: str
   if (type === 'deliver') return OTP_RE.test((d.otp ?? '').trim()) || d.proofCount > 0 ? null : 'deliver.need'
   if (type === 'noshow') return (d.reason ?? '').trim().length >= 3 && d.proofCount > 0 ? null : 'noshow.need'
   return null
+}
+
+/** Non livré : motif de la nomenclature ET au moins une photo (le libellé du motif tient lieu de texte). Renvoie la clé de message ou null. */
+export function validateNoShow(d: { reasonCode?: string; proofCount: number }): string | null {
+  if (!d.reasonCode) return 'noshow.needReason'
+  return d.proofCount > 0 ? null : 'noshow.need'
 }
 
 // ───────────────────────── file d'actions ─────────────────────────
@@ -126,12 +136,13 @@ export function selectSendable(queue: QueueItem[]): QueueItem[] {
 /** Corps de POST /api/driver/sync (sans champs internes). */
 export function buildSyncBody(items: QueueItem[]) {
   return {
-    actions: items.map(i => {
+    actions: items.filter(i => i.type !== 'postpone').map(i => {
       const a: Record<string, unknown> = { id: i.id, type: i.type, at: i.at }
       if (i.orderId) a.orderId = i.orderId
       if (i.geo) a.geo = i.geo
       if (i.otp) a.otp = i.otp
       if (i.reason) a.reason = i.reason
+      if (i.reasonCode) a.reasonCode = i.reasonCode
       if (i.proofClientIds?.length) a.proofClientIds = i.proofClientIds
       return a
     }),
@@ -190,12 +201,60 @@ export const backoffMs = (attempt: number) => 1000 * 2 ** Math.max(0, Math.min(a
 const ERR_KEYS: Record<string, string> = {
   BAD_STATE: 'err.BAD_STATE', OTP_INVALID: 'err.OTP_INVALID', OTP_LOCKED: 'err.OTP_LOCKED', PERIOD_LOCKED: 'err.PERIOD_LOCKED',
   PROOF_REQUIRED: 'err.PROOF_REQUIRED', PROOF_REJECTED: 'err.PROOF_REJECTED', UNAUTHORIZED: 'err.UNAUTHORIZED', NETWORK: 'err.NETWORK', RATE: 'err.RATE',
+  OUT_OF_RANGE: 'err.OUT_OF_RANGE', GEO_REQUIRED: 'err.GEO_REQUIRED', ARRIVE_REQUIRED: 'err.ARRIVE_REQUIRED', LOAD_INCOMPLETE: 'err.LOAD_INCOMPLETE',
+  REASON_REQUIRED: 'err.REASON_REQUIRED', REASON_INVALID: 'err.REASON_INVALID', POSTPONE_REFUSED: 'err.POSTPONE_REFUSED',
 }
 export const ERROR_CODES = Object.keys(ERR_KEYS)
 export const errorKey = (code?: string | null) => (code && ERR_KEYS[code]) || 'err.UNKNOWN'
 /** Code d'erreur HTTP → code interne. */
 export function httpErrorCode(status: number): string {
   return status === 401 ? 'UNAUTHORIZED' : status === 429 ? 'RATE' : status === 413 || status === 400 || status === 422 ? 'PROOF_REJECTED' : 'NETWORK'
+}
+
+// ───────────────────────── séquence de tournée (GET /api/driver/tour) ─────────────────────────
+
+export interface TourItem { id: string; label: string; qty: number; barcode: string | null; loadedQty: number }
+export interface TourStop {
+  orderId: string; ref: string; seq: number; etaAt: string | null; customer: string | null; address: string | null
+  lat: number | null; lng: number | null; status: string; postponedCount: number; canPostpone?: boolean; items: TourItem[]
+}
+export interface TourInfo { id: string; status: string; rotation: number; day: string }
+export interface TourState { tour: TourInfo | null; stops: TourStop[] }
+
+/**
+ * Ordre d'affichage des commandes à faire : stops de la tournée dans l'ordre `seq` (reportés en fin de liste), puis les commandes
+ * hors tournée triées par fin de créneau. Sans tournée : tri historique (sortToday). Chaque commande apparaît UNE seule fois.
+ */
+export function orderBySequence<T extends DriverOrder & { postponed?: boolean }>(orders: T[], stops: TourStop[] | null | undefined): { order: T; stop: TourStop | null }[] {
+  const todo = sortToday(orders)
+  if (!stops?.length) return todo.map(order => ({ order, stop: null }))
+  const bySeq = new Map(stops.map(s => [s.orderId, s]))
+  const inTour = todo.filter(o => bySeq.has(o.id)).sort((a, b) => {
+    const pa = a.postponed ? 1 : 0, pb = b.postponed ? 1 : 0
+    return pa - pb || bySeq.get(a.id)!.seq - bySeq.get(b.id)!.seq
+  })
+  const rest = todo.filter(o => !bySeq.has(o.id))
+  return [...inTour, ...rest].map(order => ({ order, stop: bySeq.get(order.id) ?? null }))
+}
+
+/** Valide la réponse de /api/driver/tour (tolérant : toute forme inattendue => pas de tournée, repli sur la liste de commandes). */
+export function parseTour(j: unknown): TourState {
+  const o = j as { tour?: unknown; stops?: unknown } | null
+  if (!o || typeof o !== 'object' || !o.tour || typeof o.tour !== 'object' || !Array.isArray(o.stops)) return { tour: null, stops: [] }
+  const t = o.tour as Record<string, unknown>
+  if (typeof t.id !== 'string') return { tour: null, stops: [] }
+  const stops: TourStop[] = []
+  for (const r of o.stops as Record<string, unknown>[]) {
+    if (!r || typeof r.orderId !== 'string') continue
+    stops.push({
+      orderId: r.orderId, ref: String(r.ref ?? ''), seq: Number(r.seq) || 0, etaAt: typeof r.etaAt === 'string' ? r.etaAt : null,
+      customer: typeof r.customer === 'string' ? r.customer : null, address: typeof r.address === 'string' ? r.address : null,
+      lat: typeof r.lat === 'number' ? r.lat : null, lng: typeof r.lng === 'number' ? r.lng : null, status: String(r.status ?? ''),
+      postponedCount: Number(r.postponedCount) || 0, canPostpone: typeof r.canPostpone === 'boolean' ? r.canPostpone : undefined,
+      items: Array.isArray(r.items) ? (r.items as Record<string, unknown>[]).map(i => ({ id: String(i.id), label: String(i.label ?? ''), qty: Number(i.qty) || 1, barcode: typeof i.barcode === 'string' ? i.barcode : null, loadedQty: Number(i.loadedQty) || 0 })) : [],
+    })
+  }
+  return { tour: { id: t.id, status: String(t.status ?? ''), rotation: Number(t.rotation) || 1, day: String(t.day ?? '') }, stops: stops.sort((a, b) => a.seq - b.seq) }
 }
 
 // ───────────────────────── tri / urgence ─────────────────────────
@@ -235,11 +294,17 @@ export interface Store {
   proofDel(clientId: string): Promise<void>
   snapGet(): Promise<OrdersSnapshot | null>
   snapSet(s: OrdersSnapshot): Promise<void>
+  posGet(): Promise<StoredPoint[]>
+  posSet(p: StoredPoint[]): Promise<void>
 }
+
+/** Point GPS en attente d'envoi (file hors ligne du suivi). */
+export interface StoredPoint { lat: number; lng: number; accuracy?: number | null; speed?: number | null; at: string }
 
 export function memoryStore(): Store {
   const q = new Map<string, QueueItem>(), p = new Map<string, ProofRec>()
   let snap: OrdersSnapshot | null = null
+  let pos: StoredPoint[] = []
   return {
     mode: 'memory',
     async queueAll() { return [...q.values()] },
@@ -250,6 +315,8 @@ export function memoryStore(): Store {
     async proofDel(id) { p.delete(id) },
     async snapGet() { return snap },
     async snapSet(s) { snap = s },
+    async posGet() { return pos },
+    async posSet(p) { pos = p },
   }
 }
 
@@ -288,8 +355,33 @@ export async function openStore(): Promise<Store> {
       proofDel: async id => { await wrap(st('proofs', 'readwrite').delete(id)) },
       snapGet: async () => ((await wrap(st('orders', 'readonly').get('snap'))) as OrdersSnapshot | undefined) ?? null,
       snapSet: async s => { await wrap(st('orders', 'readwrite').put(s)) },
+      posGet: async () => (((await wrap(st('orders', 'readonly').get('positions'))) as { key: string; points: StoredPoint[] } | undefined)?.points ?? []),
+      posSet: async p => { await wrap(st('orders', 'readwrite').put({ key: 'positions', points: p })) },
     }
   } catch {
     return memoryStore()
   }
 }
+
+// ───────────────────────── motifs de non-livraison (secours hors ligne) ─────────────────────────
+
+export interface DriverReason { code: string; label: string; labelAr: string | null; kind?: string; cod?: boolean; rto?: boolean }
+/** Liste utilisée tant que /api/driver/reasons n'a jamais répondu (même nomenclature que la liste semée côté serveur). */
+export const FALLBACK_REASONS: DriverReason[] = [
+  { code: 'CLIENT_ABSENT', label: 'Client absent', labelAr: 'الزبون غائب' },
+  { code: 'REFUS_PAIEMENT_COD', label: 'Refus de paiement à la livraison', labelAr: 'رفض الدفع عند التسليم' },
+  { code: 'ADRESSE_ERRONEE', label: 'Adresse erronée ou introuvable', labelAr: 'عنوان خاطئ أو غير موجود' },
+  { code: 'PRODUIT_ENDOMMAGE', label: 'Produit endommagé', labelAr: 'منتج تالف' },
+  { code: 'CLIENT_INJOIGNABLE', label: 'Client injoignable', labelAr: 'لا يمكن الاتصال بالزبون' },
+]
+export const reasonText = (r: DriverReason, lang: string) => (lang === 'ar' && r.labelAr ? r.labelAr : r.label)
+
+// ───────────────────────── chargement (GET /api/driver/load, POST /api/driver/scan) ─────────────────────────
+
+export interface LoadItem { id: string; orderId: string; ref: string; label: string; qty: number; loadedQty: number; barcode: string | null }
+export interface LoadOverview { items: LoadItem[]; total: number; loaded: number; remaining: number; complete: boolean; tourId: string | null; required?: boolean }
+
+/** Erreurs d'une action en file qu'un simple « réessayer » (avec nouvelle position) peut lever. */
+export const RETRY_CODES = ['OUT_OF_RANGE', 'GEO_REQUIRED', 'ARRIVE_REQUIRED', 'LOAD_INCOMPLETE']
+/** Code-barres lu par la caméra : on ne garde que les caractères acceptés par le serveur. */
+export const cleanBarcode = (raw: string) => { const b = raw.trim(); return /^[A-Za-z0-9._\-/+:#]{1,64}$/.test(b) ? b : null }

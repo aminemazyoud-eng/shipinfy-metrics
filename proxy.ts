@@ -15,6 +15,8 @@ const PUBLIC_PATHS = [
   '/api/auth/bootstrap',
   '/api/auth/forgot-password',
   '/api/auth/reset-password',
+  '/api/v1', // API entrante donneur d'ordre : clé API (x-api-key), vérifiée dans la route
+  '/api/iot', // capteurs de température : clé API ou HMAC par capteur, vérifié dans la route
   '/api/health', // healthcheck public (aucune donnée sensible)
   '/api/webhooks/n8n', // callback n8n : la route vérifie elle-même une signature HMAC
   '/api/planning/pdf', // lien signé du planning envoyé par WhatsApp (jeton HMAC par jour + chauffeur)

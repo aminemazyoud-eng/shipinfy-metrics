@@ -31,19 +31,26 @@ export interface OpsConfig {
   geofenceMeters: number          // pointage d'arrivée « conforme » si le livreur est à ≤ N m du hub
   deliveryGeofenceMeters: number  // livraison « conforme » si la position est à ≤ N m de l'adresse
   proofRequired: ProofRequired    // preuve exigée pour livrer : code ou photo / photo / code
+  // Track & Trace (Agent B)
+  geofenceMode: GeofenceMode      // 'block' : check-in / arrivée refusés hors rayon (et `deliver` exige `arrive`) ; 'soft' : simple signalement
+  loadScanRequired: number        // 1 = le départ (action `start`) est refusé tant que les bacs de la tournée ne sont pas tous scannés ; 0 = pas de contrôle
 }
+
+export const GEOFENCE_MODES = ['block', 'soft'] as const
+export type GeofenceMode = (typeof GEOFENCE_MODES)[number]
 
 export const PROOF_REQUIRED_VALUES = ['otp_or_photo', 'photo', 'otp'] as const
 export type ProofRequired = (typeof PROOF_REQUIRED_VALUES)[number]
 
 /** Bornes des paramètres qui en ont une (le reste : nombre fini ≥ 0). */
-export const CFG_BOUNDS: Partial<Record<keyof OpsConfig, [number, number]>> = { geofenceMeters: [50, 2000], deliveryGeofenceMeters: [50, 2000] }
+export const CFG_BOUNDS: Partial<Record<keyof OpsConfig, [number, number]>> = { geofenceMeters: [50, 2000], deliveryGeofenceMeters: [50, 2000], loadScanRequired: [0, 1] }
 
 /**
  * Valide une valeur de paramètre : nombre dans les bornes (arrondi à l'unité pour les rayons), ou valeur d'une liste fermée.
  * Renvoie undefined si la valeur est refusée. Fonction pure.
  */
-export function sanitizeCfgValue(k: keyof OpsConfig, v: unknown): number | ProofRequired | undefined {
+export function sanitizeCfgValue(k: keyof OpsConfig, v: unknown): number | ProofRequired | GeofenceMode | undefined {
+  if (k === 'geofenceMode') return typeof v === 'string' && (GEOFENCE_MODES as readonly string[]).includes(v) ? (v as GeofenceMode) : undefined
   if (k === 'proofRequired') return typeof v === 'string' && (PROOF_REQUIRED_VALUES as readonly string[]).includes(v) ? (v as ProofRequired) : undefined
   if (typeof v !== 'number' || !Number.isFinite(v) || v < 0) return undefined
   const b = CFG_BOUNDS[k]
@@ -58,7 +65,8 @@ export const DEFAULT_CFG: OpsConfig = {
   fuelPriceDiesel: 11.4, fuelPriceEssence: 13.6, consumptionAlertPct: 15, docAlertDays: 30, maintKmMargin: 500,
   scoreCritical: 60, scoreGood: 80,
   cashGapAlert: 50,
-  geofenceMeters: 300, deliveryGeofenceMeters: 300, proofRequired: 'otp_or_photo',
+  geofenceMeters: 400, deliveryGeofenceMeters: 400, proofRequired: 'otp_or_photo',
+  geofenceMode: 'block', loadScanRequired: 1,
 }
 
 /** Configuration vivante (mutable) lue par les fonctions de calcul. */

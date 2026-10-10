@@ -1103,3 +1103,38 @@ Audit complet de la plateforme (18 pages, 0 erreur console, tous les appels API 
 - **Recrutement** : 4e onglet de `/rh/onboarding` (kanban glisser-déposer Candidats → Formation → Quiz → Validés → Actifs / Inactifs ; `/onboarding` redirige). PATCH `rh/people/[code]` : « Validé/Actif » exige quiz ≥ 70 %, `status` = active seulement si `actif` (un candidat n'est ni dispatché ni planifié).
 - **Parcours** : jamais d'étape sautée. `lib/ops-chain.ts` (`fillChain`) reconstitue les étapes manquantes à la synchro (events `source='inferred'`, heure estimée affichée « ≈ », non colorée) ; `scripts/backfill-steps.mjs` rattrape l'existant (idempotent). Encaissement exige DELIVERED.
 - **Exports** : tous en `.xlsx` via `lib/xlsx-response.ts` (`format=xlsx`).
+
+## 31. SPRINTS 17→20 « OPÉRATIONNEL » (2026-10-06 → 2026-10-10) — commits 432d404, 22d7c3d, 4143af7, d4c4fb5, 2265e53
+Audit complet : `AUDIT_METRICS_SHIPINFY.md` (workflows, sécurité, données, benchmark, roadmap S18→S22).
+
+### S17 — Sécurité + intégrité des données
+- **Auth** : `proxy.ts` ne fait que pré-filtrer (cookie présent ; 401 JSON sur /api). La vraie garde est dans CHAQUE route : `requireSession` (`lib/api-guard.ts`) ou `opsAuth` (`lib/ops-auth.ts`). `npm run test:auth` (scripts/test-auth-matrix.mjs) échoue si une route /api est sans garde ; liste blanche : auth/*, planning/pdf, webhooks/n8n, track/[token](+rating), driver/ping, health.
+- Secrets : `lib/env.ts` `requireEnv` (≥16 car., évalué à l'usage → 503, pas de crash) : QR_SECRET, PLANNING_LINK_SECRET, N8N_WEBHOOK_SECRET, CRON_SECRET. `lib/rate-limit.ts`, `lib/safe-fetch.ts` (anti-SSRF), neutralisation des formules dans les exports Excel, sessions révoquées au changement de mot de passe, PBKDF2 210000 (rétro-compatible).
+- **Intégrité** : id rapport LIVE stable `live-<externalId>` ; dispatch/encaissement/actions livreur en compare-and-set atomique (`UPDATE … WHERE … RETURNING`) ; `OpsOrderEvent` unique (orderId,toStatus,at) ; `OpsOutbox` (assign/status) rejoué par `flushOutbox` ; la synchro ne rétrograde jamais un statut ni n'efface les horodatages locaux (`lib/ops-sync.ts`) ; quarantaine `OpsSyncReject` ; verrou DB `OpsSyncRun` ; `ACTIVE_SOURCE` (OPS_ACTIVE_SOURCE=mock) ; CANCELLED géré.
+- Définitions uniques `lib/ops-defs.ts` (isLate/isAtRisk/isUnassigned/isOnTime/isOpen) ; fuseau réel Casablanca (Ramadan inclus) `lib/tz.ts` ; jours spéciaux (`OpsSpecialDay`, facteur sur prévision) ; KPIs de référence `lib/ops-kpis.ts` (OTIF, annulation, coût/livraison, livraisons/h, usage flotte, CSAT, MAE ETA, couverture OTP/preuve/GPS) ; clôture de caisse COD `OpsCashClose` ; `/api/health`.
+- **Dockerfile** : PAS de HEALTHCHECK (wget localhost IPv6 → conteneur tué exit 137). `TZ` défini.
+- **DDL** : uniquement `prisma/init-tables.sql`, rejoué au démarrage par `run-init-sql.js` (table `_schema_version`, SHA-256). Erreur SQL hors « already exists » = crash loop → blocs risqués en `DO … EXCEPTION`, blocs optionnels marqués « ignoré ».
+
+### S18 — Paie, pointage, audit
+- Clôture mensuelle `OpsPayRun`/`OpsPayRunLine` (brouillon→validé→payé→réouverture, taux gelés) `lib/ops-payrun*.ts`, `/api/ops/payrun`. Historique pointage `/rh/pointage` (jour / mois / corrections, période verrouillée) `/api/ops/pointage-history`. `DriverAttendance` : workedMinutes/lateMinutes/plannedDepart.
+- Journal `OpsAuditLog` **append-only** (trigger) ; `audit()` sur 31 routes historiques. Rétention nocturne 04:15 (`lib/ops-retention.ts`) — ne purge JAMAIS audit/commandes/événements/paie/pointage. Score IA versionné (reportId, coefficients, ordersCount, scoreVersion). En-têtes de sécurité dans `next.config.ts` (CSP en report-only, HSTS…).
+
+### S19 — Client + upgrade sécurité
+- Suivi client `/suivi/[token]` (lien HMAC, expire 48 h après le créneau, `/api/track`), notation CSAT `OpsDeliveryRating`, notifs client `OpsCustomerNotif`, code OTP de remise (4 chiffres dérivés HMAC, 5 essais, `lib/ops-otp.ts`, panneau `OtpPanel`), ETA v1 (médianes hub×créneau, MAE leave-one-out) `lib/ops-eta.ts`.
+- Next **16.4.0** (exact) ; `xlsx` remplacé par **exceljs 4.4.0** (`lib/xlsx-response.ts`, `lib/xlsx-import.ts`, `lib/csv-parse.ts`) ; `serverExternalPackages: ['exceljs']`.
+
+### S20 — Application livreur PWA
+- `/livreur` (FR/AR RTL, `lib/driver-i18n.ts`), jeton HMAC par livreur (`lib/ops-driver-token.ts`, en-tête `x-driver-token`, `tokenVersion` pour révoquer), lien généré depuis Dispatch live (`/api/ops/drivers/[code]/app-link`, nécessite PLANNING_LINK_SECRET).
+- Hors-ligne : file IndexedDB (`lib/driver-offline.ts`), actions idempotentes par uuid (`OpsDriverAction`, `lib/ops-driver-actions.ts`), service worker `public/sw.js` (coque seulement), manifeste. Photo ≤ 400 Ko base64 (`OpsProof`, `lib/image-compress.ts`), géolocalisation + géofence douce (`lib/geo.ts`, `CFG.deliveryGeofenceMeters`), côté bureau `ProofGallery` + KPIs. Statuts remontés au back-office via l'outbox.
+- shadcn en devDependencies.
+
+### État de production (vérifié HTTP le 2026-10-10)
+/api/health 200 « degraded » : DB ok, mais aucune synchro réussie depuis ~4 jours (back-office non branché). Routes driver 401 sans jeton ; /livreur, manifeste, sw.js, /suivi, /login 200. **Non testé** : UI connectée, téléphone réel (PWA/photo/GPS/hors-ligne), imports/exports Excel dans le navigateur.
+
+### À faire côté utilisateur
+Secrets Dokploy (QR_SECRET, PLANNING_LINK_SECRET, N8N_WEBHOOK_SECRET, CRON_SECRET, OPS_ACTIVE_SOURCE=mock ; `connection_limit=5&pool_timeout=20` dans DATABASE_URL) · rotation clé Evolution · mettre à jour `.env.local` (mot de passe DB changé) · n8n : NODE_FUNCTION_ALLOW_BUILTIN=crypto, N8N_BLOCK_ENV_ACCESS_IN_NODE=false, N8N_WEBHOOK_SECRET · brancher le back-office (BACKOFFICE_API_URL/KEY, OPS_SYNC_ENABLED=true) · supprimer le dossier parasite `D:\Users` · répondre aux 5 questions de l'audit (multi-tenant oui/non).
+
+### Reste (non fait)
+Icônes PWA 192/512 · multi-tenant + chiffrement PII/CNDP · vulnérabilités npm restantes (nodemailer…) · `daysPresent` dans les lignes de paie gelées · CSAT dans Dispatch · Sprint 21 (dispatch intelligent, Express 45/80, planning auto-proposé, gamification) · Sprint 22 (API publique/webhooks, marque blanche, i18n EN, exports planifiés, pré-agrégats).
+### Pièges d'outillage
+Heredocs Bash avec apostrophes cassent → outil Write puis node · `next build` local impossible (mémoire) → tsc + build Dokploy · chemins relatifs Windows dans Write (a créé `D:\Users`) · ne pas committer `docs/n8n/planning-hebdo/` (clé Evolution en clair) ni `docs/odoo-integration/`.

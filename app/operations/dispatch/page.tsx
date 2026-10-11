@@ -3,6 +3,7 @@ import { useState, useEffect, useCallback, useMemo, Suspense } from 'react'
 import { useSearchParams } from 'next/navigation'
 import { Truck, Wand2, RefreshCw, MapPin, ArrowRightLeft, AlertTriangle, Clock, UserCheck, UserX } from 'lucide-react'
 import OpsNav from '../components/OpsNav'
+import Advice from './Advice'
 import { usePolling } from '@/lib/use-polling'
 
 interface Hub { code: string; name: string; city: string; toDispatch?: number }
@@ -207,6 +208,7 @@ function Dispatch() {
               ))}
             </div>
           </details>
+          {data && <Advice hub={data.hubCode} day={day} orders={data.orders} drivers={data.drivers} toDispatch={unassigned.length} />}
           <div className="flex gap-4 text-xs text-gray-400"><span className="flex items-center gap-1"><AlertTriangle className="w-3 h-3 text-red-500" />rouge = en retard</span><span className="flex items-center gap-1"><Clock className="w-3 h-3 text-amber-500" />orange = fin de créneau &lt; 45 min</span></div>
         </div>
       </div>

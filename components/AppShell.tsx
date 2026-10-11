@@ -1,105 +1,23 @@
 'use client'
-import { useState, useRef } from 'react'
+import { useState } from 'react'
 import Link from 'next/link'
 import Image from 'next/image'
 import { usePathname } from 'next/navigation'
-import {
-  Activity, BarChart3, Users, MapPin, XCircle,
-  TrendingUp, Bell, Mail, Settings, UserCheck,
-  GraduationCap, Brain, X, ChevronRight, DollarSign,
-  Truck, Clock, HeadphonesIcon, Shield, Calendar, Package, Send, History,
-  Calculator, Thermometer, Route, MapPinned, Plug,
-} from 'lucide-react'
-import type { LucideProps } from 'lucide-react'
+import { X, ChevronRight } from 'lucide-react'
 import MobileHeader from '@/components/MobileHeader'
 import BottomNav from '@/components/BottomNav'
 import { useCurrentUser } from '@/hooks/useCurrentUser'
-import { getAllowedRoutes } from '@/lib/permissions'
+import { getActiveNav, visibleModules } from '@/lib/module-nav'
 
-// ── Nav items (mirrors Sidebar.tsx) ────────────────────────────────────────────
-interface NavItem { href: string; label: string; icon: React.ComponentType<LucideProps> }
-interface NavSection { key: string; label: string; items: NavItem[] }
-
-const SECTIONS: NavSection[] = [
-  {
-    key: 'analytics', label: 'Analytics',
-    items: [
-      { href: '/',           label: 'Dashboard',        icon: Activity   },
-      { href: '/kpis',       label: 'KPIs & Métriques', icon: BarChart3  },
-      { href: '/previsions', label: 'Prévisions',        icon: TrendingUp },
-    ],
-  },
-  {
-    key: 'performance', label: 'Performance',
-    items: [
-      { href: '/livreurs', label: 'Livreurs & Scoring', icon: Users   },
-      { href: '/hubs',     label: 'Hubs',               icon: MapPin  },
-      { href: '/performance/analyse', label: 'Metrics', icon: TrendingUp },
-      { href: '/retours',  label: 'Retours & NO_SHOW',  icon: XCircle },
-    ],
-  },
-  {
-    key: 'operations', label: 'Opérations',
-    items: [
-      { href: '/operations',            label: 'Cockpit opérationnel', icon: Activity  },
-      { href: '/operations/dispatch',   label: 'Dispatch live',        icon: Truck     },
-      { href: '/operations/suivi',      label: 'Suivi commandes',      icon: Activity  },
-      { href: '/operations/encaissement', label: 'Encaissement',      icon: DollarSign },
-      { href: '/operations/pointage',   label: 'Pointage & paie',      icon: Clock     },
-      { href: '/operations/flotte',     label: 'Flotte & gasoil',      icon: Package   },
-      { href: '/operations/historique', label: 'Historique',           icon: BarChart3 },
-      { href: '/shifts',                label: 'Shifts & Planning',    icon: Calendar  },
-      { href: '/incidents',             label: 'Incidents & Support',  icon: Bell      },
-    ],
-  },
-  {
-    key: 'rh', label: 'RH & Formation',
-    items: [
-      { href: '/rh/onboarding', label: 'Onboarding',   icon: UserCheck     },
-      { href: '/pointage',      label: 'Pointage',     icon: Clock         },
-      { href: '/rh/pointage',   label: 'Pointage — historique', icon: History },
-      { href: '/rh/paie',       label: 'Paie & Bonus', icon: DollarSign    },
-      { href: '/academy',       label: 'Academy',      icon: GraduationCap },
-    ],
-  },
-  {
-    key: 'settings', label: 'Paramétrage',
-    items: [
-      { href: '/parametres',               label: 'Paramètres généraux',       icon: Settings },
-      { href: '/parametres/calculs',       label: 'Calculs & équations',       icon: Settings },
-      { href: '/parametres/scoring',       label: 'Scoring livreur',           icon: Brain    },
-      { href: '/parametres/paie',          label: 'Paie & bonus',              icon: DollarSign },
-      { href: '/parametres/notifications', label: 'Notifications & incidents', icon: Send     },
-      { href: '/parametres/motifs', label: 'Motifs de non-livraison', icon: Send },
-      { href: '/parametres/chiffrage', label: 'Chiffrage & coûts', icon: Calculator },
-      { href: '/parametres/froid', label: 'Chaîne du froid', icon: Thermometer },
-      { href: '/parametres/tournees', label: 'Tournées & ETA', icon: Route },
-      { href: '/parametres/secteurs', label: 'Secteurs', icon: MapPinned },
-      { href: '/parametres/integrations', label: 'Intégrations (API & webhooks)', icon: Plug },
-      { href: '/rapports',                 label: 'Rapports planifiés',        icon: Mail     },
-    ],
-  },
-  {
-    key: 'admin', label: 'Administration',
-    items: [
-      { href: '/admin', label: 'Super Admin', icon: Shield },
-      { href: '/admin/journal', label: 'Journal des actions', icon: Clock },
-    ],
-  },
-]
-
-// ── Tablet slide-in Sidebar ─────────────────────────────────────────────────────
+// ── Tablet slide-in Sidebar (7 modules, même source que Sidebar.tsx) ───────────
 function TabletSidebar({ open, onClose }: { open: boolean; onClose: () => void }) {
   const pathname = usePathname()
-  const { user }  = useCurrentUser()
-  const allowedRoutes = getAllowedRoutes(user?.role ?? 'VIEWER')
-  const visibleSections = SECTIONS
-    .map(s => ({ ...s, items: s.items.filter(i => allowedRoutes.includes(i.href)) }))
-    .filter(s => s.items.length > 0)
+  const { user } = useCurrentUser()
+  const modules = visibleModules(user?.role ?? 'VIEWER')
+  const activeKey = getActiveNav(pathname)?.module.key
 
   return (
     <>
-      {/* Backdrop */}
       <div
         className={[
           'lg:hidden fixed inset-0 z-[45] transition-opacity duration-200',
@@ -108,7 +26,6 @@ function TabletSidebar({ open, onClose }: { open: boolean; onClose: () => void }
         onClick={onClose}
       />
 
-      {/* Panel */}
       <aside
         className={[
           'lg:hidden fixed left-0 top-0 bottom-0 z-[46] w-[280px]',
@@ -117,7 +34,6 @@ function TabletSidebar({ open, onClose }: { open: boolean; onClose: () => void }
           open ? 'translate-x-0' : '-translate-x-full',
         ].join(' ')}
       >
-        {/* Brand */}
         <div className="flex items-center justify-between px-4 py-4 border-b border-gray-100">
           <div className="flex items-center gap-2.5">
             <div className="w-8 h-8 relative flex-shrink-0">
@@ -125,68 +41,34 @@ function TabletSidebar({ open, onClose }: { open: boolean; onClose: () => void }
             </div>
             <div>
               <p className="text-[13px] font-black text-blue-700 leading-none">SHIPINFY</p>
-              <p className="text-[10px] text-gray-400 mt-0.5">Metrics & Analytics</p>
+              <p className="text-[10px] text-gray-400 mt-0.5">Opérationnel</p>
             </div>
           </div>
-          <button onClick={onClose} className="w-8 h-8 flex items-center justify-center rounded-lg text-gray-400 hover:bg-gray-100">
+          <button onClick={onClose} aria-label="Fermer" className="w-8 h-8 flex items-center justify-center rounded-lg text-gray-400 hover:bg-gray-100">
             <X size={16} />
           </button>
         </div>
 
-        {/* Nav */}
         <nav className="flex-1 overflow-y-auto py-2 space-y-0.5">
-          {visibleSections.map(section => (
-            <div key={section.key}>
-              <div className="px-4 pt-3 pb-1">
-                <span className="text-[10px] font-bold text-gray-400 uppercase tracking-[0.07em]">
-                  {section.label}
-                </span>
-              </div>
-              {section.items.map(item => {
-                const isActive = pathname === item.href || (item.href !== '/' && item.href !== '/operations' && item.href !== '/parametres' && pathname.startsWith(item.href))
-                return (
-                  <Link
-                    key={item.href}
-                    href={item.href}
-                    onClick={onClose}
-                    className={[
-                      'flex items-center gap-3 mx-2 px-3 py-2.5 rounded-lg text-sm font-medium transition-colors active:scale-[0.98] duration-100',
-                      isActive ? 'bg-blue-600 text-white' : 'text-gray-600 hover:bg-gray-100',
-                    ].join(' ')}
-                  >
-                    <item.icon size={16} className="flex-shrink-0" />
-                    <span className="flex-1 truncate">{item.label}</span>
-                    {isActive && <ChevronRight size={14} className="opacity-60" />}
-                  </Link>
-                )
-              })}
-            </div>
-          ))}
-
-          {/* Paramètres */}
-          {allowedRoutes.includes('/parametres') && <>
-          <div className="mx-3 my-1 h-px bg-gray-100" />
-          <Link
-            href="/parametres"
-            onClick={onClose}
-            className={[
-              'flex items-center gap-3 mx-2 px-3 py-2.5 rounded-lg text-sm font-medium transition-colors',
-              pathname === '/parametres' ? 'bg-blue-600 text-white' : 'text-gray-500 hover:bg-gray-100',
-            ].join(' ')}
-          >
-            <Settings size={16} />
-            <span>Paramètres</span>
-          </Link>
-          </>}
+          {modules.map(m => {
+            const isActive = activeKey === m.key
+            return (
+              <Link
+                key={m.key}
+                href={m.entry}
+                onClick={onClose}
+                className={[
+                  'flex items-center gap-3 mx-2 px-3 py-2.5 rounded-lg text-sm font-medium transition-colors active:scale-[0.98] duration-100',
+                  isActive ? 'bg-blue-600 text-white' : 'text-gray-600 hover:bg-gray-100',
+                ].join(' ')}
+              >
+                <m.icon size={16} className="flex-shrink-0" />
+                <span className="flex-1 truncate">{m.label}</span>
+                {isActive && <ChevronRight size={14} className="opacity-60" />}
+              </Link>
+            )
+          })}
         </nav>
-
-        {/* Footer */}
-        <div className="p-3 border-t border-gray-100">
-          <div className="px-3 py-2 bg-blue-50 rounded-xl">
-            <p className="text-[11px] font-black text-blue-700">SHIPINFY v5.0</p>
-            <p className="text-[10px] text-blue-400 mt-0.5">Sprint 12 — Mobile Responsive</p>
-          </div>
-        </div>
       </aside>
     </>
   )
@@ -198,16 +80,9 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
 
   return (
     <>
-      {/* Mobile/Tablet header (hidden on desktop) */}
       <MobileHeader onMenuClick={() => setTabletMenuOpen(true)} />
-
-      {/* Tablet sidebar overlay (hidden on desktop) */}
       <TabletSidebar open={tabletMenuOpen} onClose={() => setTabletMenuOpen(false)} />
-
-      {/* Page content */}
       {children}
-
-      {/* Mobile bottom nav (hidden on desktop) */}
       <BottomNav />
     </>
   )

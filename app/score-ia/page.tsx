@@ -60,28 +60,14 @@ export default function ScoreIAPage() {
 
   useEffect(() => { load() }, [load])
 
+  // 100 % temps réel : le score est toujours calculé depuis le rapport LIVE (copie de OpsOrder)
   const calculate = async () => {
     setCalc(true)
     try {
-      const res = await fetch('/api/score-ia/calculate', { method: 'POST' })
-      const data = await res.json()
-      if (data.calculated > 0) await load()
-    } catch {}
-    setCalc(false)
-  }
-
-  const calculateFromActiveReport = async () => {
-    setCalc(true)
-    try {
-      let reportId: string | undefined
-      try {
-        const reports = await fetch('/api/dashboard/reports').then(r => r.json())
-        if (Array.isArray(reports) && reports.length > 0) reportId = reports[0].id
-      } catch {}
       const res = await fetch('/api/score-ia/calculate', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ reportId }),
+        body: JSON.stringify({ reportId: 'live-ops' }),
       })
       const data = await res.json()
       if (data.calculated > 0) await load()
@@ -128,14 +114,6 @@ export default function ScoreIAPage() {
             </div>
           </div>
           <div className="flex items-center gap-2">
-            <button
-              onClick={calculateFromActiveReport}
-              disabled={calculating}
-              className="flex items-center gap-2 border border-purple-300 text-purple-700 px-3 lg:px-4 py-2 rounded-lg text-sm font-medium hover:bg-purple-50 disabled:opacity-50 transition-colors min-h-[44px]"
-            >
-              <RefreshCw size={14} className={calculating ? 'animate-spin' : ''} />
-              <span className="hidden sm:inline">Recalculer depuis rapport actif</span>
-            </button>
             <button
               onClick={calculate}
               disabled={calculating}
@@ -208,7 +186,7 @@ export default function ScoreIAPage() {
           <div className="flex flex-col items-center justify-center py-20 text-center">
             <Brain size={40} className="text-gray-300 mb-3" />
             <p className="text-gray-500 font-medium">Aucun score calculé</p>
-            <p className="text-gray-400 text-sm mt-1 mb-4">Importez un fichier CSV puis cliquez sur Recalculer</p>
+            <p className="text-gray-400 text-sm mt-1 mb-4">Les scores se calculent depuis les commandes temps réel — cliquez sur Recalculer</p>
             <button
               onClick={calculate}
               disabled={calculating}

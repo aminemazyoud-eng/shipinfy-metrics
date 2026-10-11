@@ -1,7 +1,8 @@
 'use client'
 import { useState, useEffect, useCallback } from 'react'
 import Link from 'next/link'
-import { History, Download, Lock, Loader2, ArrowLeft, ChevronLeft, ChevronRight } from 'lucide-react'
+import { History, Download, Lock, Loader2, ChevronLeft, ChevronRight, CheckCheck, RefreshCw } from 'lucide-react'
+import ScanKiosk from '../../pointage/ScanKiosk'
 import { localToday, addDays } from '@/lib/tz'
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -49,8 +50,7 @@ const xlsxLink = (href: string) => (
 const inputCls = 'border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-teal-400 min-h-[44px]'
 
 // ─── Onglet Jour ──────────────────────────────────────────────────────────────
-function DayTab() {
-  const [day, setDay] = useState(localToday())
+function DayTab({ day, setDay, rev }: { day: string; setDay: (d: string) => void; rev: number }) {
   const [data, setData] = useState<DayData | null>(null)
   const [loading, setLoading] = useState(false)
   const [err, setErr] = useState('')
@@ -61,7 +61,7 @@ function DayTab() {
       const r = await fetch(`/api/ops/pointage-history?view=day&day=${day}`)
       if (r.ok) setData(await r.json()); else { setData(null); setErr('Chargement impossible') }
     } catch { setErr('Chargement impossible') } finally { setLoading(false) }
-  }, [day])
+  }, [day, rev])
   useEffect(() => { load() }, [load])
 
   const s = data?.summary
@@ -276,35 +276,90 @@ function HistoryTab() {
   )
 }
 
-// ─── Page ─────────────────────────────────────────────────────────────────────
-const TABS = [{ key: 'day', label: 'Jour' }, { key: 'month', label: 'Mois' }, { key: 'history', label: 'Historique des corrections' }] as const
+// ─── Pointage en direct (ex /operations/pointage) : boutons Présent/Retard/Absent/Congé, départ, « tout le monde présent » ───
+interface Att { code: string; name: string; hubCode: string | null; hubName: string | null; status: string | null; checkIn: string | null; checkOut: string | null; delivered: number }
+const MARKS = [['present', 'Présent', 'bg-green-600'], ['late', 'Retard', 'bg-amber-500'], ['absent', 'Absent', 'bg-red-600'], ['leave', 'Congé', 'bg-gray-500']] as const
 
-export default function PointageHistoryPage() {
-  const [tab, setTab] = useState<(typeof TABS)[number]['key']>('day')
+function LiveMarking({ day, onChange, rev }: { day: string; onChange: () => void; rev: number }) {
+  const [rows, setRows] = useState<Att[]>([])
+  const load = useCallback(async () => { const r = await fetch(`/api/ops/attendance?day=${day}`); if (r.ok) setRows((await r.json()).drivers) }, [day, rev])
+  useEffect(() => { load() }, [load])
+  const post = async (body: Record<string, unknown>) => { await fetch('/api/ops/attendance', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ day, ...body }) }); onChange() }
+  const mark = (code: string, status: string) => post({ driverCode: code, status, ...(status === 'present' || status === 'late' ? { checkIn: 'now' } : {}) })
+  const count = (s: string) => rows.filter(r => r.status === s).length
+
+  return (
+    <div className="flex flex-col gap-3">
+      <div className="flex flex-wrap items-center gap-3">
+        <button onClick={() => post({ all: true, status: 'present' })} className="flex items-center gap-1.5 px-3 py-2 text-sm rounded-lg bg-green-600 text-white min-h-[44px]"><CheckCheck className="w-4 h-4" />Tout le monde présent</button>
+        <button onClick={load} className="p-2 border border-gray-200 rounded-lg bg-white min-h-[44px]" aria-label="Rafraîchir"><RefreshCw className="w-4 h-4" /></button>
+        <span className="text-sm text-gray-500">{count('present')} présents · {count('late')} en retard · {count('absent')} absents · {count('leave')} congés · {rows.filter(r => !r.status).length} non pointés</span>
+      </div>
+      <div className="bg-white border border-gray-200 rounded-xl overflow-x-auto">
+        <table className="w-full text-sm">
+          <thead><tr className="text-xs text-gray-500 text-left border-b border-gray-200"><th className="p-2 pl-3 font-medium">Livreur</th><th className="p-2 font-medium">Hub</th><th className="p-2 font-medium">Statut du jour</th><th className="p-2 font-medium">Arrivée</th><th className="p-2 font-medium">Départ</th><th className="p-2 font-medium">Livrées</th></tr></thead>
+          <tbody>
+            {rows.map(r => (
+              <tr key={r.code} className="border-t border-gray-100">
+                <td className="p-2 pl-3">{r.name} <span className="text-xs text-gray-400">{r.code}</span></td><td className="p-2 text-gray-500">{r.hubName?.replace('Marjane ', '')}</td>
+                <td className="p-2"><div className="flex gap-1">{MARKS.map(([s, l, c]) => <button key={s} onClick={() => mark(r.code, s)} className={`px-2.5 py-1 rounded-md text-xs ${r.status === s ? `${c} text-white` : 'bg-gray-100 text-gray-500 hover:bg-gray-200'}`}>{l}</button>)}</div></td>
+                <td className="p-2 text-gray-600">{fmtTime(r.checkIn)}</td>
+                <td className="p-2">{r.checkOut ? fmtTime(r.checkOut) : r.checkIn ? <button onClick={() => post({ driverCode: r.code, checkOut: 'now' })} className="text-xs px-2 py-1 border border-gray-300 rounded-md hover:bg-gray-50">Pointer départ</button> : '—'}</td>
+                <td className="p-2 text-gray-700">{r.delivered}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  )
+}
+
+function TodayTab() {
+  const [day, setDay] = useState(localToday())
+  const [rev, setRev] = useState(0)
+  return (
+    <div className="flex flex-col gap-5">
+      <div className="text-xs bg-teal-50 border border-teal-200 text-teal-800 rounded-lg p-3">Pointage en direct : les boutons écrivent dans le pointage unique (QR, saisie manuelle, kiosque). Il se fait à la journée ; le nombre de commandes livrées ne sert qu&apos;aux bonus de la <Link href="/rh/paie" className="underline font-medium">paie</Link>.</div>
+      <DayTab day={day} setDay={setDay} rev={rev} />
+      <LiveMarking day={day} rev={rev} onChange={() => setRev(v => v + 1)} />
+    </div>
+  )
+}
+
+// ─── Page ─────────────────────────────────────────────────────────────────────
+const TABS = [{ key: 'today', label: "Aujourd'hui" }, { key: 'month', label: 'Mois' }, { key: 'history', label: 'Corrections' }, { key: 'scan', label: 'Scan QR / kiosque' }] as const
+type TabKey = (typeof TABS)[number]['key']
+
+export default function PointageUnifiedPage() {
+  const [tab, setTab] = useState<TabKey>('today')
+  // ?tab=today|month|history|scan (anciennes adresses : /operations/pointage -> today, /pointage -> scan ; day/jour = today)
+  useEffect(() => {
+    const t = new URLSearchParams(window.location.search).get('tab')
+    if (t === 'day') setTab('today')
+    else if (TABS.some(x => x.key === t)) setTab(t as TabKey)
+  }, [])
+  const go = (k: TabKey) => { setTab(k); window.history.replaceState(null, '', `/rh/pointage?tab=${k}`) }
   return (
     <div className="flex flex-col gap-4 lg:gap-6 p-3 md:p-4 lg:p-6 max-w-6xl mx-auto">
-      <div className="flex items-center justify-between flex-wrap gap-3">
-        <div>
-          <h1 className="text-lg lg:text-2xl font-bold text-gray-900 flex items-center gap-2">
-            <History className="h-5 w-5 lg:h-6 lg:w-6 text-teal-600" /> Pointage — historique
-          </h1>
-          <p className="text-xs lg:text-sm text-gray-500 mt-1">Consultation par jour et par mois, avec le journal de toutes les corrections</p>
-        </div>
-        <Link href="/pointage" className="flex items-center gap-1.5 px-3 py-2 bg-gray-100 text-gray-700 text-sm font-medium rounded-lg hover:bg-gray-200 min-h-[44px] border border-gray-200">
-          <ArrowLeft size={15} /> Saisie du pointage
-        </Link>
+      <div>
+        <h1 className="text-lg lg:text-2xl font-bold text-gray-900 flex items-center gap-2">
+          <History className="h-5 w-5 lg:h-6 lg:w-6 text-teal-600" /> Pointage
+        </h1>
+        <p className="text-xs lg:text-sm text-gray-500 mt-1">Pointage du jour en direct, vue mensuelle, journal des corrections et scan QR / kiosque — un seul endroit</p>
       </div>
       <div className="flex gap-1.5 flex-wrap">
         {TABS.map(t => (
-          <button key={t.key} onClick={() => setTab(t.key)}
+          <button key={t.key} onClick={() => go(t.key)}
             className={['px-4 py-2 rounded-xl text-sm font-semibold transition-colors min-h-[44px]', tab === t.key ? 'bg-teal-600 text-white' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'].join(' ')}>
             {t.label}
           </button>
         ))}
       </div>
-      {tab === 'day' && <DayTab />}
+      {tab === 'today' && <TodayTab />}
       {tab === 'month' && <MonthTab />}
       {tab === 'history' && <HistoryTab />}
+      {tab === 'scan' && <ScanKiosk />}
     </div>
   )
 }

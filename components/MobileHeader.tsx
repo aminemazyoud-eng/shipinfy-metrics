@@ -2,24 +2,11 @@
 import { usePathname } from 'next/navigation'
 import Image from 'next/image'
 import { Menu, Bell } from 'lucide-react'
+import { getActiveNav } from '@/lib/module-nav'
 
+// Titres propres aux sous-pages de paramétrage (les autres viennent de lib/module-nav.ts)
 const ROUTE_LABELS: Record<string, string> = {
-  '/':             'Dashboard',
-  '/kpis':         'KPIs & Métriques',
-  '/previsions':   'Prévisions',
-  '/operations':   'Cockpit opérationnel',
-  '/operations/dispatch':   'Dispatch live',
-  '/operations/suivi':      'Suivi commandes',
-  '/operations/encaissement': 'Encaissement',
-  '/operations/pointage':   'Pointage & paie',
-  '/operations/flotte':     'Flotte & gasoil',
-  '/operations/historique': 'Historique',
-  '/rh/onboarding': 'Onboarding',
-  '/rh/paie':       'Paie & Bonus',
-  '/rh/pointage':   'Pointage — historique',
-  '/incidents':     'Incidents & Support',
-  '/performance/analyse': 'Metrics',
-  '/admin/journal':      'Journal des actions',
+  '/parametres':   'Paramétrage',
   '/parametres/scoring':       'Scoring livreur',
   '/parametres/calculs':       'Calculs & équations',
   '/parametres/paie':          'Paie & bonus',
@@ -44,7 +31,6 @@ const ROUTE_LABELS: Record<string, string> = {
   '/onboarding':   'Onboarding',
   '/academy':      'Academy',
   '/score-ia':     'Score IA',
-  '/parametres':   'Paramètres',
   '/admin':        'Super Admin',
   '/shifts':       'Shifts & Planning',
 }
@@ -55,7 +41,9 @@ interface Props {
 
 export default function MobileHeader({ onMenuClick }: Props) {
   const pathname = usePathname()
-  const label = ROUTE_LABELS[pathname] ?? 'Shipinfy'
+  const active = getActiveNav(pathname)
+  const label = ROUTE_LABELS[pathname]
+    ?? (active ? (active.module.tabs.length > 1 ? `${active.module.label} · ${active.tab.label}` : active.module.label) : 'Shipinfy')
 
   return (
     <header className="lg:hidden sticky top-0 z-40 h-14 bg-white/90 backdrop-blur-md border-b border-gray-100 flex items-center px-3 gap-3">

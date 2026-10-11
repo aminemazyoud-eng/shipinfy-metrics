@@ -22,8 +22,8 @@ export default function ScoringSettingsPage() {
     setMsg(r.ok ? 'Coefficients enregistrés. Appliqués au prochain recalcul.' : 'Échec (rôle Manager requis)')
   }
   const recalc = async () => {
-    setMsg('Recalcul en cours…'); const r = await fetch('/api/score-ia/calculate', { method: 'POST' }); const j = await r.json().catch(() => ({}))
-    setMsg(r.ok ? `Scores recalculés (${j.calculated ?? 0} livreurs).` : 'Recalcul impossible (aucun rapport actif ?)')
+    setMsg('Recalcul en cours…'); const r = await fetch('/api/score-ia/calculate', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ reportId: 'live-ops' }) }); const j = await r.json().catch(() => ({}))
+    setMsg(r.ok ? `Scores recalculés (${j.calculated ?? 0} livreurs).` : 'Recalcul impossible (aucune commande temps réel ?)')
   }
   const slider = (k: keyof Coeffs, label: string, hint: string, color: string) => (
     <div>

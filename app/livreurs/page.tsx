@@ -15,8 +15,6 @@ interface KpisData {
   unassigned?: { count: number; totalCOD: number }
 }
 
-interface Report { id: string; filename: string; uploadedAt: string; _count: { orders: number } }
-
 const PRESETS = [
   { key: 'all', label: 'Tout' }, { key: 'month', label: 'Ce mois' },
   { key: 'week', label: 'Cette semaine' }, { key: 'today', label: "Aujourd'hui" },
@@ -52,8 +50,6 @@ function MedalIcon({ rank }: { rank: number }) {
 
 function LivreursPerformance() {
   const [data, setData]       = useState<KpisData | null>(null)
-  const [reports, setReports] = useState<Report[]>([])
-  const [reportId, setReportId] = useState('')
   const [preset, setPreset]   = useState('all')
   const [loading, setLoading] = useState(false)
   const [search, setSearch]   = useState('')
@@ -62,24 +58,16 @@ function LivreursPerformance() {
   const [expandedRow, setExpandedRow] = useState<string | null>(null)
   const [historyData, setHistoryData] = useState<Record<string, any[]>>({})
 
-  useEffect(() => {
-    fetch('/api/dashboard/reports').then(r => r.json()).then((rs: Report[]) => {
-      setReports(rs)
-      if (rs.length > 0) setReportId(rs[0].id)
-    })
-  }, [])
-
   const load = useCallback(async () => {
-    if (!reportId) return
     setLoading(true)
     try {
-      const url = `/api/dashboard/kpis?reportId=${reportId}&preset=${preset}`
+      const url = `/api/dashboard/kpis?preset=${preset}`
       const res = await fetch(url)
       if (res.ok) setData(await res.json())
     } finally {
       setLoading(false)
     }
-  }, [reportId, preset])
+  }, [preset])
 
   useEffect(() => { load() }, [load])
 
@@ -120,13 +108,6 @@ function LivreursPerformance() {
           <p className="text-xs lg:text-sm text-gray-500 mt-1 hidden md:block">Classement, analyse individuelle et détection des outliers</p>
         </div>
         <div className="flex gap-2 items-center flex-wrap">
-          <select
-            className="border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400"
-            value={reportId}
-            onChange={e => setReportId(e.target.value)}
-          >
-            {reports.map(r => <option key={r.id} value={r.id}>{r.filename}</option>)}
-          </select>
           <div className="flex rounded-lg border border-gray-200 overflow-hidden">
             {PRESETS.map(p => (
               <button
@@ -147,7 +128,7 @@ function LivreursPerformance() {
           <AlertTriangle size={16} className="flex-shrink-0 mt-0.5" />
           <span>
             <strong>{data.unassigned.count.toLocaleString('fr-MA')} commande(s) non assignées</strong>
-            {' '}({Math.round(data.unassigned.totalCOD).toLocaleString('fr-MA')} MAD de COD) — aucun livreur identifié à l&apos;import, exclues du classement ci-dessous.
+            {' '}({Math.round(data.unassigned.totalCOD).toLocaleString('fr-MA')} MAD de COD) — aucun livreur affecté, exclues du classement ci-dessous.
           </span>
         </div>
       )}

@@ -1,106 +1,10 @@
 'use client'
-import { useState, useEffect, useRef } from 'react'
+import { useState, useRef } from 'react'
 import Link from 'next/link'
 import Image from 'next/image'
 import { usePathname } from 'next/navigation'
-import type { LucideProps } from 'lucide-react'
-import {
-  Activity, BarChart3, Users, MapPin, XCircle,
-  TrendingUp, Bell, Mail, Settings,
-  UserCheck, GraduationCap, ChevronRight, Brain, DollarSign,
-  Truck, Clock, HeadphonesIcon, Shield, Calendar, Package, Send, History,
-  Calculator, Thermometer, Route, MapPinned, Plug,
-} from 'lucide-react'
 import { useCurrentUser } from '@/hooks/useCurrentUser'
-import { getAllowedRoutes } from '@/lib/permissions'
-
-// ─── Types ─────────────────────────────────────────────────────────────────────
-interface NavItem {
-  href:      string
-  label:     string
-  icon:      React.ComponentType<LucideProps>
-  disabled?: boolean
-}
-interface NavSection {
-  key:   string
-  label: string
-  items: NavItem[]
-}
-
-// ─── Nav structure ─────────────────────────────────────────────────────────────
-const SECTIONS: NavSection[] = [
-  {
-    key: 'analytics',
-    label: 'Analytics',
-    items: [
-      { href: '/',           label: 'Dashboard',        icon: Activity   },
-      { href: '/kpis',       label: 'KPIs & Métriques', icon: BarChart3  },
-      { href: '/previsions', label: 'Prévisions',        icon: TrendingUp },
-    ],
-  },
-  {
-    key: 'performance',
-    label: 'Performance',
-    items: [
-      { href: '/livreurs', label: 'Livreurs & Scoring', icon: Users,   disabled: false },
-      { href: '/hubs',     label: 'Hubs',               icon: MapPin,  disabled: false },
-      { href: '/performance/analyse', label: 'Metrics', icon: TrendingUp, disabled: false },
-      { href: '/retours',  label: 'Retours & NO_SHOW',  icon: XCircle, disabled: false },
-    ],
-  },
-  {
-    key: 'operations',
-    label: 'Opérations',
-    items: [
-      { href: '/operations',            label: 'Cockpit opérationnel', icon: Activity,  disabled: false },
-      { href: '/operations/dispatch',   label: 'Dispatch live',        icon: Truck,     disabled: false },
-      { href: '/operations/suivi',      label: 'Suivi commandes',      icon: Activity,  disabled: false },
-      { href: '/operations/encaissement', label: 'Encaissement',      icon: DollarSign, disabled: false },
-      { href: '/operations/pointage',   label: 'Pointage & paie',      icon: Clock,     disabled: false },
-      { href: '/operations/flotte',     label: 'Flotte & gasoil',      icon: Package,   disabled: false },
-      { href: '/operations/historique', label: 'Historique',           icon: BarChart3, disabled: false },
-      { href: '/shifts',                label: 'Shifts & Planning',    icon: Calendar,  disabled: false },
-      { href: '/incidents',             label: 'Incidents & Support',  icon: Bell,      disabled: false },
-    ],
-  },
-  {
-    key: 'rh',
-    label: 'RH & Formation',
-    items: [
-      { href: '/rh/onboarding', label: 'Onboarding',    icon: UserCheck,    disabled: false },
-      { href: '/pointage',      label: 'Pointage',      icon: Clock,        disabled: false },
-      { href: '/rh/pointage',   label: 'Pointage — historique', icon: History, disabled: false },
-      { href: '/rh/paie',       label: 'Paie & Bonus',  icon: DollarSign,   disabled: false },
-      { href: '/academy',       label: 'Academy',       icon: GraduationCap,disabled: false },
-    ],
-  },
-  {
-    key: 'settings',
-    label: 'Paramétrage',
-    items: [
-      { href: '/parametres',               label: 'Paramètres généraux',       icon: Settings, disabled: false },
-      { href: '/parametres/calculs',       label: 'Calculs & équations',       icon: Settings, disabled: false },
-      { href: '/parametres/scoring',       label: 'Scoring livreur',           icon: Brain,    disabled: false },
-      { href: '/parametres/paie',          label: 'Paie & bonus',              icon: DollarSign, disabled: false },
-      { href: '/parametres/notifications', label: 'Notifications & incidents', icon: Send,     disabled: false },
-      { href: '/parametres/motifs', label: 'Motifs de non-livraison', icon: Send, disabled: false },
-      { href: '/parametres/chiffrage', label: 'Chiffrage & coûts', icon: Calculator, disabled: false },
-      { href: '/parametres/froid', label: 'Chaîne du froid', icon: Thermometer, disabled: false },
-      { href: '/parametres/tournees', label: 'Tournées & ETA', icon: Route, disabled: false },
-      { href: '/parametres/secteurs', label: 'Secteurs', icon: MapPinned, disabled: false },
-      { href: '/parametres/integrations', label: 'Intégrations (API & webhooks)', icon: Plug, disabled: false },
-      { href: '/rapports',                 label: 'Rapports planifiés',        icon: Mail,     disabled: false },
-    ],
-  },
-  {
-    key: 'admin',
-    label: 'Administration',
-    items: [
-      { href: '/admin', label: 'Super Admin', icon: Shield, disabled: false },
-      { href: '/admin/journal', label: 'Journal des actions', icon: Clock, disabled: false },
-    ],
-  },
-]
+import { getActiveNav, visibleModules } from '@/lib/module-nav'
 
 // ─── Floating tooltip (collapsed mode) ────────────────────────────────────────
 function Tooltip({ label }: { label: string }) {
@@ -109,46 +13,21 @@ function Tooltip({ label }: { label: string }) {
       <div className="bg-gray-900 text-white text-xs font-medium px-2.5 py-1.5 rounded-lg shadow-lg whitespace-nowrap leading-none">
         {label}
       </div>
-      {/* Arrow */}
       <div className="absolute right-full top-1/2 -translate-y-1/2 w-0 h-0 border-t-[5px] border-t-transparent border-b-[5px] border-b-transparent border-r-[5px] border-r-gray-900" />
     </div>
   )
 }
 
-// ─── Main Sidebar ──────────────────────────────────────────────────────────────
+// ─── Main Sidebar (7 modules) ──────────────────────────────────────────────────
 export default function Sidebar() {
   const pathname = usePathname()
-  const { user }  = useCurrentUser()
-  const allowedRoutes = getAllowedRoutes(user?.role ?? 'VIEWER')
+  const { user } = useCurrentUser()
+  const modules = visibleModules(user?.role ?? 'VIEWER')
+  const activeKey = getActiveNav(pathname)?.module.key
 
-  const visibleSections = SECTIONS
-    .map(s => ({ ...s, items: s.items.filter(i => allowedRoutes.includes(i.href)) }))
-    .filter(s => s.items.length > 0)
-
-  const [expanded, setExpanded]   = useState(false)
-  const leaveTimer                = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const [expanded, setExpanded] = useState(false)
+  const leaveTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
   const [hoveredItem, setHovered] = useState<string | null>(null)
-
-  // Accordion state per section, persisted in localStorage
-  const [accordion, setAccordion] = useState<Record<string, boolean>>({
-    analytics: true, performance: true, operations: true, rh: true, admin: false,
-  })
-
-
-  useEffect(() => {
-    try {
-      const saved = localStorage.getItem('sb_accordion')
-      if (saved) setAccordion(JSON.parse(saved))
-    } catch {}
-  }, [])
-
-  const toggleAccordion = (key: string) => {
-    setAccordion(prev => {
-      const next = { ...prev, [key]: !prev[key] }
-      try { localStorage.setItem('sb_accordion', JSON.stringify(next)) } catch {}
-      return next
-    })
-  }
 
   const onEnter = () => {
     if (leaveTimer.current) clearTimeout(leaveTimer.current)
@@ -166,15 +45,13 @@ export default function Sidebar() {
       onMouseEnter={onEnter}
       onMouseLeave={onLeave}
       className={[
-        // Fixed overlay — content never shifts
         'fixed left-0 top-0 bottom-0 z-50',
         'flex flex-col bg-white border-r border-gray-200',
         'transition-[width] duration-200 ease-in-out overflow-hidden',
         expanded ? 'w-60 shadow-2xl' : 'w-[60px]',
       ].join(' ')}
     >
-
-      {/* ── Brand ─────────────────────────────────────────────────────────── */}
+      {/* Brand */}
       <div className={[
         'flex items-center border-b border-gray-100 flex-shrink-0',
         expanded ? 'px-3.5 py-3.5 gap-2.5' : 'justify-center py-3.5',
@@ -185,95 +62,43 @@ export default function Sidebar() {
         {expanded && (
           <div className="min-w-0">
             <p className="text-[13.5px] font-black text-blue-700 leading-none tracking-tight truncate">SHIPINFY</p>
-            <p className="text-[10px] text-gray-400 mt-0.5 leading-none truncate">Metrics & Analytics</p>
+            <p className="text-[10px] text-gray-400 mt-0.5 leading-none truncate">Opérationnel</p>
           </div>
         )}
       </div>
 
-      {/* ── Nav ───────────────────────────────────────────────────────────── */}
+      {/* Nav */}
       <nav className="flex-1 overflow-y-auto overflow-x-hidden py-2 space-y-0.5">
-        {visibleSections.map(section => (
-          <div key={section.key}>
-
-            {/* Section header */}
-            {expanded ? (
-              <button
-                onClick={() => toggleAccordion(section.key)}
-                className="w-full flex items-center justify-between px-3.5 pt-2.5 pb-1 hover:opacity-80 transition-opacity"
+        {modules.map(m => {
+          const isActive = activeKey === m.key
+          return (
+            <div key={m.key} className="relative">
+              {!expanded && hoveredItem === m.key && <Tooltip label={m.label} />}
+              <Link
+                href={m.entry}
+                onMouseEnter={() => { if (!expanded) setHovered(m.key) }}
+                onMouseLeave={() => { if (!expanded) setHovered(null) }}
+                className={[
+                  'flex items-center transition-colors duration-100 select-none',
+                  expanded
+                    ? 'gap-2.5 mx-2 px-2.5 py-2 rounded-lg text-sm font-medium'
+                    : 'justify-center w-9 h-9 rounded-lg mx-auto my-0.5',
+                  isActive ? 'bg-blue-600 text-white' : 'text-gray-600 hover:bg-gray-100 hover:text-gray-900',
+                ].join(' ')}
               >
-                <span className="text-[10px] font-bold text-gray-400 uppercase tracking-[0.07em] leading-none">
-                  {section.label}
-                </span>
-                <ChevronRight
-                  size={11}
-                  className={[
-                    'text-gray-300 transition-transform duration-150 flex-shrink-0',
-                    accordion[section.key] ? 'rotate-90' : '',
-                  ].join(' ')}
-                />
-              </button>
-            ) : (
-              <div className="mx-3 my-0.5 h-px bg-gray-100" />
-            )}
-
-            {/* Items — respect accordion in expanded mode, always show in collapsed */}
-            <div className={expanded && !accordion[section.key] ? 'hidden' : ''}>
-              {section.items.map(item => {
-                const isActive   = pathname === item.href || (item.href !== '/' && item.href !== '/operations' && item.href !== '/parametres' && pathname.startsWith(item.href))
-                const isDisabled = item.disabled === true
-                const tooltipKey = item.href
-
-                return (
-                  <div key={item.href} className="relative">
-                    {/* Tooltip — collapsed only */}
-                    {!expanded && hoveredItem === tooltipKey && !isDisabled && (
-                      <Tooltip label={item.label} />
-                    )}
-
-                    <Link
-                      href={isDisabled ? '#' : item.href}
-                      onClick={e => isDisabled && e.preventDefault()}
-                      onMouseEnter={() => { if (!expanded) setHovered(tooltipKey) }}
-                      onMouseLeave={() => { if (!expanded) setHovered(null) }}
-                      className={[
-                        'flex items-center transition-colors duration-100 select-none',
-                        expanded
-                          ? 'gap-2.5 mx-2 px-2.5 py-2 rounded-lg text-sm font-medium'
-                          : 'justify-center w-9 h-9 rounded-lg mx-auto my-0.5',
-                        isActive
-                          ? 'bg-blue-600 text-white'
-                          : isDisabled
-                            ? 'text-gray-300 cursor-not-allowed'
-                            : 'text-gray-600 hover:bg-gray-100 hover:text-gray-900',
-                      ].join(' ')}
-                    >
-                      <item.icon size={15} className="flex-shrink-0" />
-                      {expanded && (
-                        <>
-                          <span className="flex-1 truncate">{item.label}</span>
-                          {isDisabled && (
-                            <span className="text-[9px] bg-gray-100 text-gray-400 px-1.5 py-0.5 rounded font-semibold flex-shrink-0">
-                              Soon
-                            </span>
-                          )}
-                        </>
-                      )}
-                    </Link>
-                  </div>
-                )
-              })}
+                <m.icon size={16} className="flex-shrink-0" />
+                {expanded && <span className="flex-1 truncate">{m.label}</span>}
+              </Link>
             </div>
-          </div>
-        ))}
-
+          )
+        })}
       </nav>
 
-      {/* ── Footer (expanded only) ────────────────────────────────────────── */}
       {expanded && (
         <div className="flex-shrink-0 p-2.5 border-t border-gray-100">
           <div className="px-3 py-2 bg-blue-50 rounded-xl">
-            <p className="text-[11px] font-black text-blue-700 leading-none">SHIPINFY v5.0</p>
-            <p className="text-[10px] text-blue-400 mt-1 leading-none">Sprint 12 — Mobile Responsive</p>
+            <p className="text-[11px] font-black text-blue-700 leading-none">SHIPINFY</p>
+            <p className="text-[10px] text-blue-400 mt-1 leading-none">Opérationnel</p>
           </div>
         </div>
       )}

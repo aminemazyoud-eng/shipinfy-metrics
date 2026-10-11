@@ -9,6 +9,7 @@ export type RoleKey = typeof ALL_ROLES[number]
 
 // Module key → route prefixes that belong to it
 export const MODULE_ROUTES: Record<string, string[]> = {
+  // Navigation 7 modules : voir lib/module-nav.ts (onglets filtrés via canAccess)
   dashboard:    ['/', '/kpis', '/previsions'],
   operations:   ['/operations', '/operations/dispatch', '/operations/suivi', '/operations/encaissement', '/operations/pointage', '/operations/flotte', '/operations/historique', '/operations/tournees', '/operations/controle', '/operations/vagues', '/operations/chiffrage', '/operations/froid'],
   livreurs:     ['/livreurs', '/score-ia', '/performance/analyse'],

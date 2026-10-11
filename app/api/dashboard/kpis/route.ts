@@ -4,6 +4,7 @@ import { prisma } from '@/lib/prisma'
 import { Prisma } from '@prisma/client'
 import { livreurName, isUnassigned, summarizeUnassigned } from '@/lib/driver-utils'
 // Sprint 17 B6 : plus de getHours()/setHours() (fuseau du serveur) — jours et heures LOCAUX Africa/Casablanca via lib/tz.ts
+import { LIVE_REPORT_ID } from '@/lib/ops-live-report'
 import { localParts, localToday, addDays, dayStartUtc, dayBoundsTz } from '@/lib/tz'
 
 function splitParam(p: string | null): string[] {

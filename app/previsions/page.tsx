@@ -9,6 +9,7 @@ import {
   ComposedChart, Bar, Line, Area, XAxis, YAxis,
   CartesianGrid, Tooltip, ResponsiveContainer, ReferenceLine, Legend,
 } from 'recharts'
+import { addDays, localToday } from '@/lib/tz'
 
 // ── Types ───────────────────────────────────────────────────────────────────────
 interface ForecastDay {
@@ -49,8 +50,13 @@ interface AtRisk {
   noShowRate:   number
   risk:         'high' | 'medium'
 }
+interface KpiLive {
+  totalOrders: number; avgCODPerOrder: number
+  byDay: Array<{ date: string; total: number; delivered: number; noShow: number; deliveryRate: number; totalCOD: number }>
+  byHub: Array<{ hubName: string; total: number; deliveryRate: number }>
+  byLivreur: Array<{ name: string; total: number; noShow: number; deliveryRate: number }>
+}
 interface PrevisionData {
-  reportId:      string
   totalOrders:   number
   globalRate:    number
   avgDaily:      number
@@ -130,14 +136,73 @@ export default function PrevisionsPage() {
   const [loading, setLoading] = useState(true)
   const [error, setError]     = useState<string | null>(null)
 
+  // 100 % temps réel : prévisions de volume = /api/ops/forecast (même moteur que le Cockpit : historique par créneau, jours spéciaux, commandes déjà connues) ;
+  // historique, taux, tendances hubs et livreurs à risque = rapport LIVE (/api/dashboard/kpis).
   const load = useCallback(async () => {
     setLoading(true)
     setError(null)
     try {
-      const res = await fetch('/api/previsions')
-      const json = await res.json()
-      if (!res.ok) { setError(json.error ?? 'Erreur'); setLoading(false); return }
-      setData(json)
+      const today = localToday()
+      const kp = async (from: string, to: string): Promise<KpiLive | null> => {
+        const r = await fetch(`/api/dashboard/kpis?preset=all&dateFrom=${from}&dateTo=${to}`, { cache: 'no-store' })
+        return r.ok ? await r.json() as KpiLive : null
+      }
+      const [k30, kRecent, kPrev, ...fc] = await Promise.all([
+        kp(addDays(today, -29), today),
+        kp(addDays(today, -6), today),
+        kp(addDays(today, -13), addDays(today, -7)),
+        ...[1, 2, 3, 4, 5, 6, 7].map(n => fetch(`/api/ops/forecast?day=%2B${n}`).then(r => (r.ok ? r.json() : null)).catch(() => null)),
+      ])
+      const byDay: ByDay[] = (k30?.byDay ?? []).filter(d => d.total >= 1).map(d => ({ date: d.date, total: d.total, delivered: d.delivered, noShow: d.noShow, deliveryRate: d.deliveryRate, cod: d.totalCOD }))
+      const fcOk = fc.filter(Boolean) as Array<{ day: string; summary: { expected: number } }>
+      if (!k30 || byDay.length < 3 || fcOk.length === 0) { setError('Données temps réel insuffisantes (< 3 jours)'); setLoading(false); return }
+
+      // jours complets (le jour en cours est partiel : exclu des moyennes)
+      const full = byDay.filter(d => d.date < today).slice(-14)
+      const base = full.length >= 3 ? full : byDay
+      const mean = (a: number[]) => (a.length ? a.reduce((s, x) => s + x, 0) / a.length : 0)
+      const sd = (a: number[]) => { const m = mean(a); return Math.sqrt(mean(a.map(x => (x - m) ** 2))) }
+      const vols = base.map(d => d.total), rates = base.map(d => d.deliveryRate)
+      const avgVol = mean(vols), avgRate = Math.round(mean(rates) * 10) / 10, rateSd = Math.round(sd(rates) * 10) / 10
+      const codPerOrder = k30.avgCODPerOrder || 0
+
+      const forecast: ForecastDay[] = fcOk.map(f => {
+        const vol = f.summary.expected
+        const sigma = Math.round(sd(vols) * (avgVol > 0 ? vol / avgVol : 1))
+        const dow = new Date(f.day + 'T12:00:00Z').getUTCDay()
+        const cod = Math.round(vol * codPerOrder)
+        const rate = Math.max(0, Math.min(100, avgRate))
+        return {
+          date: f.day, dow, vol, volLow: Math.max(0, vol - sigma), volHigh: vol + sigma,
+          rate, rateLow: Math.max(0, Math.round((rate - rateSd) * 10) / 10), rateHigh: Math.min(100, Math.round((rate + rateSd) * 10) / 10),
+          cod, codLow: Math.round(cod * 0.85), codHigh: Math.round(cod * 1.15),
+          noShowEst: Math.round(vol * (100 - rate) / 100),
+          risk: rate < 65 ? 'high' : rate < 75 ? 'medium' : 'low',
+        }
+      })
+
+      const prevHub = new Map((kPrev?.byHub ?? []).map(h => [h.hubName, h]))
+      const hubTrends: HubTrend[] = (kRecent?.byHub ?? [])
+        .filter(h => h.total + (prevHub.get(h.hubName)?.total ?? 0) >= 10)
+        .map(h => {
+          const p = prevHub.get(h.hubName)
+          const prevRate = p ? p.deliveryRate : h.deliveryRate
+          const trend = Math.round((h.deliveryRate - prevRate) * 10) / 10
+          return { hub: h.hubName, recentRate: h.deliveryRate, prevRate, trend, direction: (trend > 2 ? 'up' : trend < -2 ? 'down' : 'stable') as HubTrend['direction'], volume: h.total + (p?.total ?? 0) }
+        })
+        .sort((a, b) => a.trend - b.trend)
+
+      const atRisk: AtRisk[] = k30.byLivreur
+        .filter(l => l.total >= 10 && l.deliveryRate < 78)
+        .map(l => ({ name: l.name, total: l.total, deliveryRate: l.deliveryRate, noShowRate: Math.round(l.noShow / l.total * 1000) / 10, risk: (l.deliveryRate < 65 ? 'high' : 'medium') as AtRisk['risk'] }))
+        .sort((a, b) => a.deliveryRate - b.deliveryRate)
+
+      const forecastTotal = forecast.reduce((s, f) => s + f.vol, 0)
+      setData({
+        totalOrders: k30.totalOrders, globalRate: avgRate, avgDaily: Math.round(avgVol), forecastTotal,
+        forecastRate: avgRate, forecastCOD: forecast.reduce((s, f) => s + f.cod, 0),
+        byDay, forecast, hubTrends, atRisk,
+      })
     } catch {
       setError('Impossible de charger les prévisions')
     }
@@ -183,7 +248,7 @@ export default function PrevisionsPage() {
       <AlertTriangle size={40} className="text-orange-400" />
       <p className="text-gray-600 font-medium">{error ?? 'Aucune donnée'}</p>
       <p className="text-gray-400 text-sm text-center max-w-xs">
-        Importez un fichier CSV depuis la page KPIs pour générer des prévisions.
+        Les prévisions se calculent depuis les commandes temps réel (au moins 3 jours d’historique).
       </p>
       <button onClick={load} className="flex items-center gap-2 bg-blue-600 text-white px-4 py-2 rounded-lg text-sm font-medium hover:bg-blue-700">
         <RefreshCw size={14} /> Réessayer
@@ -204,7 +269,7 @@ export default function PrevisionsPage() {
             <div>
               <h1 className="text-lg font-bold text-gray-900">Prévisions & Tendances</h1>
               <p className="text-xs text-gray-500">
-                Basé sur {data.totalOrders.toLocaleString('fr-FR')} commandes ·
+                Temps réel · {data.totalOrders.toLocaleString('fr-FR')} commandes sur 30 j ·
                 {data.byDay.length} jours d&apos;historique
               </p>
             </div>
@@ -455,9 +520,7 @@ export default function PrevisionsPage() {
         <div className="bg-blue-50 border border-blue-100 rounded-xl px-4 py-3 flex items-start gap-2.5">
           <TrendingUp size={14} className="text-blue-400 mt-0.5 flex-shrink-0" />
           <p className="text-[11px] text-blue-600 leading-relaxed">
-            <span className="font-bold">Méthodologie :</span> Régression linéaire + moyenne mobile 7j + facteur saisonnier jour de la semaine.
-            Intervalles de confiance basés sur l&apos;erreur quadratique (RMSE) des 7 derniers jours.
-            Les prévisions sont indicatives — elles se basent sur {data.byDay.length} jours d&apos;historique.
+            <span className="font-bold">Méthodologie :</span> volumes prévus par le moteur du Cockpit (<code>/api/ops/forecast</code> : historique par hub × créneau, courbe d&apos;arrivée des commandes, jours spéciaux). Taux de livraison = moyenne des 14 derniers jours complets, COD = volume × COD moyen, bandes = écart-type des jours récents. Indicatif.
           </p>
         </div>
 

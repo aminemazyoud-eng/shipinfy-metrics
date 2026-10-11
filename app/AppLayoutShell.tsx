@@ -2,6 +2,7 @@
 import { usePathname } from 'next/navigation'
 import Sidebar from '@/components/Sidebar'
 import AppShell from '@/components/AppShell'
+import ModuleTabs from '@/components/ModuleTabs'
 
 // Pages that render without Sidebar/AppShell
 const AUTH_PATHS = ['/login', '/suivi', '/livreur'] // pages sans menu ni session : connexion + suivi client public
@@ -23,6 +24,7 @@ export default function AppLayoutShell({ children }: { children: React.ReactNode
       {/* ml-[60px] desktop only */}
       <main className="lg:ml-[60px] min-h-screen overflow-auto pb-[76px] lg:pb-0">
         <AppShell>
+          <ModuleTabs />
           {children}
         </AppShell>
       </main>

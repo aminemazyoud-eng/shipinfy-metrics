@@ -2,6 +2,7 @@
 import { useState, useEffect, useCallback } from 'react'
 import Link from 'next/link'
 import { Wallet, Download, Clock, Lock, RefreshCw, CheckCircle2, Banknote, Unlock } from 'lucide-react'
+import PerCourse from './PerCourse'
 
 interface Cfg { dailyRate: number; helperDailyRate: number; bonusThreshold: number; bonusPerOrder: number; onTimeBonus: number; noShowPenalty: number; latePenalty: number; paidLeave: boolean }
 interface Line { code: string; name: string; hubCode: string | null; dailyRate: number; paidDays: number; daysAbsent: number; delivered: number; onTime: number; noShow: number; bonusOrders: number; gross: number; bonus: number; deductions: number; net: number }
@@ -12,6 +13,10 @@ const today = () => new Date().toISOString().slice(0, 10)
 
 export default function PaieBonusPage() {
   const [tab, setTab] = useState<'live' | 'runs'>('live')
+  const [calcMode, setCalcMode] = useState<'daily' | 'course'>('daily')
+  // ?tab=calcul|cloture (ancienne adresse /remuneration => ?tab=calcul&mode=course)
+  useEffect(() => { const q = new URLSearchParams(window.location.search); const t = q.get('tab'); if (t === 'cloture' || t === 'runs') setTab('runs'); else if (t === 'calcul' || t === 'live') setTab('live'); if (q.get('mode') === 'course') setCalcMode('course') }, [])
+  const goTab = (k: 'live' | 'runs') => { setTab(k); window.history.replaceState(null, '', `/rh/paie?tab=${k === 'runs' ? 'cloture' : 'calcul'}`) }
   const [from, setFrom] = useState(today().slice(0, 8) + '01'); const [to, setTo] = useState(today())
   const [pay, setPay] = useState<Pay | null>(null)
   const [cfg, setCfg] = useState<Cfg | null>(null)
@@ -39,15 +44,18 @@ export default function PaieBonusPage() {
     <div className="p-4 md:p-6 space-y-4 max-w-7xl mx-auto">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div><h1 className="text-xl font-bold text-gray-900 flex items-center gap-2"><Wallet className="w-5 h-5 text-teal-600" />Paie & Bonus</h1>
-          <p className="text-sm text-gray-500">Règles de rémunération (fixe journalier + bonus) · calculées depuis le <Link href="/pointage" className="underline">pointage</Link> et les livraisons — chauffeurs et helpers</p></div>
-        <Link href="/operations/pointage" className="text-xs px-3 py-1.5 border border-gray-300 rounded-lg bg-white flex items-center gap-1"><Clock className="w-3.5 h-3.5" />Indicateurs côté Opérations</Link>
+          <p className="text-sm text-gray-500">Règles de rémunération (fixe journalier + bonus) · calculées depuis le <Link href="/rh/pointage" className="underline">pointage</Link> et les livraisons — chauffeurs et helpers</p></div>
+        <Link href="/rh/pointage" className="text-xs px-3 py-1.5 border border-gray-300 rounded-lg bg-white flex items-center gap-1"><Clock className="w-3.5 h-3.5" />Pointage</Link>
       </div>
 
-      <div className="flex gap-2">{([['live', 'Calcul en cours'], ['runs', 'Clôtures mensuelles']] as const).map(([k, l]) => <button key={k} onClick={() => setTab(k)} className={`px-4 py-1.5 rounded-lg text-sm border ${tab === k ? 'bg-teal-600 text-white border-teal-600' : 'bg-white border-gray-300'}`}>{l}</button>)}</div>
+      <div className="flex gap-2">{([['live', 'Calcul'], ['runs', 'Clôture mensuelle']] as const).map(([k, l]) => <button key={k} onClick={() => goTab(k)} className={`px-4 py-1.5 rounded-lg text-sm border ${tab === k ? 'bg-teal-600 text-white border-teal-600' : 'bg-white border-gray-300'}`}>{l}</button>)}</div>
 
       {tab === 'runs' && <Closures />}
 
-      {tab === 'live' && <>
+      {tab === 'live' && <div className="flex gap-2 text-xs">{([['daily', 'Paie journalière (pointage + bonus)'], ['course', 'À la course (Standard / Express)']] as const).map(([k, l]) => <button key={k} onClick={() => setCalcMode(k)} className={`px-3 py-1 rounded-full border ${calcMode === k ? 'bg-gray-800 text-white border-gray-800' : 'bg-white border-gray-300 text-gray-600'}`}>{l}</button>)}</div>}
+      {tab === 'live' && calcMode === 'course' && <PerCourse onGoClosure={() => goTab('runs')} />}
+
+      {tab === 'live' && calcMode === 'daily' && <>
       <div className="text-sm bg-purple-50 border border-purple-200 text-purple-800 rounded-lg p-3">Les <b>règles</b> de rémunération (fixe chauffeur / helper, bonus, retenues) se paramètrent dans <Link href="/parametres/paie" className="underline font-medium">Paramétrage → Paie & bonus</Link>. Cette page calcule la paie de la période à partir du pointage.</div>
 
       <div className="flex flex-wrap items-end gap-3">

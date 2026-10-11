@@ -187,7 +187,7 @@ export function SendReportModal({ open, onClose, reportId, filters, kpisData }: 
                   <div className="mt-3 flex items-start gap-2 rounded-lg bg-amber-50 border border-amber-200 px-3 py-2.5">
                     <span className="text-amber-500 text-base leading-none mt-0.5">⚠️</span>
                     <p className="text-xs font-medium text-amber-700">
-                      Aucune commande dans ce rapport. Importez d&apos;abord un fichier CSV — le PDF serait vide.
+                      Aucune commande dans ce rapport. Aucune commande temps réel sur cette période — le PDF serait vide.
                     </p>
                   </div>
                 )}

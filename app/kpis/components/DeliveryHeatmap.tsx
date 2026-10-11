@@ -72,7 +72,7 @@ export function DeliveryHeatmap({ data, totalOrders }: Props) {
             <div className="text-center text-gray-400">
               <MapPin className="mx-auto mb-2 h-10 w-10 opacity-30" />
               <p className="text-sm">Aucune coordonnée disponible</p>
-              <p className="text-xs mt-1">Vérifiez que le fichier Excel contient des coordonnées GPS</p>
+              <p className="text-xs mt-1">Aucune coordonnée GPS sur cette période</p>
             </div>
           </div>
         )}

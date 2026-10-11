@@ -1,20 +1,9 @@
 import { requireSession } from '@/lib/api-guard'
 import { NextResponse } from 'next/server'
-import { prisma } from '@/lib/prisma'
 
-// Creates the DeliveryReport shell and returns the reportId.
-// The actual row insertion is handled by /upload/batch in small chunks.
+// Import Excel/CSV désactivé : l'application travaille 100 % en temps réel (OpsOrder / rapport LIVE).
+// Aucune table ni donnée n'est supprimée ; seule l'entrée d'import est neutralisée.
 export async function POST(request: Request) {
   const _guard = await requireSession(request, 'MANAGER'); if ('error' in _guard) return _guard.error
-  try {
-    const { filename } = await request.json() as { filename: string }
-    if (!filename?.trim()) {
-      return NextResponse.json({ error: 'filename requis' }, { status: 400 })
-    }
-    const report = await prisma.deliveryReport.create({ data: { filename: filename.trim() } })
-    return NextResponse.json({ reportId: report.id, insertedAt: report.uploadedAt })
-  } catch (e) {
-    console.error('[upload/init]', e)
-    return NextResponse.json({ error: 'Création du rapport échouée' }, { status: 500 })
-  }
+  return NextResponse.json({ error: 'Import désactivé : données en temps réel' }, { status: 410 })
 }

@@ -3,6 +3,7 @@ import { useState, useEffect, useCallback, useMemo } from 'react'
 import Link from 'next/link'
 import { UserPlus, Car, Search, FileText, Pencil, Lock, GraduationCap, X, CheckCircle2 } from 'lucide-react'
 import RecruitBoard from './RecruitBoard'
+import KycPipeline from '../../onboarding/KycPipeline'
 
 interface Person { code: string; firstName: string; lastName: string; jobType: 'chauffeur' | 'helper'; phone: string | null; cin: string | null; address: string | null; birthDate: string | null; hireDate: string | null; licenseNo: string | null
   contractType: string; status: string; onboardingStatus: string; trainingDone: boolean; quizScore: number | null; dailyRate: number; hubCode: string | null; hubName: string | null; city: string | null; vehicleId: string | null; vehiclePlate: string | null
@@ -29,13 +30,14 @@ export default function OnboardingRhPage() {
   const [modal, setModal] = useState<{ kind: 'person' | 'vehicle'; code?: string; id?: string } | null>(null)
   const [f, setF] = useState<Form>({})
   const [err, setErr] = useState('')
+  const [rview, setRview] = useState<'board' | 'kyc'>('board')
 
   const load = useCallback(async () => {
     const [p, v] = await Promise.all([fetch('/api/rh/people'), fetch('/api/rh/vehicles')])
     if (p.ok) { const j = await p.json(); setPeople(j.people); setCanEdit(j.canEdit) }
     if (v.ok) setVehicles((await v.json()).vehicles)
   }, [])
-  useEffect(() => { if (new URLSearchParams(window.location.search).get('tab') === 'recrutement') setTab('recrutement') }, [])
+  useEffect(() => { const q = new URLSearchParams(window.location.search); if (q.get('tab') === 'recrutement') setTab('recrutement'); if (q.get('view') === 'kyc') setRview('kyc') }, [])
   useEffect(() => { load(); fetch('/api/ops/hubs').then(r => r.ok ? r.json() : null).then(j => j && setHubs(j.hubs)).catch(() => {}) }, [load])
 
   const list = useMemo(() => people.filter(p => p.jobType === tab && (!q || `${p.firstName} ${p.lastName} ${p.code} ${p.cin ?? ''}`.toLowerCase().includes(q.toLowerCase()))), [people, tab, q])
@@ -81,8 +83,11 @@ export default function OnboardingRhPage() {
         </div>
       </div>
 
-      {tab === 'recrutement' ? (
-        <RecruitBoard people={people.filter(p => !q || `${p.firstName} ${p.lastName} ${p.code} ${p.cin ?? ''}`.toLowerCase().includes(q.toLowerCase()))} canEdit={canEdit} onEdit={openPerson} onChanged={load} />
+      {tab === 'recrutement' ? (<>
+        <div className="flex gap-2 text-xs">{([['board', 'Pipeline de recrutement (personnel)'], ['kyc', 'Dossiers KYC & étapes d’intégration']] as const).map(([k, l]) => <button key={k} onClick={() => setRview(k)} className={`px-3 py-1 rounded-full border ${rview === k ? 'bg-gray-800 text-white border-gray-800' : 'bg-white border-gray-300 text-gray-600'}`}>{l}</button>)}</div>
+        {rview === 'kyc' ? <div className="-mx-4 md:-mx-6 border-t border-gray-200"><KycPipeline /></div> :
+        <RecruitBoard people={people.filter(p => !q || `${p.firstName} ${p.lastName} ${p.code} ${p.cin ?? ''}`.toLowerCase().includes(q.toLowerCase()))} canEdit={canEdit} onEdit={openPerson} onChanged={load} />}
+      </>
       ) : tab !== 'vehicle' ? (
         <div className="bg-white border border-gray-200 rounded-xl overflow-x-auto">
           <table className="w-full text-sm">

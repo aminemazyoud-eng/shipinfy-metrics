@@ -1,60 +1,9 @@
 import { requireSession } from '@/lib/api-guard'
 import { NextResponse } from 'next/server'
-import { prisma } from '@/lib/prisma'
-import { COLUMN_MAP } from '@/lib/excel-mapping'
-import { toMoroccoTime } from '@/lib/timezone'
 
-// 1000 rows per batch ≈ 1.2MB JSON → completes in 3-5s on Supabase.
-// 3 batches run in parallel client-side → 9000 rows ≈ 15s total.
-export const maxDuration = 60
-
-const DATE_FIELDS = new Set([
-  'pickupTimeStart', 'deliveryTimeStart', 'deliveryTimeEnd',
-  'dateTimeWhenOrderSent', 'dateTimeWhenAssigned', 'dateTimeWhenInTransport',
-  'dateTimeWhenStartDelivery', 'dateTimeWhenDelivered', 'dateTimeWhenNoShow',
-  'dateTimeLastUpdate',
-])
-
-const FLOAT_FIELDS = new Set([
-  'paymentOnDeliveryAmount', 'destinationLongitude', 'destinationLatitude',
-  'originHubLongitude', 'originHubLatitude', 'sprintGeoLongitude', 'sprintGeoLatitude',
-])
-
+// Import Excel/CSV désactivé : l'application travaille 100 % en temps réel (OpsOrder / rapport LIVE).
+// Aucune table ni donnée n'est supprimée ; seule l'entrée d'import est neutralisée.
 export async function POST(request: Request) {
   const _guard = await requireSession(request, 'MANAGER'); if ('error' in _guard) return _guard.error
-  try {
-    const body = await request.json() as { reportId: string; rows: Record<string, unknown>[] }
-    const { reportId, rows } = body
-
-    if (!reportId || !Array.isArray(rows) || rows.length === 0) {
-      return NextResponse.json({ error: 'reportId et rows requis' }, { status: 400 })
-    }
-
-    const orders = rows.map((row) => {
-      const order: Record<string, unknown> = { reportId }
-      for (const [excelCol, dbField] of Object.entries(COLUMN_MAP)) {
-        const raw = row[excelCol]
-        if (DATE_FIELDS.has(dbField)) {
-          order[dbField] = toMoroccoTime(raw)
-        } else if (FLOAT_FIELDS.has(dbField)) {
-          const n = parseFloat(String(raw ?? ''))
-          order[dbField] = isNaN(n) ? null : n
-        } else {
-          order[dbField] = raw != null ? String(raw) : null
-        }
-      }
-      return order
-    })
-
-    await prisma.deliveryOrder.createMany({
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      data: orders as any,
-      skipDuplicates: true,
-    })
-
-    return NextResponse.json({ inserted: orders.length })
-  } catch (e) {
-    console.error('[upload/batch]', e)
-    return NextResponse.json({ error: 'Insertion batch échouée' }, { status: 500 })
-  }
+  return NextResponse.json({ error: 'Import désactivé : données en temps réel' }, { status: 410 })
 }

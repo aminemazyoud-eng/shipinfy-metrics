@@ -9,8 +9,6 @@ interface Hub {
 
 interface KpisData { byHub: Hub[]; byLivreur: { name: string; deliveryRate: number; total: number }[] }
 
-interface Report { id: string; filename: string; _count: { orders: number } }
-
 const PRESETS = [
   { key: 'all', label: 'Tout' }, { key: 'month', label: 'Ce mois' },
   { key: 'week', label: 'Cette semaine' }, { key: 'today', label: "Aujourd'hui" },
@@ -48,28 +46,18 @@ function CODBar({ value, max }: { value: number; max: number }) {
 
 export default function HubsPage() {
   const [data, setData]         = useState<KpisData | null>(null)
-  const [reports, setReports]   = useState<Report[]>([])
-  const [reportId, setReportId] = useState('')
   const [preset, setPreset]     = useState('all')
   const [loading, setLoading]   = useState(false)
 
-  useEffect(() => {
-    fetch('/api/dashboard/reports').then(r => r.json()).then((rs: Report[]) => {
-      setReports(rs)
-      if (rs.length > 0) setReportId(rs[0].id)
-    })
-  }, [])
-
   const load = useCallback(async () => {
-    if (!reportId) return
     setLoading(true)
     try {
-      const res = await fetch(`/api/dashboard/kpis?reportId=${reportId}&preset=${preset}`)
+      const res = await fetch(`/api/dashboard/kpis?preset=${preset}`)
       if (res.ok) setData(await res.json())
     } finally {
       setLoading(false)
     }
-  }, [reportId, preset])
+  }, [preset])
 
   useEffect(() => { load() }, [load])
 
@@ -88,16 +76,9 @@ export default function HubsPage() {
           <h1 className="text-lg lg:text-2xl font-bold text-gray-900 flex items-center gap-2">
             <MapPin className="h-5 w-5 lg:h-6 lg:w-6 text-blue-600" /> Performance Hubs
           </h1>
-          <p className="text-xs lg:text-sm text-gray-500 mt-1 hidden md:block">Comparaison des hubs · taux de livraison · COD · délais</p>
+          <p className="text-xs lg:text-sm text-gray-500 mt-1 hidden md:block">Comparaison des hubs · taux de livraison · COD · délais · données temps réel</p>
         </div>
         <div className="flex gap-2 flex-wrap">
-          <select
-            className="border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400"
-            value={reportId}
-            onChange={e => setReportId(e.target.value)}
-          >
-            {reports.map(r => <option key={r.id} value={r.id}>{r.filename}</option>)}
-          </select>
           <div className="flex rounded-lg border border-gray-200 overflow-hidden">
             {PRESETS.map(p => (
               <button

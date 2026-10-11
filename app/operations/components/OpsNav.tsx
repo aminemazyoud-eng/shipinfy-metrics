@@ -13,10 +13,8 @@ const LINKS = [
   { href: '/operations/tournees', label: 'Tournées' },
   { href: '/operations/controle', label: 'Tour de contrôle' },
   { href: '/operations/vagues', label: 'Vagues de préparation' },
-  { href: '/operations/secteurs', label: 'Secteurs' },
   { href: '/operations/chiffrage', label: 'Chiffrage' },
   { href: '/operations/froid', label: 'Chaîne du froid' },
-  { href: '/operations/integrations', label: 'Intégrations' },
 ]
 
 export default function OpsNav() {

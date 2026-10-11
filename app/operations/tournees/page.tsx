@@ -1,6 +1,7 @@
 'use client'
 import { useState, useEffect, useCallback } from 'react'
 import { Route, RefreshCw, ArrowUp, ArrowDown, Wand2, Settings2, Info } from 'lucide-react'
+import Link from 'next/link'
 import OpsNav from '../components/OpsNav'
 import { usePolling } from '@/lib/use-polling'
 
@@ -8,17 +9,11 @@ interface Stop { orderId: string; ref: string; seq: number; status: string; etaA
 interface Tour { id: string; driverCode: string; driverName: string; vehicleRef: string | null; hubCode: string | null; rotation: number; status: string; total: number; done: number; remaining: number; progressPct: number; nextEtaAt: string | null; lastEtaAt: string | null; lateStops: number; etaLateStops: number; stops: Stop[] }
 interface Res { day: string; etaNote: string; trafficLive: boolean; unplanned: number; unassigned: number; tours: Tour[] }
 interface Build { tours: unknown[]; created: number; updated: number; removedTours: number; lockedTours: number; skippedStarted: number; warnings: string[] }
-interface Settings { [k: string]: number | number[] }
 
 const STATUS: Record<string, [string, string]> = { PLANNED: ['Planifiée', 'bg-gray-100 text-gray-700'], LOADING: ['Chargement', 'bg-blue-100 text-blue-700'], ONGOING: ['En cours', 'bg-amber-100 text-amber-800'], DONE: ['Terminée', 'bg-green-100 text-green-700'] }
 const ST_LBL: Record<string, string> = { ASSIGNED: 'Assignée', IN_TRANSPORT: 'Acceptée', START_DELIVERY: 'En livraison', DELIVERED: 'Livrée', NO_SHOW: 'Absent', CANCELLED: 'Annulée', READY_PICKUP: 'À dispatcher' }
 const hhmm = (iso: string | null) => (iso ? new Date(iso).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit', timeZone: 'Africa/Casablanca' }) : '—')
 const isClosed = (s: string) => s === 'DELIVERED' || s === 'NO_SHOW' || s === 'CANCELLED'
-const PARAMS: [string, string, string][] = [
-  ['serviceMin', 'Temps de service par stop (min)', ''], ['maxStops', 'Capacité : stops par rotation', ''], ['rotationsPerSlot', 'Rotations max par créneau', ''], ['loadMin', 'Chargement avant départ (min)', ''],
-  ['maxPostpones', 'Reports max par commande', ''], ['etaDriftNotifyMin', 'Prévenir le client si l\'ETA dérive de (min)', ''], ['baseSpeedKmh', 'Vitesse moyenne hors trafic (km/h)', ''],
-  ['roadFactor', 'Facteur de détour route / vol d\'oiseau', ''], ['trafficCoef', 'Coefficient de trafic global (>1 = plus lent)', ''], ['waveTarget', 'Vagues : taille cible d\'un lot', ''], ['waveMax', 'Vagues : taille max d\'un lot', ''], ['waveWidenMin', 'Vagues : fenêtre élargie (min)', ''],
-]
 
 export default function TourneesPage() {
   const [day, setDay] = useState('today')
@@ -29,9 +24,6 @@ export default function TourneesPage() {
   const [warn, setWarn] = useState<string[]>([])
   const [busy, setBusy] = useState(false)
   const [open, setOpen] = useState<Record<string, boolean>>({})
-  const [showSet, setShowSet] = useState(false)
-  const [set, setSet] = useState<Settings | null>(null)
-  const [curve, setCurve] = useState('')
 
   const load = useCallback(async () => {
     const qs = new URLSearchParams({ day }); if (hub) qs.set('hub', hub)
@@ -62,20 +54,6 @@ export default function TourneesPage() {
     if (!r.ok) say((await r.json().catch(() => ({}))).error ?? 'Réordonnancement refusé')
     load()
   }
-  const openSettings = async () => {
-    setShowSet(s => !s)
-    if (!set) { const r = await fetch('/api/ops/tours/params'); if (r.ok) { const j = await r.json(); setSet(j.settings); setCurve((j.settings.trafficCurve as number[]).join(', ')) } }
-  }
-  const saveSettings = async () => {
-    if (!set) return
-    const body: Record<string, unknown> = { ...set }
-    const c = curve.split(/[,\s;]+/).filter(Boolean).map(Number)
-    if (c.length === 24) body.trafficCurve = c; else delete body.trafficCurve
-    const r = await fetch('/api/ops/tours/params', { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) })
-    const j = await r.json().catch(() => ({}))
-    if (r.ok) { setSet(j.settings); setCurve((j.settings.trafficCurve as number[]).join(', ')); say(c.length === 24 || !curve.trim() ? 'Réglages enregistrés' : 'Réglages enregistrés (la courbe doit contenir 24 valeurs : ignorée)') } else say(j.error ?? 'Accès refusé ou valeurs hors bornes')
-  }
-
   return (
     <div className="p-4 md:p-6 space-y-4">
       <div className="flex flex-wrap items-center justify-between gap-3">
@@ -86,7 +64,7 @@ export default function TourneesPage() {
           <button onClick={() => build(false)} disabled={busy} className="px-3 py-1.5 text-sm rounded-lg bg-purple-600 text-white hover:bg-purple-700 disabled:opacity-50">Construire / compléter</button>
           <button onClick={() => build(true)} disabled={busy} className="px-3 py-1.5 text-sm rounded-lg border border-purple-300 text-purple-700 hover:bg-purple-50 disabled:opacity-50 flex items-center gap-1"><Wand2 className="w-4 h-4" />Réoptimiser</button>
           <button onClick={load} className="px-3 py-1.5 text-sm rounded-lg border border-gray-300 hover:bg-gray-50"><RefreshCw className="w-4 h-4" /></button>
-          <button onClick={openSettings} className="px-3 py-1.5 text-sm rounded-lg border border-gray-300 hover:bg-gray-50 flex items-center gap-1"><Settings2 className="w-4 h-4" />Réglages</button>
+          <Link href="/parametres/tournees" className="px-3 py-1.5 text-sm rounded-lg border border-gray-300 hover:bg-gray-50 flex items-center gap-1"><Settings2 className="w-4 h-4" />Réglages → Paramétrage</Link>
         </div>
       </div>
       <OpsNav />
@@ -97,27 +75,6 @@ export default function TourneesPage() {
           <span className="flex items-center gap-1"><Info className="w-3 h-3" />{res.trafficLive ? 'ETA avec fournisseur de trafic externe.' : `${res.etaNote} (modèle horaire, sans trafic temps réel).`}</span>
           {res.unassigned > 0 && <span className="text-amber-700">{res.unassigned} commande(s) à affecter (Dispatch)</span>}
           {res.unplanned > 0 && <span className="text-amber-700">{res.unplanned} commande(s) affectée(s) sans tournée : « Construire / compléter »</span>}
-        </div>
-      )}
-
-      {showSet && (
-        <div className="rounded-xl border border-gray-200 bg-white p-4 space-y-3">
-          <h2 className="font-semibold text-gray-800">Réglages tournées, ETA et vagues</h2>
-          {!set ? <div className="text-sm text-gray-400">Chargement…</div> : (
-            <>
-              <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-2">
-                {PARAMS.map(([k, label]) => (
-                  <label key={k} className="text-xs text-gray-500">{label}
-                    <input type="number" step="any" value={typeof set[k] === 'number' ? (set[k] as number) : ''} onChange={e => setSet({ ...set, [k]: Number(e.target.value) })} className="mt-1 w-full rounded-lg border border-gray-300 px-2 py-1.5 text-sm text-gray-900" />
-                  </label>
-                ))}
-              </div>
-              <label className="text-xs text-gray-500 block">Courbe de vitesse par heure locale (24 valeurs, 0h → 23h ; 1 = fluide, 0,6 = dense) — valeurs de départ à calibrer avec vos données
-                <textarea value={curve} onChange={e => setCurve(e.target.value)} rows={2} className="mt-1 w-full rounded-lg border border-gray-300 px-2 py-1.5 text-xs font-mono text-gray-900" />
-              </label>
-              <button onClick={saveSettings} className="px-4 py-1.5 text-sm rounded-lg bg-purple-600 text-white hover:bg-purple-700">Enregistrer</button>
-            </>
-          )}
         </div>
       )}
 

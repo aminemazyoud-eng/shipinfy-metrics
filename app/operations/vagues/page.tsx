@@ -61,7 +61,7 @@ export default function VaguesPage() {
         <button onClick={xlsx} disabled={!res?.lots.length} className="px-3 py-1.5 text-sm rounded-lg border border-gray-300 hover:bg-gray-50 disabled:opacity-40 flex items-center gap-1"><FileSpreadsheet className="w-4 h-4" />Excel</button>
       </div>
       {flash && <div className="rounded-lg bg-blue-50 border border-blue-200 text-blue-800 text-sm px-3 py-2 print:hidden">{flash}</div>}
-      {res && <p className="text-sm text-gray-500 print:hidden">Lots de {res.params.target} à {res.params.max} commandes, regroupés par secteur puis par proximité : préparez dans l&apos;ordre des lots, pas dans l&apos;ordre d&apos;arrivée. La fenêtre élargie ajoute les commandes du créneau suivant qui démarrent dans les {res.params.widenMin} min après la fin du créneau (réglage dans Tournées → Réglages).</p>}
+      {res && <p className="text-sm text-gray-500 print:hidden">Lots de {res.params.target} à {res.params.max} commandes, regroupés par secteur puis par proximité : préparez dans l&apos;ordre des lots, pas dans l&apos;ordre d&apos;arrivée. La fenêtre élargie ajoute les commandes du créneau suivant qui démarrent dans les {res.params.widenMin} min après la fin du créneau (réglage dans Paramétrage → Tournées & ETA).</p>}
       <h2 className="hidden print:block text-lg font-bold">Vague {slot} — {res?.day}{hub ? ` — ${hub}` : ''}</h2>
 
       <div className="grid md:grid-cols-2 xl:grid-cols-3 gap-3">

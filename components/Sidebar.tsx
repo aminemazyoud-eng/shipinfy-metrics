@@ -9,6 +9,7 @@ import {
   TrendingUp, Bell, Mail, Settings,
   UserCheck, GraduationCap, ChevronRight, Brain, DollarSign,
   Truck, Clock, HeadphonesIcon, Shield, Calendar, Package, Send, History,
+  Calculator, Thermometer, Route, MapPinned, Plug,
 } from 'lucide-react'
 import { useCurrentUser } from '@/hooks/useCurrentUser'
 import { getAllowedRoutes } from '@/lib/permissions'
@@ -83,6 +84,11 @@ const SECTIONS: NavSection[] = [
       { href: '/parametres/paie',          label: 'Paie & bonus',              icon: DollarSign, disabled: false },
       { href: '/parametres/notifications', label: 'Notifications & incidents', icon: Send,     disabled: false },
       { href: '/parametres/motifs', label: 'Motifs de non-livraison', icon: Send, disabled: false },
+      { href: '/parametres/chiffrage', label: 'Chiffrage & coûts', icon: Calculator, disabled: false },
+      { href: '/parametres/froid', label: 'Chaîne du froid', icon: Thermometer, disabled: false },
+      { href: '/parametres/tournees', label: 'Tournées & ETA', icon: Route, disabled: false },
+      { href: '/parametres/secteurs', label: 'Secteurs', icon: MapPinned, disabled: false },
+      { href: '/parametres/integrations', label: 'Intégrations (API & webhooks)', icon: Plug, disabled: false },
       { href: '/rapports',                 label: 'Rapports planifiés',        icon: Mail,     disabled: false },
     ],
   },

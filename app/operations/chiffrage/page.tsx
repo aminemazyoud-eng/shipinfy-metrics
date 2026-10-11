@@ -1,18 +1,18 @@
 'use client'
 import { useState, useEffect, useCallback } from 'react'
+import Link from 'next/link'
 import { Calculator, Download } from 'lucide-react'
 import OpsNav from '../components/OpsNav'
 import KpiBand from './components/KpiBand'
 import DimensionTable from './components/DimensionTable'
 import AnomaliesList from './components/AnomaliesList'
 import SimulatorPanel from './components/SimulatorPanel'
-import ParamsPanel from './components/ParamsPanel'
 import KmEntry from './components/KmEntry'
 import type { CostingRes, Anomaly } from './components/types'
 
 const iso = (d: Date) => d.toISOString().slice(0, 10)
 const DIMS = [['day', 'Jour'], ['vehicle', 'Véhicule'], ['driver', 'Chauffeur'], ['hub', 'Hub'], ['slot', 'Créneau'], ['month', 'Mois']] as const
-type Tab = 'analyse' | 'simulateur' | 'parametres'
+type Tab = 'analyse' | 'simulateur'
 
 // Opérations → Chiffrage : coût par commande (chauffeur, helper, charges, carburant, entretien, véhicule, SI), marge, écarts vs objectif,
 // anomalies et simulateur. Les valeurs déduites (et non mesurées) sont badgées « estimé ».
@@ -43,7 +43,7 @@ export default function ChiffragePage() {
     <div className="p-4 md:p-6 space-y-4">
       <h1 className="text-xl font-bold text-gray-900 flex items-center gap-2"><Calculator className="w-5 h-5 text-purple-600" />Chiffrage — coût par commande</h1>
       <OpsNav />
-      <div className="flex gap-2 flex-wrap">{tabBtn('analyse', 'Analyse')}{tabBtn('simulateur', 'Simulateur')}{tabBtn('parametres', 'Paramètres')}</div>
+      <div className="flex gap-2 flex-wrap">{tabBtn('analyse', 'Analyse')}{tabBtn('simulateur', 'Simulateur')}<Link href="/parametres/chiffrage" className="ml-auto px-3 py-1.5 text-sm text-purple-700 underline">Réglages → Paramétrage</Link></div>
 
       <div className="bg-white border border-gray-200 rounded-xl p-3 flex flex-wrap items-end gap-3">
         <label className="text-xs text-gray-500">Du<input type="date" value={from} onChange={e => setFrom(e.target.value)} className="block border border-gray-300 rounded-lg px-2 py-1.5 text-sm" /></label>
@@ -60,7 +60,7 @@ export default function ChiffragePage() {
           <div className="text-xs text-gray-500 space-y-0.5">
             <div>Source de la paie : {data.meta.paySource}. {data.summary.estimated ? <b className="text-amber-700">{Math.round(data.summary.estimatedCostPct)} % du coût est estimé ({data.summary.estimatedParts.join(', ')}).</b> : 'Toutes les valeurs sont mesurées.'}</div>
             {data.meta.deliveredWithoutTeam > 0 && <div className="text-amber-700">{data.meta.deliveredWithoutTeam} commande(s) livrée(s) sans livreur affecté dans Shipinfy : exclues du calcul.</div>}
-            {data.targets.pricePerOrder <= 0 && <div>Prix facturé non renseigné : renseignez-le dans l&apos;onglet Paramètres pour obtenir la marge.</div>}
+            {data.targets.pricePerOrder <= 0 && <div>Prix facturé non renseigné : renseignez-le dans Paramétrage → Chiffrage & coûts pour obtenir la marge.</div>}
           </div>
         )}
         <DimensionTable data={data} dimLabel={dimLabel} />
@@ -69,7 +69,6 @@ export default function ChiffragePage() {
         <div className="text-xs text-gray-400">Coût / commande = (chauffeur + helper + charges patronales + carburant + entretien + véhicule + équipement SI) ÷ commandes livrées. Écart : <span className="text-green-700">vert</span> ≤ cible haute · <span className="text-amber-700">ambre</span> ≤ +10 % · <span className="text-red-700">rouge</span> au-delà. Pour les regroupements par hub et par créneau, le coût d&apos;une journée-équipe est réparti au prorata des commandes.</div>
       </>)}
       {tab === 'simulateur' && <SimulatorPanel />}
-      {tab === 'parametres' && <ParamsPanel onSaved={load} />}
     </div>
   )
 }

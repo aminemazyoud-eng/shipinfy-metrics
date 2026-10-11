@@ -8,6 +8,7 @@ import {
   TrendingUp, Bell, Mail, Settings, UserCheck,
   GraduationCap, Brain, X, ChevronRight, DollarSign,
   Truck, Clock, HeadphonesIcon, Shield, Calendar, Package, Send, History,
+  Calculator, Thermometer, Route, MapPinned, Plug,
 } from 'lucide-react'
 import type { LucideProps } from 'lucide-react'
 import MobileHeader from '@/components/MobileHeader'
@@ -70,6 +71,11 @@ const SECTIONS: NavSection[] = [
       { href: '/parametres/paie',          label: 'Paie & bonus',              icon: DollarSign },
       { href: '/parametres/notifications', label: 'Notifications & incidents', icon: Send     },
       { href: '/parametres/motifs', label: 'Motifs de non-livraison', icon: Send },
+      { href: '/parametres/chiffrage', label: 'Chiffrage & coûts', icon: Calculator },
+      { href: '/parametres/froid', label: 'Chaîne du froid', icon: Thermometer },
+      { href: '/parametres/tournees', label: 'Tournées & ETA', icon: Route },
+      { href: '/parametres/secteurs', label: 'Secteurs', icon: MapPinned },
+      { href: '/parametres/integrations', label: 'Intégrations (API & webhooks)', icon: Plug },
       { href: '/rapports',                 label: 'Rapports planifiés',        icon: Mail     },
     ],
   },

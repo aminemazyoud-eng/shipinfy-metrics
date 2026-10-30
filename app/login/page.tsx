@@ -134,7 +134,7 @@ function LoginContent() {
                     type={showNewPw ? 'text' : 'password'}
                     value={newPassword}
                     onChange={e => setNewPassword(e.target.value)}
-                    className="w-full border border-gray-200 rounded-xl px-3 py-2.5 pr-10 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    className="w-full border border-gray-200 bg-white text-gray-900 placeholder:text-gray-400 rounded-xl px-3 py-2.5 pr-10 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
                     placeholder="Minimum 6 caractères"
                     required
                     minLength={6}
@@ -150,7 +150,7 @@ function LoginContent() {
                   type="password"
                   value={confirmPassword}
                   onChange={e => setConfirmPassword(e.target.value)}
-                  className="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  className="w-full border border-gray-200 bg-white text-gray-900 placeholder:text-gray-400 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
                   placeholder="Répéter le mot de passe"
                   required
                 />
@@ -200,7 +200,7 @@ function LoginContent() {
                     type="email"
                     value={forgotEmail}
                     onChange={e => setForgotEmail(e.target.value)}
-                    className="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    className="w-full border border-gray-200 bg-white text-gray-900 placeholder:text-gray-400 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
                     placeholder="votre@email.com"
                     required
                   />
@@ -232,7 +232,7 @@ function LoginContent() {
                   type="email"
                   value={form.email}
                   onChange={e => setForm(f => ({ ...f, email: e.target.value }))}
-                  className="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                  className="w-full border border-gray-200 bg-white text-gray-900 placeholder:text-gray-400 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                   placeholder="admin@shipinfy.com"
                   required
                   autoComplete="email"
@@ -246,7 +246,7 @@ function LoginContent() {
                     type={showPw ? 'text' : 'password'}
                     value={form.password}
                     onChange={e => setForm(f => ({ ...f, password: e.target.value }))}
-                    className="w-full border border-gray-200 rounded-xl px-3 py-2.5 pr-10 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                    className="w-full border border-gray-200 bg-white text-gray-900 placeholder:text-gray-400 rounded-xl px-3 py-2.5 pr-10 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                     placeholder="••••••••"
                     required
                     autoComplete="current-password"

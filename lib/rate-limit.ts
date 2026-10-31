@@ -11,8 +11,10 @@ export function rateLimit(key: string, max: number, windowMs: number): boolean {
   const now = Date.now()
   if (now - lastSweep > 60_000) { lastSweep = now; for (const [k, v] of hits) if (!v.length || now - v[v.length - 1] > 3_600_000) hits.delete(k) }
   const arr = (hits.get(key) ?? []).filter(t => now - t < windowMs)
+  // Une tentative refusée n'est PAS comptée : sinon chaque clic pendant le blocage prolonge le blocage indéfiniment.
+  if (arr.length >= max) { hits.set(key, arr); return false }
   arr.push(now); hits.set(key, arr)
-  return arr.length <= max
+  return true
 }
 
 /** IP du client derrière Traefik (dernier saut de confiance = dernière valeur de x-forwarded-for). */

@@ -27,6 +27,10 @@ export async function POST(req: Request) {
         VALUES (gen_random_uuid()::text, ${user.id}, ${token}, ${expiresAt}, NOW())
       `
 
+      if (!process.env.SMTP_USER || !process.env.SMTP_PASS) {
+        console.error('[forgot-password] SMTP_USER/SMTP_PASS non configurés : aucun email ne peut partir. Secours : node --env-file=.env.local scripts/reset-password.mjs <email>')
+      }
+
       const baseUrl = process.env.NEXTAUTH_URL ?? process.env.NEXT_PUBLIC_URL ?? 'http://localhost:3000'
       const resetLink = `${baseUrl}/login?reset=${token}`
 

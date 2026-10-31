@@ -1148,3 +1148,9 @@ Réponse au cahier des charges (14 exigences) : 1 disponible, 10 partielles, 3 r
 - **Env à créer** : INGEST_API_KEYS, IOT_API_KEYS, IOT_HMAC_SECRET, WEBHOOK_SECRET_KEY, OUTBOUND_ALLOWED_HOSTS (sinon 503 sur ces routes seulement), facultatif INGEST_SOURCE, TRAFFIC_API_*.
 - **Non testé** : base réelle, téléphone, navigateur, capteur réel, e-mail alerte froid (ALERT_EMAIL_TO). **Non fait** : trafic live, photo du compteur, GPS écran verrouillé (PWA), scan hors-ligne, modèle « chauffeur seul 650 DH » comme défaut du planning.
 - **Déploiement** : push fait ; clic Deploy Dokploy refusé par la garde auto du harnais → à faire à la main.
+
+## Procédure de secours — accès perdu (login impossible)
+- Cause récurrente 1 : SMTP_USER/SMTP_PASS absents → « mot de passe oublié » n'envoie rien (l'écran dit « envoyé » par sécurité ; un log serveur le signale).
+- Cause récurrente 2 : mot de passe de la base (`DATABASE_URL`) périmé après un reset Supabase → login et reset en échec. Mettre à jour `.env.local` ET Dokploy, redéployer.
+- Secours : `npm run reset:password -- <email> [mot-de-passe-12+]` (écrit directement en base, active le compte). Sinon, UPDATE du hash via Supabase SQL Editor.
+- Rate limit login : 5 essais/15 min/email, en mémoire ; seules les tentatives acceptées comptent (un blocage ne se prolonge plus). Redémarrer le conteneur le remet à zéro.

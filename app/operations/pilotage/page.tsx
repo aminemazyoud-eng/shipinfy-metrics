@@ -35,6 +35,17 @@ export default function PilotagePage() {
     } finally { setBusy(false) }
   }
 
+  const [plan, setPlan] = useState<{ day: string; teams: { hub: string; driver: string; name: string; borrowed: boolean }[]; shortfall: Record<string, number> } | null>(null)
+  const [cards, setCards] = useState<{ name: string; hub: string; status: string; waLink?: string }[] | null>(null)
+  async function proposePlan() {
+    setBusy(true); setMsg(null)
+    try { const r = await fetch('/api/ops/planning/auto?day=' + new Date(Date.now() + 86_400_000).toISOString().slice(0, 10), { cache: 'no-store' }); if (r.ok) setPlan(await r.json()); else setMsg('Proposition indisponible') } finally { setBusy(false) }
+  }
+  async function scorecards() {
+    setBusy(true); setMsg(null)
+    try { const r = await fetch('/api/ops/scorecards', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ days: 7, send: false }) }); const j = await r.json(); if (r.ok) setCards(j.results); else setMsg(j.error ?? 'Échec') } finally { setBusy(false) }
+  }
+
   if (err) return <div className="p-6 text-sm text-red-600">{err}</div>
   if (!data) return <div className="p-6 text-sm text-gray-500">Chargement…</div>
 
@@ -70,6 +81,32 @@ export default function PilotagePage() {
             ))}
           </ul>
         )}
+      </section>
+
+      <section className="bg-white border border-gray-200 rounded-2xl p-4">
+        <div className="flex items-center justify-between mb-3">
+          <h2 className="font-semibold text-gray-900">Planning proposé (demain)</h2>
+          <button disabled={busy} onClick={proposePlan} className="text-xs px-3 py-1.5 rounded-lg border border-gray-200 hover:bg-gray-50 disabled:opacity-60">Proposer</button>
+        </div>
+        {plan && (plan.teams.length === 0 ? <p className="text-sm text-gray-500">Aucune équipe à proposer.</p> : (
+          <ul className="divide-y divide-gray-100">
+            {plan.teams.map(t => <li key={t.driver} className="py-1.5 text-sm">{t.hub} · {t.name} {t.borrowed && <span className="text-xs text-amber-600">(emprunté)</span>}</li>)}
+          </ul>
+        ))}
+        {plan && Object.keys(plan.shortfall).length > 0 && <p className="mt-2 text-xs text-red-600">Manque : {Object.entries(plan.shortfall).map(([h, n]) => `${h} −${n}`).join(', ')}</p>}
+        <p className="mt-2 text-xs text-gray-400">Proposition en lecture seule : à valider dans Équipe → Planning.</p>
+      </section>
+
+      <section className="bg-white border border-gray-200 rounded-2xl p-4">
+        <div className="flex items-center justify-between mb-3">
+          <h2 className="font-semibold text-gray-900">Scorecards hebdo WhatsApp</h2>
+          <button disabled={busy} onClick={scorecards} className="text-xs px-3 py-1.5 rounded-lg border border-gray-200 hover:bg-gray-50 disabled:opacity-60">Préparer les messages</button>
+        </div>
+        {cards && (cards.length === 0 ? <p className="text-sm text-gray-500">Aucun livreur classé.</p> : (
+          <ul className="divide-y divide-gray-100">
+            {cards.map((c, i) => <li key={i} className="flex items-center justify-between py-1.5 text-sm"><span>{c.name} · {c.hub}</span>{c.waLink ? <a href={c.waLink} target="_blank" rel="noreferrer" className="text-xs text-green-700 underline">Envoyer sur WhatsApp</a> : <span className="text-xs text-gray-400">pas de téléphone</span>}</li>)}
+          </ul>
+        ))}
       </section>
 
       <section className="bg-white border border-gray-200 rounded-2xl p-4">

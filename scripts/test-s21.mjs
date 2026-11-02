@@ -92,4 +92,10 @@ ok('planning auto : hubs d\'origine d\'abord, emprunt ensuite, manque signalé',
   assert.ok(p.teams.find(t => t.driver === 'D3' && t.hub === 'RABAT' && !t.borrowed))
 })
 
+const sc = await lib('ops-scorecard.ts')
+ok('scorecard : message avec classement, série et badges', () => {
+  const m = sc.scorecardMessage('Karim', { driverId: 'A', hub: 'CASA', delivered: 30, onTime: 30, rate: 100, rank: 1, badges: ['sans-faute', 'série-3'], streak: 3 }, 8, 7)
+  for (const t of ['Karim', '30 livraisons', '1/8', 'Série en cours : 3 jours', 'Sans faute', 'Excellent']) assert.ok(m.includes(t), t)
+})
+
 console.log(`\n${n} tests OK`)

@@ -13,6 +13,10 @@ export const expressSla = (items: number | null | undefined, p: ExpressParams = 
 
 export interface ExpressTimer { startedAt: number; endedAt?: number | null; cancelled?: boolean; pausedMinutes?: number }
 
+/** Règle par type de magasin (donnée réelle des imports) : hypermarché → 80 min, sinon 45 ; repli sur le nombre d'articles. */
+export const expressSlaForOrder = (o: { storeType?: string | null; items?: number | null }, p: ExpressParams = EXPRESS_DEFAULTS): number =>
+  o.storeType === 'hypermarket' ? p.largeSla : o.storeType === 'supermarket' ? p.smallSla : expressSla(o.items, p)
+
 /** Minutes écoulées effectives (pause retirée) ; null si annulée (hors SLA). */
 export function expressElapsed(t: ExpressTimer, nowMs: number): number | null {
   if (t.cancelled) return null

@@ -190,9 +190,26 @@ export async function checkStandardDelays(): Promise<{ checked: number; created:
 }
 
 // ── Moteur Express — paliers 45/50/55 min ───────────────────────────────────
-// No-op pour l'instant — LiveOrder n'existe pas avant Sprint Express 1
+// Sprint 21 : chrono = démarrage du picking → récupération par le livreur ; SLA 45 (supermarché) ou 80 (hypermarché) ; paliers SLA / +5 / +10 (lib/ops-express.ts).
 export async function checkExpressDelays(): Promise<{ checked: number; created: number }> {
-  return { checked: 0, created: 0 }
+  const { expressSlaForOrder, expressElapsed, expressLevel } = await import('@/lib/ops-express')
+  const since = new Date(Date.now() - 6 * 3_600_000) // ignore les imports anciens
+  const open = await prisma.expressOrder.findMany({
+    where: { pickingStartAt: { gte: since }, pickingEndAt: null, pickingStatus: { not: 'recupere' }, status: { notIn: ['CANCELLED', 'DELIVERED'] } },
+    select: { id: true, orderId: true, reportId: true, driverName: true, storeType: true, pickingStartAt: true },
+    take: 500,
+  })
+  let created = 0
+  for (const o of open) {
+    const sla = expressSlaForOrder(o)
+    const lvl = expressLevel(expressElapsed({ startedAt: o.pickingStartAt!.getTime() }, Date.now()) ?? 0, sla)
+    if (!lvl) continue
+    if (await createDeliveryAlert({
+      orderId: o.orderId, reportId: o.reportId, driverName: o.driverName, mode: 'express', level: lvl, type: 'delay_confirmed',
+      message: `Express ${o.orderId} — SLA ${sla} min dépassé (palier ${lvl}/3)`,
+    })) created++
+  }
+  return { checked: open.length, created }
 }
 
 // ── Alertes prédictives — Score IA < 60 avant départ tournée ────────────────

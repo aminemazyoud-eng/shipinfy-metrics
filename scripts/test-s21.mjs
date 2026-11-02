@@ -15,6 +15,11 @@ const MIN = 60_000, NOW = Date.parse('2026-11-02T10:00:00Z')
 ok('express : SLA 45 par défaut, 80 pour une grosse commande', () => {
   assert.equal(ex.expressSla(3), 45); assert.equal(ex.expressSla(null), 45); assert.equal(ex.expressSla(15), 80)
 })
+ok('express : SLA selon le type de magasin (hypermarché 80, supermarché 45)', () => {
+  assert.equal(ex.expressSlaForOrder({ storeType: 'hypermarket' }), 80)
+  assert.equal(ex.expressSlaForOrder({ storeType: 'supermarket', items: 40 }), 45)
+  assert.equal(ex.expressSlaForOrder({ items: 20 }), 80)
+})
 ok('express : paliers 45/50/55 et 80/85/90', () => {
   assert.deepEqual([44, 45, 50, 55].map(m => ex.expressLevel(m, 45)), [0, 1, 2, 3])
   assert.deepEqual([79, 80, 85, 90].map(m => ex.expressLevel(m, 80)), [0, 1, 2, 3])

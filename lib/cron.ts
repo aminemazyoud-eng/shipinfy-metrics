@@ -9,7 +9,7 @@ import cron from 'node-cron'
 // Sprint 17 B5 : UN SEUL PrismaClient (singleton partagé) — plus de `new PrismaClient()` dédié au scheduler
 import { prisma } from '@/lib/prisma'
 // Sprint 7 — moteur alertes prédictives
-import { checkStandardDelays, runPredictiveAlerts } from '@/lib/alert-engine'
+import { checkStandardDelays, checkExpressDelays, runPredictiveAlerts } from '@/lib/alert-engine'
 // Sprint 17 — notifications centralisées (direct OU n8n) + trace /notifications
 import { notify } from '@/lib/notify'
 // Sprint 17 B5 : logique appelée DIRECTEMENT (plus de fetch HTTP sans session vers notre propre API)
@@ -252,6 +252,12 @@ export function startCronScheduler() {
       if (r.created > 0) console.log(`[cron] Alertes retards: ${r.created} créées (${r.checked} commandes vérifiées)`)
     } catch (e) {
       console.error('[cron] checkStandardDelays:', e)
+    }
+    try {
+      const r = await checkExpressDelays()
+      if (r.created > 0) console.log(`[cron] Alertes Express: ${r.created} créées (${r.checked} commandes vérifiées)`)
+    } catch (e) {
+      console.error('[cron] checkExpressDelays:', e)
     }
   }, { timezone: 'Africa/Casablanca' })
 

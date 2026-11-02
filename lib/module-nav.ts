@@ -43,6 +43,7 @@ export const NAV_MODULES: NavModule[] = [
       { href: '/operations/tournees', label: 'Tournées' },
       { href: '/operations/vagues', label: 'Vagues', aliases: ['/picking'] },
       { href: '/operations/controle', label: 'Contrôle' },
+      { href: '/operations/pilotage', label: 'Pilotage' },
       { href: '/operations/encaissement', label: 'Encaissement' },
     ],
   },

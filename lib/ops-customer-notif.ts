@@ -16,6 +16,10 @@ export const customerNotifEnabled = () => process.env.CUSTOMER_NOTIFY_ENABLED ==
 export const lateMessage = (ref: string, url: string) =>
   `Bonjour, votre livraison Shipinfy (commande ${ref}) a un léger retard. Nous faisons le nécessaire. Suivez-la en direct : ${url}`
 
+/** Message envoyé quand le livreur prend la commande en charge dans le véhicule (statut IN_TRANSPORT). Sobre : référence + lien de suivi. */
+export const onTheWayMessage = (ref: string, url: string) =>
+  `Bonjour, votre commande Shipinfy ${ref} est prise en charge par notre livreur et va bientôt être livrée. Suivez-la en direct : ${url}`
+
 export type NotifResult = 'sent' | 'disabled' | 'no-phone' | 'duplicate' | 'cap' | 'not-late' | 'failed' | 'not-found'
 
 /** Prévient le client d'une commande en retard (ou à risque). Ne lève jamais d'exception. */
@@ -37,6 +41,26 @@ export async function notifyCustomerLate(orderId: string): Promise<NotifResult> 
     return ok ? 'sent' : 'failed'
   } catch (e) {
     console.error('[customer-notif]', e instanceof Error ? e.message : 'erreur') // jamais de numéro ni de lien dans les logs
+    return 'failed'
+  }
+}
+
+/** Prévient le client que sa commande est en route (une seule fois par commande). Ne lève jamais d'exception. */
+export async function notifyCustomerOnTheWay(orderId: string): Promise<NotifResult> {
+  try {
+    if (!customerNotifEnabled()) return 'disabled'
+    const o = await prisma.opsOrder.findUnique({ where: { id: orderId }, select: { id: true, reference: true, externalId: true, status: true, slotEnd: true, customerPhone: true } })
+    if (!o) return 'not-found'
+    const phone = normalizePhone(o.customerPhone)
+    if (!phone) return 'no-phone'
+    const now = Date.now(), dayStart = new Date(dayStartUtc(localDay(now)))
+    if ((await prisma.opsCustomerNotif.count({ where: { createdAt: { gte: dayStart, lt: new Date(dayStartUtc(addDays(localDay(now), 1))) } } })) >= DAILY_CUSTOMER_CAP) return 'cap'
+    try { await prisma.opsCustomerNotif.create({ data: { orderId, kind: 'on_the_way', channel: 'whatsapp', status: 'pending' } }) } catch { return 'duplicate' }
+    const ok = await sendWhatsApp(phone, onTheWayMessage(o.reference || o.externalId, trackUrl(o.id, o.slotEnd)))
+    await prisma.opsCustomerNotif.update({ where: { orderId_kind_channel: { orderId, kind: 'on_the_way', channel: 'whatsapp' } }, data: { status: ok ? 'sent' : 'failed', error: ok ? null : 'Envoi WhatsApp refusé ou non configuré' } })
+    return ok ? 'sent' : 'failed'
+  } catch (e) {
+    console.error('[customer-notif]', e instanceof Error ? e.message : 'erreur')
     return 'failed'
   }
 }

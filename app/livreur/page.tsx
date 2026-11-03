@@ -6,7 +6,7 @@ import { tr, type Lang } from '@/lib/driver-i18n'
 import { errorKey as errKey, nextAction, orderBySequence, reasonText, RETRY_CODES, sortDone, urgency, validateAction, validateNoShow, OTP_RE, type DriverReason, type Geo, type QueueItem, type TourStop, type ViewOrder } from '@/lib/driver-offline'
 import { navLinks } from '@/lib/geo'
 import { compressImage } from '@/lib/image-compress'
-import { Banknote, CheckCircle2, Clock, CloudUpload, Download, LogOut, MapPin, Navigation, Package, Phone, RefreshCw, ScanLine } from 'lucide-react'
+import { Banknote, CheckCircle2, UserRound, Clock, CloudUpload, Download, LogOut, MapPin, Navigation, Package, Phone, RefreshCw, ScanLine } from 'lucide-react'
 import dynamic from 'next/dynamic'
 import { SwipeButton } from './SwipeButton'
 import { getGeo, useDriver, type ScanOutcome } from './useDriver'
@@ -26,7 +26,7 @@ export default function DriverPage() {
   const d = useDriver()
   const lang: Lang = d.lang
   const t: T = (k, p) => tr(lang, k, p)
-  const [tab, setTab] = useState<'today' | 'load' | 'done' | 'queue'>('today')
+  const [tab, setTab] = useState<'today' | 'load' | 'done' | 'queue' | 'me'>('today')
   const [sheet, setSheet] = useState<{ kind: 'deliver' | 'noshow'; order: ViewOrder } | null>(null)
   const [otpFor, setOtpFor] = useState<QueueItem | null>(null)
   const [now, setNow] = useState(() => Date.now())
@@ -64,9 +64,18 @@ export default function DriverPage() {
     if (!window.confirm(t('login.logoutConfirm'))) return
     if (!(await d.logout())) window.alert(t('login.logoutPending'))
   }
+  const [focusReq, setFocusReq] = useState<{ id: string; n: number } | null>(null)
+  const openOrder = (id: string) => { setFocusReq({ id, n: Date.now() }); setTab('today') }
+  // prise en charge : toutes les commandes « assignées » passent dans le véhicule (statut en route) ; les clients sont prévenus côté serveur
+  const takeover = () => {
+    const todo = d.view.filter(o => o.status === 'ASSIGNED')
+    if (!todo.length) { setTab('today'); return }
+    if (!window.confirm(t('takeover.confirm', { n: todo.length }))) return
+    void getGeo(4000).then(geo => { for (const o of todo) void d.enqueue({ type: 'accept', orderId: o.id, geo }); setTab('today') })
+  }
   const needsLogin = d.auth === 'notoken' || d.auth === 'expired'
   const mapMode = d.auth === 'ok' && tab === 'today'
-  const TABS = [['today', Package], ['load', ScanLine], ['done', CheckCircle2], ['queue', CloudUpload]] as const
+  const TABS = [['today', Package], ['load', ScanLine], ['done', CheckCircle2], ['queue', CloudUpload], ['me', UserRound]] as const
 
   return (
     <div dir={rtl ? 'rtl' : 'ltr'} lang={lang} className="fixed inset-0 z-[100] flex flex-col bg-slate-50 text-start text-slate-900">
@@ -74,9 +83,9 @@ export default function DriverPage() {
         <LoginScreen d={d} t={t} canInstall={!!installEvt} onInstall={() => void install()} />
       ) : (
         <>
-          <Header d={d} t={t} canInstall={!!installEvt} onInstall={() => void install()} onLogout={() => void logout()} />
+          <Header d={d} t={t} />
           <main className={`flex-1 ${mapMode ? 'relative overflow-hidden' : 'overflow-y-auto'}`}>
-            {mapMode && <TodayView d={d} t={t} today={today} now={now} rtl={rtl} loadWarn={loadWarn} onGoLoad={() => setTab('load')} onAttend={attend}
+            {mapMode && <TodayView d={d} t={t} focusReq={focusReq} today={today} now={now} rtl={rtl} loadWarn={loadWarn} onGoLoad={() => setTab('load')} onAttend={attend}
               onAccept={o => accept(o, 'accept')} onStart={o => accept(o, 'start')} onArrive={arrive} onPostpone={postpone}
               onDeliver={o => setSheet({ kind: 'deliver', order: o })} onNoShow={o => setSheet({ kind: 'noshow', order: o })} onFixOtp={o => o.errorItem && setOtpFor(o.errorItem)} />}
             <div className={mapMode ? 'pointer-events-none absolute inset-x-0 top-0 z-30 mx-auto max-w-md px-3 pt-2 [&>*]:pointer-events-auto' : 'mx-auto max-w-md px-3 pb-6 pt-3'}>
@@ -105,7 +114,8 @@ export default function DriverPage() {
                         onFixOtp={() => o.errorItem && setOtpFor(o.errorItem)} />)}
                     </div>
                   )}
-                  {tab === 'load' && <LoadView d={d} t={t} />}
+                  {tab === 'load' && <LoadView d={d} t={t} onOpenOrder={openOrder} onTakeover={takeover} />}
+                  {tab === 'me' && <MeView d={d} t={t} onAttend={attend} canInstall={!!installEvt} onInstall={() => void install()} onLogout={() => void logout()} />}
                   {tab === 'done' && (
                     <div className="space-y-3">
                       {done.length === 0 && <Card><p className="py-6 text-center text-slate-500">{t('empty.done')}</p></Card>}
@@ -120,7 +130,7 @@ export default function DriverPage() {
 
           {d.auth === 'ok' && (
             <nav className="shrink-0 border-t border-slate-200 bg-white pb-[env(safe-area-inset-bottom)]" role="tablist">
-              <div className="mx-auto grid max-w-md grid-cols-4">
+              <div className="mx-auto grid max-w-md grid-cols-5">
                 {TABS.map(([k, Icon]) => {
                   const badge = k === 'today' ? today.length : k === 'load' ? loadWarn : k === 'queue' ? d.queue.length : 0
                   return (
@@ -162,7 +172,7 @@ function Block({ title, body, action }: { title: string; body: string; action?: 
 
 // Vue « Aujourd'hui » : carte des stops en fond, tiroir en bas avec UN stop à la fois (bouton à glisser) et la liste « Ensuite » en le tirant vers le haut.
 function TodayView(p: {
-  d: Driver; t: T; today: { order: ViewOrder; stop: TourStop | null }[]; now: number; rtl: boolean; loadWarn: number
+  d: Driver; t: T; focusReq: { id: string; n: number } | null; today: { order: ViewOrder; stop: TourStop | null }[]; now: number; rtl: boolean; loadWarn: number
   onGoLoad: () => void; onAttend: (k: 'checkin' | 'checkout') => void
   onAccept: (o: ViewOrder) => void; onStart: (o: ViewOrder) => void; onArrive: (o: ViewOrder) => void; onPostpone: (o: ViewOrder) => void
   onDeliver: (o: ViewOrder) => void; onNoShow: (o: ViewOrder) => void; onFixOtp: (o: ViewOrder) => void
@@ -171,6 +181,7 @@ function TodayView(p: {
   const [focusId, setFocusId] = useState<string | null>(null)
   const [open, setOpen] = useState(false)
   const drag = useRef<number | null>(null)
+  useEffect(() => { if (p.focusReq) { setFocusId(p.focusReq.id); setOpen(false) } }, [p.focusReq])
 
   const found = today.findIndex(x => x.order.id === focusId)
   const idx = found >= 0 ? found : 0
@@ -270,7 +281,7 @@ function LoginScreen({ d, t, canInstall, onInstall }: { d: Driver; t: T; canInst
   )
 }
 
-function Header({ d, t, canInstall, onInstall, onLogout }: { d: Driver; t: T; canInstall: boolean; onInstall: () => void; onLogout: () => void }) {
+function Header({ d, t }: { d: Driver; t: T }) {
   const first = d.me?.firstName || d.me?.name?.split(' ')[0] || ''
   const initials = (d.me?.name ?? '').split(' ').map(w => w[0]).filter(Boolean).slice(0, 2).join('').toUpperCase() || '·'
   return (
@@ -281,9 +292,6 @@ function Header({ d, t, canInstall, onInstall, onLogout }: { d: Driver; t: T; ca
           <div className="truncate text-lg font-extrabold leading-tight">{first || t('app.name')}</div>
           <div className="truncate text-xs text-blue-100">{[d.me?.hubName ? `${t('hub.label')} ${d.me.hubName}` : null, d.me?.plate].filter(Boolean).join(' · ') || t('app.name')}</div>
         </div>
-        {canInstall && <button onClick={onInstall} aria-label={t('install.button')} className="flex h-11 w-11 items-center justify-center rounded-xl bg-white/15"><Download size={20} /></button>}
-        <button onClick={() => d.setLang(d.lang === 'ar' ? 'fr' : 'ar')} className="h-11 min-w-11 rounded-xl bg-white/15 px-3 text-sm font-bold">{t('lang.toggle')}</button>
-        <button onClick={onLogout} aria-label={t('login.logout')} className="flex h-11 w-11 items-center justify-center rounded-xl bg-white/15"><LogOut size={20} /></button>
       </div>
       <div className="mx-auto mt-2 flex max-w-md flex-wrap items-center gap-x-2 gap-y-1 text-xs">
         <span className={`inline-flex items-center gap-1.5 whitespace-nowrap rounded-full px-2.5 py-1 font-bold ${d.online ? 'bg-green-500 text-white' : 'bg-red-600 text-white'}`}>
@@ -442,7 +450,8 @@ function QueueView({ d, t, onFixOtp }: { d: Driver; t: T; onFixOtp: (i: QueueIte
 type BarcodeDetectorLike = new (o?: { formats: string[] }) => { detect: (v: HTMLVideoElement) => Promise<{ rawValue: string }[]> }
 const getDetector = (): BarcodeDetectorLike | null => (typeof window === 'undefined' ? null : ((window as unknown as { BarcodeDetector?: BarcodeDetectorLike }).BarcodeDetector ?? null))
 
-function LoadView({ d, t }: { d: Driver; t: T }) {
+function LoadView({ d, t, onOpenOrder, onTakeover }: { d: Driver; t: T; onOpenOrder: (id: string) => void; onTakeover: () => void }) {
+  const [scanned, setScanned] = useState<{ orderId: string; ref: string } | null>(null)
   const [msg, setMsg] = useState<{ tone: 'ok' | 'bad'; text: string } | null>(null)
   const [manual, setManual] = useState('')
   const [busy, setBusy] = useState(false)
@@ -452,8 +461,10 @@ function LoadView({ d, t }: { d: Driver; t: T }) {
   const submit = async (code: string) => {
     if (busy) return
     setBusy(true)
+    const hit = load?.items.find(i => i.barcode === code)
     const r: ScanOutcome = await d.scan(code)
     setBusy(false)
+    if (r.ok && hit) setScanned({ orderId: hit.orderId, ref: hit.ref })
     const bad = (k: string) => setMsg({ tone: 'bad', text: t(k) })
     if (r.ok) setMsg({ tone: 'ok', text: t('load.ok', { label: r.label ?? '' }) })
     else if (r.code === 'NETWORK') bad('load.needNet')
@@ -496,10 +507,14 @@ function LoadView({ d, t }: { d: Driver; t: T }) {
         </Card>
       )}
       {msg && <div className={`rounded-xl px-4 py-3 text-sm font-semibold ${msg.tone === 'ok' ? 'bg-green-100 text-green-900' : 'bg-red-100 text-red-900'}`} role="status">{msg.text}</div>}
+      {scanned && (
+        <button onClick={() => onOpenOrder(scanned.orderId)} className={`${BTN} min-h-14 bg-blue-50 text-base text-blue-800`}>{t('scan.open', { ref: scanned.ref })}</button>
+      )}
+      {load && load.total > 0 && load.complete && <button onClick={onTakeover} className={`${BTN} bg-green-600 text-white`}>{t('takeover.button')}</button>}
 
       {groups.map(g => (
         <Card key={g.ref}>
-          <div className="mb-1 text-sm font-bold text-slate-500">{g.ref}</div>
+          <div className="mb-1 flex items-center justify-between text-sm font-bold text-slate-500"><span>{g.ref}</span><span>{t('load.bins', { loaded: g.items.reduce((s, i) => s + Math.min(i.loadedQty, i.qty), 0), total: g.items.reduce((s, i) => s + i.qty, 0) })}</span></div>
           <ul className="space-y-1">
             {g.items.map(i => (
               <li key={i.id} className="flex items-center justify-between gap-2 text-base">
@@ -510,8 +525,24 @@ function LoadView({ d, t }: { d: Driver; t: T }) {
           </ul>
         </Card>
       ))}
+    </div>
+  )
+}
 
+function MeView({ d, t, onAttend, canInstall, onInstall, onLogout }: { d: Driver; t: T; onAttend: (k: 'checkin' | 'checkout') => void; canInstall: boolean; onInstall: () => void; onLogout: () => void }) {
+  return (
+    <div className="space-y-3">
+      <Card>
+        <div className="text-xl font-extrabold">{d.me?.name ?? ''}</div>
+        <div className="text-sm text-slate-500">{[d.me?.code, d.me?.hubName, d.me?.vehicle, d.me?.plate].filter(Boolean).join(' · ')}</div>
+      </Card>
+      <Attendance d={d} t={t} onAttend={onAttend} />
       <VehicleCard d={d} t={t} />
+      <Card>
+        <button onClick={() => d.setLang(d.lang === 'ar' ? 'fr' : 'ar')} className={`${BTN} min-h-14 bg-slate-100 text-base`}>{t('lang.toggle')}</button>
+        {canInstall && <button onClick={onInstall} className={`${BTN} mt-2 min-h-14 gap-2 bg-slate-100 text-base`}><Download size={20} />{t('install.button')}</button>}
+        <button onClick={onLogout} className={`${BTN} mt-2 min-h-14 gap-2 bg-red-50 text-base text-red-700`}><LogOut size={20} />{t('login.logout')}</button>
+      </Card>
     </div>
   )
 }

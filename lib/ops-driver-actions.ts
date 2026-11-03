@@ -291,6 +291,8 @@ async function orderAction(driver: DriverLite, action: DriverActionIn, nowMs: nu
   bumpOpsEpoch()
   // ETA des stops suivants recalculées (best effort, sans attendre)
   void import('@/lib/ops-tours').then(m => m.recomputeEtaForOrder(o.id)).catch(() => {})
+  // prise en charge dans le véhicule : le client est prévenu par WhatsApp (désactivé tant que CUSTOMER_NOTIFY_ENABLED n'est pas « true »)
+  if (type === 'accept') void import('@/lib/ops-customer-notif').then(m => m.notifyCustomerOnTheWay(o.id)).catch(() => {})
   const out: ActionResult = { id, ok: true, order: { id: o.id, status: target } }
   if (type === 'deliver' || type === 'noshow') {
     const co = await maybeAutoCheckout(driver, at.getTime(), nowMs)

@@ -28,6 +28,7 @@ export async function notifyCustomerLate(orderId: string): Promise<NotifResult> 
     if (!customerNotifEnabled()) return 'disabled'
     const o = await prisma.opsOrder.findUnique({ where: { id: orderId }, select: { id: true, reference: true, externalId: true, status: true, slotEnd: true, driverId: true, customerPhone: true } })
     if (!o) return 'not-found'
+    if (o.externalId.startsWith('DEMO-')) return 'disabled' // commande de démo : jamais de message au client
     const now = Date.now()
     if (!isLate(o, now) && !isAtRisk(o, now)) return 'not-late'
     const phone = normalizePhone(o.customerPhone)
@@ -51,6 +52,7 @@ export async function notifyCustomerOnTheWay(orderId: string): Promise<NotifResu
     if (!customerNotifEnabled()) return 'disabled'
     const o = await prisma.opsOrder.findUnique({ where: { id: orderId }, select: { id: true, reference: true, externalId: true, status: true, slotEnd: true, customerPhone: true } })
     if (!o) return 'not-found'
+    if (o.externalId.startsWith('DEMO-')) return 'disabled' // commande de démo : jamais de message au client
     const phone = normalizePhone(o.customerPhone)
     if (!phone) return 'no-phone'
     const now = Date.now(), dayStart = new Date(dayStartUtc(localDay(now)))
@@ -71,7 +73,7 @@ export async function runCustomerLateNotifs(): Promise<{ sent: number; skipped: 
   if (!customerNotifEnabled()) return out
   const now = Date.now(), today = localDay(now)
   const cands = await prisma.opsOrder.findMany({
-    where: { customerPhone: { not: null }, status: { notIn: ['DELIVERED', 'NO_SHOW', 'CANCELLED'] }, slotStart: { gte: new Date(dayStartUtc(today)), lt: new Date(dayStartUtc(addDays(today, 1))) } },
+    where: { customerPhone: { not: null }, NOT: { externalId: { startsWith: 'DEMO-' } }, status: { notIn: ['DELIVERED', 'NO_SHOW', 'CANCELLED'] }, slotStart: { gte: new Date(dayStartUtc(today)), lt: new Date(dayStartUtc(addDays(today, 1))) } },
     select: { id: true }, take: 300,
   })
   for (const c of cands) { const r = await notifyCustomerLate(c.id); if (r === 'sent') out.sent++; else out.skipped++; if (r === 'cap') break }

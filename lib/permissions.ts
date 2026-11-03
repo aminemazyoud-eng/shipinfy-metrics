@@ -24,7 +24,7 @@ export const MODULE_ROUTES: Record<string, string[]> = {
   notifications:['/notifications'],
   support:      ['/support'],
   rh:           ['/pointage', '/onboarding', '/academy', '/rh', '/rh/onboarding', '/rh/paie', '/rh/pointage'],
-  parametres:   ['/parametres', '/parametres/calculs', '/parametres/scoring', '/parametres/paie', '/parametres/notifications', '/parametres/motifs', '/parametres/chiffrage', '/parametres/froid', '/parametres/tournees', '/parametres/secteurs', '/parametres/integrations'],
+  parametres:   ['/parametres', '/parametres/calculs', '/parametres/scoring', '/parametres/paie', '/parametres/notifications', '/parametres/motifs', '/parametres/chiffrage', '/parametres/froid', '/parametres/tournees', '/parametres/secteurs', '/parametres/integrations', '/parametres/demo'],
   admin:        ['/admin'],
 }
 

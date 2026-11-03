@@ -122,7 +122,7 @@ export async function enqueueNewEvents(): Promise<{ scanned: number; queued: num
   if (!endpoints.length) { await cursorSet(now - OVERLAP_MS); return out } // rien à livrer : on avance (pas de rattrapage à la création d'un endpoint)
   const start = stored ?? now - OVERLAP_MS // première exécution : pas d'historique
   const evs = await prisma.opsOrderEvent.findMany({
-    where: { createdAt: { gte: new Date(start), lte: upper } }, orderBy: [{ createdAt: 'asc' }, { id: 'asc' }], take: SCAN_TAKE,
+    where: { createdAt: { gte: new Date(start), lte: upper }, source: { not: 'demo' } }, orderBy: [{ createdAt: 'asc' }, { id: 'asc' }], take: SCAN_TAKE,
     select: { id: true, orderId: true, toStatus: true, at: true, createdAt: true },
   })
   out.scanned = evs.length

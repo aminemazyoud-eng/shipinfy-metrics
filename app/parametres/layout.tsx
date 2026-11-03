@@ -6,6 +6,7 @@ const GROUPS: { label: string; items: { href: string; label: string }[] }[] = [
   { label: 'Général', items: [
     { href: '/parametres', label: 'Général' },
     { href: '/parametres/calculs', label: 'Calculs & équations' },
+    { href: '/parametres/demo', label: 'Données de démo' },
   ] },
   { label: 'Opérations', items: [
     { href: '/parametres/chiffrage', label: 'Chiffrage & coûts' },

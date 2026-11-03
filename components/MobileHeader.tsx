@@ -17,6 +17,7 @@ const ROUTE_LABELS: Record<string, string> = {
   '/parametres/tournees': 'Tournées & ETA',
   '/parametres/secteurs': 'Secteurs',
   '/parametres/integrations': 'Intégrations (API & webhooks)',
+  '/parametres/demo': 'Données de démo',
   '/livreurs':     'Livreurs',
   '/remuneration': 'Rémunération',
   '/hubs':         'Hubs',

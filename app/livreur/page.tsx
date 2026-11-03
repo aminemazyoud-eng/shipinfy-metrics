@@ -7,7 +7,11 @@ import { errorKey as errKey, nextAction, orderBySequence, reasonText, RETRY_CODE
 import { navLinks } from '@/lib/geo'
 import { compressImage } from '@/lib/image-compress'
 import { Banknote, CheckCircle2, Clock, CloudUpload, Download, LogOut, MapPin, Navigation, Package, Phone, RefreshCw, ScanLine } from 'lucide-react'
+import dynamic from 'next/dynamic'
+import { SwipeButton } from './SwipeButton'
 import { getGeo, useDriver, type ScanOutcome } from './useDriver'
+
+const StopMap = dynamic(() => import('./StopMap'), { ssr: false, loading: () => <div className="absolute inset-0 bg-slate-200" /> })
 
 const TZ = 'Africa/Casablanca'
 const hhmm = (iso: string | null | undefined) => (iso ? new Date(iso).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit', timeZone: TZ }) : '')
@@ -61,6 +65,7 @@ export default function DriverPage() {
     if (!(await d.logout())) window.alert(t('login.logoutPending'))
   }
   const needsLogin = d.auth === 'notoken' || d.auth === 'expired'
+  const mapMode = d.auth === 'ok' && tab === 'today'
   const TABS = [['today', Package], ['load', ScanLine], ['done', CheckCircle2], ['queue', CloudUpload]] as const
 
   return (
@@ -70,8 +75,11 @@ export default function DriverPage() {
       ) : (
         <>
           <Header d={d} t={t} canInstall={!!installEvt} onInstall={() => void install()} onLogout={() => void logout()} />
-          <main className="flex-1 overflow-y-auto">
-            <div className="mx-auto max-w-md px-3 pb-6 pt-3">
+          <main className={`flex-1 ${mapMode ? 'relative overflow-hidden' : 'overflow-y-auto'}`}>
+            {mapMode && <TodayView d={d} t={t} today={today} now={now} rtl={rtl} loadWarn={loadWarn} onGoLoad={() => setTab('load')} onAttend={attend}
+              onAccept={o => accept(o, 'accept')} onStart={o => accept(o, 'start')} onArrive={arrive} onPostpone={postpone}
+              onDeliver={o => setSheet({ kind: 'deliver', order: o })} onNoShow={o => setSheet({ kind: 'noshow', order: o })} onFixOtp={o => o.errorItem && setOtpFor(o.errorItem)} />}
+            <div className={mapMode ? 'pointer-events-none absolute inset-x-0 top-0 z-30 mx-auto max-w-md px-3 pt-2 [&>*]:pointer-events-auto' : 'mx-auto max-w-md px-3 pb-6 pt-3'}>
               {d.storeMode === 'memory' && <Banner tone="amber">{t('warn.idb')}</Banner>}
               {!d.online && <Banner tone="slate">{t('net.offlineBanner')}</Banner>}
               {d.notices.map(n => (
@@ -85,7 +93,7 @@ export default function DriverPage() {
                 <>
                   {d.firstLoadFailed && <Banner tone="amber">{t('warn.firstLoad')}</Banner>}
 
-                  {tab === 'today' && (
+                  {tab === 'today' && !mapMode && (
                     <div className="space-y-3">
                       <Attendance d={d} t={t} onAttend={attend} />
                       {d.tour.tour && <div className="px-1 text-sm font-bold text-slate-500">{t('tour.title')} · {t('tour.rotation', { n: d.tour.tour.rotation })}</div>}
@@ -150,6 +158,74 @@ function Banner({ tone, children }: { tone: 'amber' | 'slate'; children: React.R
 }
 function Block({ title, body, action }: { title: string; body: string; action?: React.ReactNode }) {
   return <Card className="mt-6 text-center"><div className="text-xl font-extrabold">{title}</div><p className="mt-2 text-base text-slate-600">{body}</p>{action}</Card>
+}
+
+// Vue « Aujourd'hui » : carte des stops en fond, tiroir en bas avec UN stop à la fois (bouton à glisser) et la liste « Ensuite » en le tirant vers le haut.
+function TodayView(p: {
+  d: Driver; t: T; today: { order: ViewOrder; stop: TourStop | null }[]; now: number; rtl: boolean; loadWarn: number
+  onGoLoad: () => void; onAttend: (k: 'checkin' | 'checkout') => void
+  onAccept: (o: ViewOrder) => void; onStart: (o: ViewOrder) => void; onArrive: (o: ViewOrder) => void; onPostpone: (o: ViewOrder) => void
+  onDeliver: (o: ViewOrder) => void; onNoShow: (o: ViewOrder) => void; onFixOtp: (o: ViewOrder) => void
+}) {
+  const { d, t, today } = p
+  const [focusId, setFocusId] = useState<string | null>(null)
+  const [open, setOpen] = useState(false)
+  const drag = useRef<number | null>(null)
+
+  const found = today.findIndex(x => x.order.id === focusId)
+  const idx = found >= 0 ? found : 0
+  const cur = today[idx]
+  const mapStops = useMemo(() => today.map(({ order: o, stop }, i) => ({ id: o.id, seq: stop?.seq ?? i + 1, lat: o.lat ?? stop?.lat ?? null, lng: o.lng ?? stop?.lng ?? null, status: o.status })), [today])
+  const hub = d.me?.hubLat != null && d.me?.hubLng != null ? { lat: d.me.hubLat, lng: d.me.hubLng } : null
+
+  const hDown = (e: React.PointerEvent) => { drag.current = e.clientY; (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId) }
+  const hUp = (e: React.PointerEvent) => {
+    if (drag.current == null) return
+    const dy = e.clientY - drag.current; drag.current = null
+    if (dy < -30) setOpen(true); else if (dy > 30) setOpen(false); else setOpen(v => !v)
+  }
+
+  return (
+    <div className="absolute inset-0">
+      <StopMap stops={mapStops} focusId={cur?.order.id ?? null} hub={hub} onPick={id => { setFocusId(id); setOpen(false) }} />
+      <div className={`absolute inset-x-0 bottom-0 z-20 mx-auto flex max-w-md flex-col rounded-t-3xl bg-white shadow-[0_-8px_30px_rgba(0,0,0,0.18)] ${open ? 'top-20' : 'max-h-[66%]'}`}>
+        <div onPointerDown={hDown} onPointerUp={hUp} onPointerCancel={() => { drag.current = null }} role="button" tabIndex={0} aria-expanded={open} aria-label={t(open ? 'drawer.collapse' : 'drawer.expand')}
+          onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); setOpen(v => !v) } }}
+          className="flex shrink-0 touch-none flex-col items-center gap-1 pb-1 pt-2">
+          <span className="h-1.5 w-12 rounded-full bg-slate-300" />
+          {today.length > 0 && <span className="text-xs font-bold text-slate-500">{t('stop.of', { n: idx + 1, total: today.length })}{open ? '' : ` · ${t('drawer.expand')}`}</span>}
+        </div>
+        <div className="flex-1 space-y-3 overflow-y-auto px-3 pb-4">
+          {(open || !d.att.inAt) && <Attendance d={d} t={t} onAttend={p.onAttend} />}
+          {d.tour.tour && open && <div className="px-1 text-sm font-bold text-slate-500">{t('tour.title')} · {t('tour.rotation', { n: d.tour.tour.rotation })}</div>}
+          {today.length === 0 && <p className="py-8 text-center text-slate-500">{t('empty.today')}</p>}
+          {cur && <OrderCard key={cur.order.id} o={cur.order} stop={cur.stop} t={t} now={p.now} otp={d.config.otpRequired || cur.order.otpRequired} swipe rtl={p.rtl}
+            geofenceMode={d.config.geofenceMode} loadWarn={p.loadWarn} onGoLoad={p.onGoLoad}
+            onAccept={() => p.onAccept(cur.order)} onStart={() => p.onStart(cur.order)} onArrive={() => p.onArrive(cur.order)} onPostpone={() => p.onPostpone(cur.order)}
+            onDeliver={() => p.onDeliver(cur.order)} onNoShow={() => p.onNoShow(cur.order)} onFixOtp={() => p.onFixOtp(cur.order)} />}
+          {open && today.length > 1 && (
+            <div>
+              <div className="mb-2 px-1 text-xs font-extrabold uppercase tracking-wide text-slate-500">{t('list.next')}</div>
+              <ul className="space-y-2">
+                {today.map(({ order: o, stop }, i) => i === idx ? null : (
+                  <li key={o.id}>
+                    <button onClick={() => { setFocusId(o.id); setOpen(false) }} className="flex w-full items-center gap-3 rounded-2xl bg-slate-50 p-3 text-start active:scale-[0.99]">
+                      <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-blue-600 text-sm font-extrabold text-white">{stop?.seq ?? i + 1}</span>
+                      <span className="min-w-0 flex-1">
+                        <span className="block truncate font-bold">{o.customerName || o.ref}</span>
+                        <span className="block truncate text-xs text-slate-500">{o.slotLabel || ''}{o.address ? ` · ${o.address}` : ''}</span>
+                      </span>
+                      <span className={`shrink-0 rounded-full px-2.5 py-1 text-[11px] font-bold ${TONE[o.status] ?? 'bg-slate-100 text-slate-700'}`}>{t(`status.${o.status}`)}</span>
+                    </button>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )}
+        </div>
+      </div>
+    </div>
+  )
 }
 
 function LoginScreen({ d, t, canInstall, onInstall }: { d: Driver; t: T; canInstall: boolean; onInstall: () => void }) {
@@ -239,7 +315,7 @@ function Attendance({ d, t, onAttend }: { d: Driver; t: T; onAttend: (k: 'checki
 }
 
 function OrderCard(p: {
-  o: ViewOrder; stop: TourStop | null; t: T; now: number; otp: boolean; finished?: boolean; featured?: boolean; reasonLabel?: string | null
+  o: ViewOrder; stop: TourStop | null; t: T; now: number; otp: boolean; finished?: boolean; featured?: boolean; swipe?: boolean; rtl?: boolean; reasonLabel?: string | null
   geofenceMode?: 'block' | 'soft'; loadWarn?: number; onGoLoad?: () => void
   onAccept?: () => void; onStart?: () => void; onArrive?: () => void; onPostpone?: () => void; onDeliver?: () => void; onNoShow?: () => void; onFixOtp?: () => void
 }) {
@@ -252,6 +328,9 @@ function OrderCard(p: {
   const canDeliver = p.geofenceMode === 'soft' || o.arrived // en mode « block », la livraison exige l'arrivée
   const address = [o.address ?? stop?.address, o.district].filter(Boolean).join(' · ')
   const chip = 'inline-flex items-center gap-1 rounded-full bg-slate-100 px-2.5 py-1 text-xs font-bold text-slate-700'
+  const primary = (label: string, swipeLabel: string, tone: 'blue' | 'green', fn?: () => void) => p.swipe
+    ? <SwipeButton label={swipeLabel} tone={tone} rtl={p.rtl} onConfirm={() => fn?.()} />
+    : <button className={`${BTN} ${tone === 'green' ? 'bg-green-600' : 'bg-blue-600'} text-white`} onClick={fn}>{label}</button>
   const nb = 'flex min-h-12 flex-col items-center justify-center gap-0.5 rounded-xl bg-slate-100 text-[11px] font-bold text-slate-700 active:scale-[0.97]'
   return (
     <div className={`rounded-2xl border-s-4 bg-white p-4 ${accent} ${p.featured && !p.finished ? 'shadow-md ring-1 ring-blue-100' : 'shadow-sm'}`}>
@@ -300,21 +379,21 @@ function OrderCard(p: {
       )}
 
       {!p.finished && (
-        <div className="mt-3 space-y-2">
+        <div className={`mt-3 space-y-2 ${p.swipe ? 'sticky bottom-0 z-10 -mx-4 -mb-4 rounded-b-2xl bg-white px-4 pb-4 pt-2 shadow-[0_-6px_8px_-6px_rgba(0,0,0,0.12)]' : ''}`}>
           {o.errorItem?.errorCode === 'OTP_INVALID' && <button className={`${BTN} bg-red-600 text-white`} onClick={p.onFixOtp}>{t('queue.retryOtp')}</button>}
-          {act === 'accept' && <button className={`${BTN} bg-blue-600 text-white`} onClick={p.onAccept}>{t('action.accept')}</button>}
+          {act === 'accept' && primary(t('action.accept'), t('swipe.accept'), 'blue', p.onAccept)}
           {act === 'start' && (
             <>
               {(p.loadWarn ?? 0) > 0 && (
                 <button onClick={p.onGoLoad} className="block w-full rounded-xl bg-amber-100 px-3 py-2 text-start text-sm font-semibold text-amber-900">{t('order.loadWarn', { n: p.loadWarn ?? 0 })}</button>
               )}
-              <button className={`${BTN} bg-blue-600 text-white`} onClick={p.onStart}>{t('action.start')}</button>
+              {primary(t('action.start'), t('swipe.start'), 'blue', p.onStart)}
             </>
           )}
           {act === 'deliver' && (
             <>
-              {!o.arrived && <button className={`${BTN} bg-blue-600 text-white`} onClick={p.onArrive}>{t('action.arrive')}</button>}
-              {canDeliver && <button className={`${BTN} bg-green-600 text-white`} onClick={p.onDeliver}>{t('action.deliver')}</button>}
+              {!o.arrived && primary(t('action.arrive'), t('swipe.arrive'), 'blue', p.onArrive)}
+              {canDeliver && primary(t('action.deliver'), t('swipe.deliver'), 'green', p.onDeliver)}
               <div className="grid grid-cols-2 gap-2">
                 <button className="min-h-12 rounded-xl bg-orange-50 px-2 text-sm font-bold text-orange-800 active:scale-[0.98]" onClick={p.onNoShow}>{t('action.nodeliver')}</button>
                 {!o.postponed && stop?.canPostpone !== false && <button className="min-h-12 rounded-xl bg-slate-100 px-2 text-sm font-bold text-slate-800 active:scale-[0.98]" onClick={p.onPostpone}>{t('action.postpone')}</button>}

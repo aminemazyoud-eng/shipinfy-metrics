@@ -2,6 +2,7 @@
 // Carte des stops de la journée (Leaflet, import dynamique : jamais chargé côté serveur). Marqueurs numérotés reliés dans l'ordre de passage ;
 // le stop sélectionné est mis en avant. Sans réseau les tuiles manquent mais les marqueurs restent affichés (fond neutre).
 import { useEffect, useRef } from 'react'
+import 'leaflet/dist/leaflet.css'
 
 export interface MapStop { id: string; seq: number; lat: number | null; lng: number | null; status: string }
 
@@ -20,7 +21,6 @@ export default function StopMap({ stops, focusId, hub, onPick }: { stops: MapSto
     ;(async () => {
       try {
         const L = (await import('leaflet')).default
-        await import('leaflet/dist/leaflet.css')
         if (cancelled || !el.current) return
         if (!mapRef.current) {
           mapRef.current = L.map(el.current, { zoomControl: false, attributionControl: false }).setView(hub ? [hub.lat, hub.lng] : [33.57, -7.65], 12)
@@ -48,5 +48,5 @@ export default function StopMap({ stops, focusId, hub, onPick }: { stops: MapSto
   }, [stops, focusId, hub])
 
   useEffect(() => () => { mapRef.current?.remove(); mapRef.current = null }, [])
-  return <div ref={el} className="absolute inset-0 bg-slate-200" aria-hidden="true" />
+  return <div ref={el} className="absolute inset-0 z-0 bg-slate-200" style={{ isolation: 'isolate' }} aria-hidden="true" />
 }

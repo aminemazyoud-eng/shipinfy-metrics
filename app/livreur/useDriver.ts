@@ -488,6 +488,9 @@ export function useDriver() {
   // service worker : enregistrement + mise en cache des assets déjà chargés
   useEffect(() => {
     if (!('serviceWorker' in navigator)) return
+    const hadController = !!navigator.serviceWorker.controller
+    let reloaded = false
+    navigator.serviceWorker.addEventListener('controllerchange', () => { if (hadController && !reloaded) { reloaded = true; window.location.reload() } })
     navigator.serviceWorker.register('/sw.js').then(async reg => {
       await navigator.serviceWorker.ready
       const urls = performance.getEntriesByType('resource').map(e => e.name).filter(n => n.includes('/_next/static/'))

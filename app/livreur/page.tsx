@@ -14,6 +14,8 @@ import { getGeo, useDriver, type ScanOutcome } from './useDriver'
 const StopMap = dynamic(() => import('./StopMap'), { ssr: false, loading: () => <div className="absolute inset-0 bg-slate-200" /> })
 
 const TZ = 'Africa/Casablanca'
+/** Durée lisible : 45 min, 3 h 20, 28 j. */
+const dur = (min: number) => (min < 60 ? `${min} min` : min < 1440 ? `${Math.floor(min / 60)} h${min % 60 ? ` ${String(min % 60).padStart(2, '0')}` : ''}` : `${Math.floor(min / 1440)} j`)
 const hhmm = (iso: string | null | undefined) => (iso ? new Date(iso).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit', timeZone: TZ }) : '')
 type T = (k: string, p?: Record<string, string | number>) => string
 type Photo = { dataBase64: string; mime: string; bytes: number }
@@ -299,8 +301,8 @@ function Header({ d, t }: { d: Driver; t: T }) {
           {d.pending > 0 && <span className="rounded-full bg-white/25 px-1.5">{t('net.pending', { n: d.pending })}</span>}
         </span>
         {d.gps === 'active' && <span className="font-bold text-green-200" title={t('gps.note')}>● {t('gps.active')}</span>}
-        {d.gps === 'denied' && <span className="font-bold text-amber-200">{t('gps.denied')}</span>}
-        <span className="ms-auto whitespace-nowrap text-blue-100">{d.lastSync ? t('sync.last', { time: hhmm(d.lastSync) }) : t('sync.never')}</span>
+        {d.gps === 'denied' && <span className="font-bold text-amber-200" title={t('gps.denied')}>⚠ GPS</span>}
+        <span className="ms-auto text-blue-100">{d.lastSync ? t('sync.last', { time: hhmm(d.lastSync) }) : t('sync.never')}</span>
         <button onClick={() => void d.runSync(true)} disabled={d.syncing} aria-label={t('sync.button')} className="flex h-9 w-9 items-center justify-center rounded-lg bg-white/15 disabled:opacity-60"><RefreshCw size={16} className={d.syncing ? 'animate-spin' : ''} /></button>
       </div>
     </header>
@@ -356,8 +358,8 @@ function OrderCard(p: {
         {slot && <span className={chip}><Clock size={13} />{slot}</span>}
         {o.amount ? <span className={`${chip} bg-emerald-50 text-emerald-800`}><Banknote size={13} />{Math.round(o.amount)} {t('order.currency')}</span> : null}
         {stop?.etaAt && !p.finished && <span className={`${chip} bg-blue-50 text-blue-800`}>{t('tour.eta', { time: hhmm(stop.etaAt) })}</span>}
-        {!p.finished && u.level === 'late' && <span className={`${chip} bg-red-50 text-red-700`}>{t('order.late', { n: u.min })}</span>}
-        {!p.finished && u.level === 'soon' && <span className={`${chip} bg-amber-50 text-amber-800`}>{t('order.soon', { n: u.min })}</span>}
+        {!p.finished && u.level === 'late' && <span className={`${chip} bg-red-50 text-red-700`}>{t('order.late', { n: dur(u.min) })}</span>}
+        {!p.finished && u.level === 'soon' && <span className={`${chip} bg-amber-50 text-amber-800`}>{t('order.soon', { n: dur(u.min) })}</span>}
       </div>
 
       <div className="mt-3 flex items-start gap-2 text-base text-slate-800">

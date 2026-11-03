@@ -10,6 +10,7 @@ const WHITELIST = new Set([
   'auth/login', 'auth/logout', 'auth/bootstrap', 'auth/forgot-password', 'auth/reset-password',
   'planning/pdf', 'webhooks/n8n',
   'track/[token]', 'track/[token]/rating', // suivi client : jeton HMAC signé (expire 48 h après le créneau), données minimales
+  'driver/login', // connexion livreur : identifiant + mot de passe haché, 5 essais / 15 min par IP + identifiant, réponse uniforme (pas d'indice d'existence)
   'driver/ping', // application livreur : détection de connexion, aucune donnée, limité par IP (les autres routes /api/driver/* exigent le jeton HMAC par livreur)
   'health', // healthcheck public sans donnée sensible (Docker / Dokploy)
 ])

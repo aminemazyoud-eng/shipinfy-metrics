@@ -390,6 +390,32 @@ export function useDriver() {
     } catch { setReachable(false); return { ok: false, code: 'NETWORK' } }
   }, [api])
 
+  // ───────── compte livreur : connexion / déconnexion (le jeton obtenu est le même que celui des anciens liens) ─────────
+  const login = useCallback(async (loginId: string, password: string): Promise<{ ok: boolean; code?: string }> => {
+    try {
+      const r = await fetch('/api/driver/login', { method: 'POST', headers: { 'Content-Type': 'application/json' }, cache: 'no-store', body: JSON.stringify({ login: loginId, password }) })
+      if (r.status === 429) return { ok: false, code: 'RATE' }
+      if (r.status === 503) return { ok: false, code: 'CONFIG' }
+      const j = await r.json().catch(() => null) as { token?: string; code?: string } | null
+      if (!r.ok || !j?.token) return { ok: false, code: j?.code ?? 'ERROR' }
+      ls.set(TOKEN_KEY, j.token); tokenRef.current = j.token
+      setAuth('loading')
+      const ok = await loadMe()
+      if (!ok) { setFirstLoadFailed(true); setAuth(a => (a === 'loading' ? 'ok' : a)) }
+      await runSync(true)
+      return { ok: true }
+    } catch { setReachable(false); return { ok: false, code: 'NETWORK' } }
+  }, [loadMe, runSync])
+
+  /** Déconnexion : retire le jeton et vide le cache local (aucune donnée du livreur ne reste sur le téléphone). Refusée s'il reste des actions à envoyer. */
+  const logout = useCallback(async (): Promise<boolean> => {
+    if (pendingCount(queueRef.current) > 0) return false
+    ls.del(TOKEN_KEY); tokenRef.current = null
+    try { await storeRef.current?.snapSet({ key: 'snap', orders: [], serverTime: null, driver: null, config: DEFAULT_CONFIG, savedAt: new Date().toISOString(), tour: null }) } catch { /* cache non critique */ }
+    meRef.current = null; setMe(null); setOrders([]); setTour(EMPTY_TOUR); setLoad(null); setLastSync(null); setAuth('notoken')
+    return true
+  }, [])
+
   // ───────── démarrage ─────────
   useEffect(() => {
     let dead = false
@@ -530,7 +556,7 @@ export function useDriver() {
   return {
     auth, me, config, lang, setLang, view, queue, online, syncing, lastSync, notices, dismiss, storeMode, firstLoadFailed, att, pending: pend,
     tour, load, reasons, reasonsLive, gps, gpsPending, km,
-    enqueue, runSync, reenterOtp, retryItem, discard, scan, refreshLoad, submitOdometer, submitFuel,
+    login, logout, enqueue, runSync, reenterOtp, retryItem, discard, scan, refreshLoad, submitOdometer, submitFuel,
     retryAuth: async () => { setAuth('loading'); const ok = await loadMe(); if (ok) await runSync(); else setAuth(a => (a === 'loading' ? 'config' : a)) },
   }
 }

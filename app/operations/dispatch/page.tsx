@@ -27,6 +27,7 @@ function Dispatch() {
   const [busy, setBusy] = useState(false)
   const [msg, setMsg] = useState<{ t: 'ok' | 'err'; s: string } | null>(null)
   const [openDriver, setOpenDriver] = useState<string | null>(null)
+  const [account, setAccount] = useState<{ code: string; login: string; password: string; created: boolean } | null>(null)
   const [appLink, setAppLink] = useState<{ code: string; url: string; whatsappLink: string; phoneKnown: boolean; copied?: boolean } | null>(null)
 
   const load = useCallback(async () => {
@@ -61,6 +62,17 @@ function Dispatch() {
       if (!r.ok) { setMsg({ t: 'err', s: j.error || 'Erreur' }); return }
       setAppLink({ code, url: j.url, whatsappLink: j.whatsappLink, phoneKnown: !!j.phoneKnown })
       if (revoke) setMsg({ t: 'ok', s: `Lien de ${code} révoqué — nouveau lien généré` })
+    } catch { setMsg({ t: 'err', s: 'Erreur réseau' }) }
+  }
+  // Compte de l'application livreur (identifiant = code, mot de passe généré) : le mot de passe n'est affiché qu'une fois
+  const createAccount = async (code: string, reset: boolean) => {
+    if (reset && !window.confirm(`Réinitialiser le mot de passe de ${code} ? L'ancien mot de passe et les liens déjà émis cesseront de fonctionner.`)) return
+    setMsg(null)
+    try {
+      const r = await fetch(`/api/ops/drivers/${encodeURIComponent(code)}/app-account`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: '{}' })
+      const j = await r.json()
+      if (!r.ok) { setMsg({ t: 'err', s: j.error || 'Erreur' }); return }
+      setAccount({ code, login: j.login, password: j.password, created: !!j.created })
     } catch { setMsg({ t: 'err', s: 'Erreur réseau' }) }
   }
   const copyAppLink = async () => {
@@ -168,6 +180,19 @@ function Dispatch() {
                     </select>
                   </div>
                   <button onClick={() => getAppLink(d.code)} className="mt-2 w-full text-xs py-1.5 rounded-lg border border-purple-300 text-purple-700 hover:bg-purple-50">Lien application livreur</button>
+                  <button onClick={() => createAccount(d.code, false)} className="mt-1.5 w-full text-xs py-1.5 rounded-lg border border-blue-300 text-blue-700 hover:bg-blue-50">Compte application (identifiant + mot de passe)</button>
+                  {account?.code === d.code && (
+                    <div className="mt-2 border border-blue-200 bg-blue-50 rounded-lg p-2 space-y-1">
+                      <div className="text-[11px] text-blue-900">{account.created ? 'Compte créé' : 'Compte existant : mot de passe réinitialisé'} — à communiquer au livreur (affiché une seule fois).</div>
+                      <div className="text-xs font-mono">Identifiant : <b>{account.login}</b></div>
+                      <div className="text-xs font-mono">Mot de passe : <b>{account.password}</b></div>
+                      <div className="flex gap-1.5">
+                        <button onClick={() => navigator.clipboard?.writeText(`Identifiant : ${account.login}\nMot de passe : ${account.password}\nApplication : ${window.location.origin}/livreur`)} className="text-xs px-2 py-1 rounded-lg bg-blue-600 text-white">Copier</button>
+                        <button onClick={() => createAccount(d.code, true)} className="text-xs px-2 py-1 rounded-lg border border-red-300 text-red-600 hover:bg-red-50">Réinitialiser</button>
+                        <button onClick={() => setAccount(null)} className="text-xs px-2 py-1 text-gray-500">Fermer</button>
+                      </div>
+                    </div>
+                  )}
                   {appLink?.code === d.code && (
                     <div className="mt-2 border border-purple-200 bg-purple-50 rounded-lg p-2 space-y-1.5">
                       <input readOnly value={appLink.url} onFocus={e => e.currentTarget.select()} className="w-full text-[11px] font-mono border border-gray-200 rounded px-1.5 py-1 bg-white" />

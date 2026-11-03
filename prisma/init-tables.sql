@@ -1266,3 +1266,7 @@ CREATE TABLE IF NOT EXISTS "OpsCostParam" (
   "key" TEXT NOT NULL PRIMARY KEY, "value" DOUBLE PRECISION NOT NULL, "note" TEXT, "updatedAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
 ALTER TABLE "OpsCostParam" ENABLE ROW LEVEL SECURITY;
+
+-- Compte application livreur (identifiant = code livreur ou téléphone ; mot de passe haché, jamais en clair)
+ALTER TABLE "OpsDriver" ADD COLUMN IF NOT EXISTS "appPasswordHash" TEXT;
+ALTER TABLE "OpsDriver" ADD COLUMN IF NOT EXISTS "appLoginAt" TIMESTAMP(3);

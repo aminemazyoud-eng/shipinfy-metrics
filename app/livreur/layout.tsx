@@ -5,11 +5,11 @@ export const metadata: Metadata = {
   title: 'SHIPINFY Livreur',
   manifest: '/manifest.webmanifest',
   robots: { index: false, follow: false },
-  icons: { icon: '/logo.png', apple: '/logo.png' },
+  icons: { icon: '/icon-192.png', apple: '/icon-192.png' },
   appleWebApp: { capable: true, title: 'Livreur', statusBarStyle: 'default' },
 }
 export const viewport: Viewport = {
-  themeColor: '#1d4ed8',
+  themeColor: '#2563eb',
   width: 'device-width',
   initialScale: 1,
   maximumScale: 1,

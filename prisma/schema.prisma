@@ -674,6 +674,8 @@ model OpsDriver {
   @@index([hubId])
   @@index([tenantId])
   tokenVersion  Int         @default(1) // incrémenter pour révoquer les liens de l'application livreur
+  appPasswordHash String?    // compte application livreur : mot de passe haché (PBKDF2) ; null = pas de compte
+  appLoginAt    DateTime?   // dernière connexion à l application
   lang          String      @default("fr") // fr | ar
 }
 

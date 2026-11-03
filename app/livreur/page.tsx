@@ -6,6 +6,7 @@ import { tr, type Lang } from '@/lib/driver-i18n'
 import { errorKey as errKey, nextAction, orderBySequence, reasonText, RETRY_CODES, sortDone, urgency, validateAction, validateNoShow, OTP_RE, type DriverReason, type Geo, type QueueItem, type TourStop, type ViewOrder } from '@/lib/driver-offline'
 import { navLinks } from '@/lib/geo'
 import { compressImage } from '@/lib/image-compress'
+import { Banknote, CheckCircle2, Clock, CloudUpload, Download, LogOut, MapPin, Navigation, Package, Phone, RefreshCw, ScanLine } from 'lucide-react'
 import { getGeo, useDriver, type ScanOutcome } from './useDriver'
 
 const TZ = 'Africa/Casablanca'
@@ -25,6 +26,15 @@ export default function DriverPage() {
   const [sheet, setSheet] = useState<{ kind: 'deliver' | 'noshow'; order: ViewOrder } | null>(null)
   const [otpFor, setOtpFor] = useState<QueueItem | null>(null)
   const [now, setNow] = useState(() => Date.now())
+  // installation PWA : l'évènement n'existe que si l'app n'est pas déjà installée (Chrome/Android)
+  type InstallEvt = Event & { prompt: () => Promise<void> }
+  const [installEvt, setInstallEvt] = useState<InstallEvt | null>(null)
+  useEffect(() => {
+    const h = (e: Event) => { e.preventDefault(); setInstallEvt(e as InstallEvt) }
+    window.addEventListener('beforeinstallprompt', h)
+    return () => window.removeEventListener('beforeinstallprompt', h)
+  }, [])
+  const install = async () => { try { await installEvt?.prompt() } catch { /* refus */ } setInstallEvt(null) }
 
   useEffect(() => { const i = setInterval(() => setNow(Date.now()), 30_000); return () => clearInterval(i) }, [])
   // lang/dir également sur <html> pendant que l'app livreur est affichée (restauré à la sortie)
@@ -46,59 +56,80 @@ export default function DriverPage() {
   const postpone = (o: ViewOrder) => { if (window.confirm(t('postpone.confirm'))) void d.enqueue({ type: 'postpone', orderId: o.id }) }
   const attend = (type: 'checkin' | 'checkout') => { void getGeo(6000).then(geo => d.enqueue({ type, geo })) }
 
+  const logout = async () => {
+    if (!window.confirm(t('login.logoutConfirm'))) return
+    if (!(await d.logout())) window.alert(t('login.logoutPending'))
+  }
+  const needsLogin = d.auth === 'notoken' || d.auth === 'expired'
+  const TABS = [['today', Package], ['load', ScanLine], ['done', CheckCircle2], ['queue', CloudUpload]] as const
+
   return (
-    <div dir={rtl ? 'rtl' : 'ltr'} lang={lang} className="fixed inset-0 z-[100] overflow-y-auto bg-slate-50 text-start text-slate-900">
-      <Header d={d} t={t} />
-      <div className="mx-auto max-w-md px-3 pb-24 pt-3">
-        {d.storeMode === 'memory' && <Banner tone="amber">{t('warn.idb')}</Banner>}
-        {!d.online && <Banner tone="slate">{t('net.offlineBanner')}</Banner>}
-        {d.notices.map(n => (
-          <button key={n.id} onClick={() => d.dismiss(n.id)} className="mb-2 block w-full rounded-xl bg-slate-800 px-4 py-3 text-start text-sm font-medium text-white">{t(n.key, n.params)}</button>
-        ))}
-
-        {d.auth === 'loading' && <Card><div className="py-6 text-center text-slate-500">{t('app.loading')}</div></Card>}
-        {d.auth === 'expired' && <Block title={t('auth.expired.title')} body={t('auth.expired.body')} />}
-        {d.auth === 'notoken' && <Block title={t('auth.none.title')} body={t('auth.none.body')} />}
-        {d.auth === 'config' && <Block title={t('auth.config.title')} body={t('auth.config.body')} action={<button className={`${BTN} mt-4 bg-blue-600 text-white`} onClick={() => void d.retryAuth()}>{t('auth.retry')}</button>} />}
-
-        {d.auth === 'ok' && (
-          <>
-            {d.firstLoadFailed && <Banner tone="amber">{t('warn.firstLoad')}</Banner>}
-            <div className="mb-3 grid grid-cols-4 gap-1 rounded-2xl bg-slate-200 p-1" role="tablist">
-              {(['today', 'load', 'done', 'queue'] as const).map(k => (
-                <button key={k} role="tab" aria-selected={tab === k} onClick={() => setTab(k)}
-                  className={`min-h-12 rounded-xl px-0.5 text-xs font-bold ${tab === k ? 'bg-white shadow' : 'text-slate-600'}`}>
-                  {t(`tab.${k}`)}
-                  {k === 'today' && today.length > 0 && <span className="ms-1 text-blue-700">({today.length})</span>}
-                  {k === 'load' && loadWarn > 0 && <span className="ms-1 rounded-full bg-amber-500 px-1.5 text-xs text-white">{loadWarn}</span>}
-                  {k === 'queue' && d.queue.length > 0 && <span className="ms-1 rounded-full bg-red-600 px-1.5 text-xs text-white">{d.queue.length}</span>}
-                </button>
+    <div dir={rtl ? 'rtl' : 'ltr'} lang={lang} className="fixed inset-0 z-[100] flex flex-col bg-slate-50 text-start text-slate-900">
+      {needsLogin ? (
+        <LoginScreen d={d} t={t} canInstall={!!installEvt} onInstall={() => void install()} />
+      ) : (
+        <>
+          <Header d={d} t={t} canInstall={!!installEvt} onInstall={() => void install()} onLogout={() => void logout()} />
+          <main className="flex-1 overflow-y-auto">
+            <div className="mx-auto max-w-md px-3 pb-6 pt-3">
+              {d.storeMode === 'memory' && <Banner tone="amber">{t('warn.idb')}</Banner>}
+              {!d.online && <Banner tone="slate">{t('net.offlineBanner')}</Banner>}
+              {d.notices.map(n => (
+                <button key={n.id} onClick={() => d.dismiss(n.id)} className="mb-2 block w-full rounded-xl bg-slate-800 px-4 py-3 text-start text-sm font-medium text-white">{t(n.key, n.params)}</button>
               ))}
-            </div>
 
-            {tab === 'today' && (
-              <div className="space-y-3">
-                <Attendance d={d} t={t} onAttend={attend} />
-                {d.tour.tour && <div className="px-1 text-sm font-bold text-slate-500">{t('tour.title')} · {t('tour.rotation', { n: d.tour.tour.rotation })}</div>}
-                {today.length === 0 && <Card><p className="py-4 text-center text-slate-500">{t('empty.today')}</p></Card>}
-                {today.map(({ order: o, stop }) => <OrderCard key={o.id} o={o} stop={stop} t={t} now={now} otp={d.config.otpRequired || o.otpRequired}
-                  geofenceMode={d.config.geofenceMode} loadWarn={loadWarn} onGoLoad={() => setTab('load')}
-                  onAccept={() => accept(o, 'accept')} onStart={() => accept(o, 'start')} onArrive={() => arrive(o)} onPostpone={() => postpone(o)}
-                  onDeliver={() => setSheet({ kind: 'deliver', order: o })} onNoShow={() => setSheet({ kind: 'noshow', order: o })}
-                  onFixOtp={() => o.errorItem && setOtpFor(o.errorItem)} />)}
+              {d.auth === 'loading' && <Card><div className="py-6 text-center text-slate-500">{t('app.loading')}</div></Card>}
+              {d.auth === 'config' && <Block title={t('auth.config.title')} body={t('auth.config.body')} action={<button className={`${BTN} mt-4 bg-blue-600 text-white`} onClick={() => void d.retryAuth()}>{t('auth.retry')}</button>} />}
+
+              {d.auth === 'ok' && (
+                <>
+                  {d.firstLoadFailed && <Banner tone="amber">{t('warn.firstLoad')}</Banner>}
+
+                  {tab === 'today' && (
+                    <div className="space-y-3">
+                      <Attendance d={d} t={t} onAttend={attend} />
+                      {d.tour.tour && <div className="px-1 text-sm font-bold text-slate-500">{t('tour.title')} · {t('tour.rotation', { n: d.tour.tour.rotation })}</div>}
+                      {today.length === 0 && <Card><p className="py-6 text-center text-slate-500">{t('empty.today')}</p></Card>}
+                      {today.map(({ order: o, stop }, i) => <OrderCard key={o.id} o={o} stop={stop} t={t} now={now} otp={d.config.otpRequired || o.otpRequired} featured={i === 0}
+                        geofenceMode={d.config.geofenceMode} loadWarn={loadWarn} onGoLoad={() => setTab('load')}
+                        onAccept={() => accept(o, 'accept')} onStart={() => accept(o, 'start')} onArrive={() => arrive(o)} onPostpone={() => postpone(o)}
+                        onDeliver={() => setSheet({ kind: 'deliver', order: o })} onNoShow={() => setSheet({ kind: 'noshow', order: o })}
+                        onFixOtp={() => o.errorItem && setOtpFor(o.errorItem)} />)}
+                    </div>
+                  )}
+                  {tab === 'load' && <LoadView d={d} t={t} />}
+                  {tab === 'done' && (
+                    <div className="space-y-3">
+                      {done.length === 0 && <Card><p className="py-6 text-center text-slate-500">{t('empty.done')}</p></Card>}
+                      {done.map(o => <OrderCard key={o.id} o={o} stop={null} t={t} now={now} otp={false} finished reasonLabel={o.status === 'NO_SHOW' ? reasonLabelOf(o.reasonCode) : null} />)}
+                    </div>
+                  )}
+                  {tab === 'queue' && <QueueView d={d} t={t} onFixOtp={setOtpFor} />}
+                </>
+              )}
+            </div>
+          </main>
+
+          {d.auth === 'ok' && (
+            <nav className="shrink-0 border-t border-slate-200 bg-white pb-[env(safe-area-inset-bottom)]" role="tablist">
+              <div className="mx-auto grid max-w-md grid-cols-4">
+                {TABS.map(([k, Icon]) => {
+                  const badge = k === 'today' ? today.length : k === 'load' ? loadWarn : k === 'queue' ? d.queue.length : 0
+                  return (
+                    <button key={k} role="tab" aria-selected={tab === k} onClick={() => setTab(k)}
+                      className={`relative flex min-h-16 flex-col items-center justify-center gap-0.5 text-[11px] font-bold ${tab === k ? 'text-blue-600' : 'text-slate-500'}`}>
+                      <span className="relative"><Icon size={22} strokeWidth={tab === k ? 2.6 : 2} />
+                        {badge > 0 && <span className={`absolute -end-2.5 -top-1.5 min-w-4 rounded-full px-1 text-center text-[10px] leading-4 text-white ${k === 'queue' ? 'bg-red-600' : k === 'load' ? 'bg-amber-500' : 'bg-blue-600'}`}>{badge}</span>}
+                      </span>
+                      {t(`tab.${k}`)}
+                    </button>
+                  )
+                })}
               </div>
-            )}
-            {tab === 'load' && <LoadView d={d} t={t} />}
-            {tab === 'done' && (
-              <div className="space-y-3">
-                {done.length === 0 && <Card><p className="py-4 text-center text-slate-500">{t('empty.done')}</p></Card>}
-                {done.map(o => <OrderCard key={o.id} o={o} stop={null} t={t} now={now} otp={false} finished reasonLabel={o.status === 'NO_SHOW' ? reasonLabelOf(o.reasonCode) : null} />)}
-              </div>
-            )}
-            {tab === 'queue' && <QueueView d={d} t={t} onFixOtp={setOtpFor} />}
-          </>
-        )}
-      </div>
+            </nav>
+          )}
+        </>
+      )}
 
       {sheet?.kind === 'deliver' && <DeliverSheet order={sheet.order} t={t} lang={lang} maxKB={d.config.photoMaxKB} otpRequired={d.config.otpRequired || sheet.order.otpRequired}
         onClose={() => setSheet(null)} onSubmit={async v => { await d.enqueue({ type: 'deliver', orderId: sheet.order.id, otp: v.otp, geo: v.geo, photos: v.photos, kind: 'delivery' }); setSheet(null) }} />}
@@ -121,74 +152,130 @@ function Block({ title, body, action }: { title: string; body: string; action?: 
   return <Card className="mt-6 text-center"><div className="text-xl font-extrabold">{title}</div><p className="mt-2 text-base text-slate-600">{body}</p>{action}</Card>
 }
 
-function Header({ d, t }: { d: Driver; t: T }) {
+function LoginScreen({ d, t, canInstall, onInstall }: { d: Driver; t: T; canInstall: boolean; onInstall: () => void }) {
+  const [id, setId] = useState('')
+  const [pw, setPw] = useState('')
+  const [show, setShow] = useState(false)
+  const [busy, setBusy] = useState(false)
+  const [err, setErr] = useState<string | null>(null)
+  const submit = async (e: React.FormEvent) => {
+    e.preventDefault()
+    if (busy || !id.trim() || !pw) return
+    setBusy(true); setErr(null)
+    const r = await d.login(id.trim(), pw)
+    setBusy(false)
+    if (!r.ok) setErr(t(`login.${r.code && ['BAD_CREDENTIALS', 'DRIVER_OFF', 'RATE', 'CONFIG', 'NETWORK'].includes(r.code) ? r.code : 'ERROR'}`))
+  }
+  const field = 'h-14 w-full rounded-2xl border border-slate-300 bg-white px-4 text-lg text-slate-900 placeholder:text-slate-400 focus:border-blue-600 focus:outline-none focus:ring-2 focus:ring-blue-200'
   return (
-    <div className="sticky top-0 z-10 bg-blue-700 px-3 pb-3 pt-[max(0.75rem,env(safe-area-inset-top))] text-white shadow">
-      <div className="mx-auto flex max-w-md items-center gap-2">
-        {/* eslint-disable-next-line @next/next/no-img-element */}
-        <img src="/logo.png" alt="" width={28} height={30} className="rounded bg-white p-0.5 object-contain" />
-        <div className="min-w-0 flex-1">
-          <div className="truncate text-base font-extrabold leading-tight">{d.me ? d.me.name : t('app.name')}</div>
-          <div className="truncate text-xs text-blue-100">{d.me?.hubName ? `${t('hub.label')} ${d.me.hubName}` : t('app.name')}</div>
+    <div className="flex flex-1 flex-col overflow-y-auto bg-white">
+      <div className="bg-blue-600 px-6 pb-10 pt-[max(2rem,env(safe-area-inset-top))] text-white">
+        <div className="mx-auto flex max-w-md items-center justify-between">
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img src="/logo.png" alt="" width={44} height={48} className="rounded-xl bg-white p-1 object-contain" />
+          <button onClick={() => d.setLang(d.lang === 'ar' ? 'fr' : 'ar')} className="min-h-11 rounded-xl bg-white/15 px-4 text-sm font-bold">{t('lang.toggle')}</button>
         </div>
-        <button onClick={() => d.setLang(d.lang === 'ar' ? 'fr' : 'ar')} className="min-h-11 min-w-11 rounded-xl bg-white/15 px-3 text-sm font-bold">{t('lang.toggle')}</button>
+        <h1 className="mx-auto mt-6 max-w-md text-3xl font-extrabold">{t('login.title')}</h1>
+        <p className="mx-auto mt-1 max-w-md text-blue-100">{t('login.sub')}</p>
       </div>
-      <div className="mx-auto mt-2 flex max-w-md flex-wrap items-center gap-2">
-        <span className={`inline-flex items-center gap-1.5 rounded-full px-3 py-1.5 text-sm font-bold ${d.online ? 'bg-green-500 text-white' : 'bg-red-600 text-white'}`}>
-          <span className="h-2 w-2 rounded-full bg-white" />{d.online ? t('net.online') : t('net.offline')}
-          {d.pending > 0 && <span className="rounded-full bg-white/25 px-2">{t('net.pending', { n: d.pending })}</span>}
-        </span>
-        <button onClick={() => void d.runSync(true)} disabled={d.syncing} className="ms-auto min-h-11 rounded-xl bg-white px-4 text-sm font-bold text-blue-800 disabled:opacity-60">
-          {d.syncing ? t('sync.running') : t('sync.button')}
-        </button>
-      </div>
-      <div className="mx-auto mt-1 flex max-w-md flex-wrap items-center gap-x-3 text-xs text-blue-100">
-        <span>{d.lastSync ? t('sync.last', { time: hhmm(d.lastSync) }) : t('sync.never')}</span>
-        {d.gps === 'active' && <span className="font-bold text-green-200" title={t('gps.note')}>● {t('gps.active')}{d.gpsPending > 0 ? ` · ${t('gps.pending', { n: d.gpsPending })}` : ''}</span>}
-        {d.gps === 'denied' && <span className="font-bold text-amber-200">{t('gps.denied')}</span>}
-      </div>
-      {d.gps === 'active' && <div className="mx-auto mt-0.5 max-w-md text-[11px] text-blue-200">{t('gps.note')}</div>}
+      <form onSubmit={submit} className="mx-auto -mt-5 w-full max-w-md flex-1 rounded-t-3xl bg-white px-6 pt-8">
+        <label className="mb-1 block text-sm font-bold text-slate-600" htmlFor="drv-id">{t('login.id')}</label>
+        <input id="drv-id" className={field} value={id} onChange={e => setId(e.target.value)} dir="ltr" autoComplete="username" autoCapitalize="characters" autoCorrect="off" inputMode="text" />
+        <label className="mb-1 mt-4 block text-sm font-bold text-slate-600" htmlFor="drv-pw">{t('login.password')}</label>
+        <div className="relative">
+          <input id="drv-pw" className={`${field} pe-20`} type={show ? 'text' : 'password'} value={pw} onChange={e => setPw(e.target.value)} dir="ltr" autoComplete="current-password" />
+          <button type="button" onClick={() => setShow(v => !v)} className="absolute end-2 top-1/2 -translate-y-1/2 rounded-lg px-3 py-2 text-sm font-bold text-blue-700">{show ? t('login.hide') : t('login.show')}</button>
+        </div>
+        {err && <div role="alert" className="mt-4 rounded-xl bg-red-50 px-4 py-3 text-sm font-semibold text-red-700">{err}</div>}
+        <button type="submit" disabled={busy || !id.trim() || !pw} className={`${BTN} mt-6 bg-blue-600 text-white`}>{busy ? t('login.busy') : t('login.submit')}</button>
+        {canInstall && <button type="button" onClick={onInstall} className={`${BTN} mt-3 gap-2 bg-slate-100 text-base text-slate-900`}><Download size={20} />{t('install.button')}</button>}
+      </form>
     </div>
+  )
+}
+
+function Header({ d, t, canInstall, onInstall, onLogout }: { d: Driver; t: T; canInstall: boolean; onInstall: () => void; onLogout: () => void }) {
+  const first = d.me?.firstName || d.me?.name?.split(' ')[0] || ''
+  const initials = (d.me?.name ?? '').split(' ').map(w => w[0]).filter(Boolean).slice(0, 2).join('').toUpperCase() || '·'
+  return (
+    <header className="shrink-0 bg-blue-600 px-4 pb-3 pt-[max(0.75rem,env(safe-area-inset-top))] text-white shadow">
+      <div className="mx-auto flex max-w-md items-center gap-3">
+        <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-white text-base font-extrabold text-blue-700">{initials}</div>
+        <div className="min-w-0 flex-1">
+          <div className="truncate text-lg font-extrabold leading-tight">{first || t('app.name')}</div>
+          <div className="truncate text-xs text-blue-100">{[d.me?.hubName ? `${t('hub.label')} ${d.me.hubName}` : null, d.me?.plate].filter(Boolean).join(' · ') || t('app.name')}</div>
+        </div>
+        {canInstall && <button onClick={onInstall} aria-label={t('install.button')} className="flex h-11 w-11 items-center justify-center rounded-xl bg-white/15"><Download size={20} /></button>}
+        <button onClick={() => d.setLang(d.lang === 'ar' ? 'fr' : 'ar')} className="h-11 min-w-11 rounded-xl bg-white/15 px-3 text-sm font-bold">{t('lang.toggle')}</button>
+        <button onClick={onLogout} aria-label={t('login.logout')} className="flex h-11 w-11 items-center justify-center rounded-xl bg-white/15"><LogOut size={20} /></button>
+      </div>
+      <div className="mx-auto mt-2 flex max-w-md flex-wrap items-center gap-x-2 gap-y-1 text-xs">
+        <span className={`inline-flex items-center gap-1.5 whitespace-nowrap rounded-full px-2.5 py-1 font-bold ${d.online ? 'bg-green-500 text-white' : 'bg-red-600 text-white'}`}>
+          <span className="h-2 w-2 rounded-full bg-white" />{d.online ? t('net.online') : t('net.offline')}
+          {d.pending > 0 && <span className="rounded-full bg-white/25 px-1.5">{t('net.pending', { n: d.pending })}</span>}
+        </span>
+        {d.gps === 'active' && <span className="font-bold text-green-200" title={t('gps.note')}>● {t('gps.active')}</span>}
+        {d.gps === 'denied' && <span className="font-bold text-amber-200">{t('gps.denied')}</span>}
+        <span className="ms-auto whitespace-nowrap text-blue-100">{d.lastSync ? t('sync.last', { time: hhmm(d.lastSync) }) : t('sync.never')}</span>
+        <button onClick={() => void d.runSync(true)} disabled={d.syncing} aria-label={t('sync.button')} className="flex h-9 w-9 items-center justify-center rounded-lg bg-white/15 disabled:opacity-60"><RefreshCw size={16} className={d.syncing ? 'animate-spin' : ''} /></button>
+      </div>
+    </header>
   )
 }
 
 function Attendance({ d, t, onAttend }: { d: Driver; t: T; onAttend: (k: 'checkin' | 'checkout') => void }) {
   const { att } = d
+  const state = att.outAt ? 'out' : att.inAt ? 'in' : 'none'
   return (
-    <Card>
-      <div className="mb-2 text-sm font-bold text-slate-500">{t('att.title')}</div>
-      <p className="mb-3 text-sm text-slate-700">{att.outAt ? t('att.out', { time: hhmm(att.outAt) }) : att.inAt ? t('att.in', { time: hhmm(att.inAt) }) : t('att.none')}</p>
-      <div className="grid grid-cols-2 gap-2">
-        <button className={`${BTN} bg-slate-800 text-base text-white`} disabled={!!att.inAt} onClick={() => onAttend('checkin')}>{t('action.checkin')}</button>
-        <button className={`${BTN} bg-slate-200 text-base text-slate-900`} disabled={!att.inAt || !!att.outAt} onClick={() => onAttend('checkout')}>{t('action.checkout')}</button>
+    <div className={`flex items-center gap-3 rounded-2xl p-3 shadow-sm ${state === 'in' ? 'bg-green-50' : 'bg-white'}`}>
+      <div className="min-w-0 flex-1">
+        <div className="text-xs font-bold uppercase tracking-wide text-slate-500">{t('att.title')}</div>
+        <div className="text-sm font-semibold leading-snug text-slate-800">{state === 'out' ? t('att.out', { time: hhmm(att.outAt) }) : state === 'in' ? t('att.in', { time: hhmm(att.inAt) }) : t('att.none')}</div>
       </div>
-    </Card>
+      {state === 'none' && <button className="min-h-12 shrink-0 rounded-xl bg-slate-900 px-4 text-sm font-bold text-white active:scale-[0.98]" onClick={() => onAttend('checkin')}>{t('action.checkin')}</button>}
+      {state === 'in' && <button className="min-h-12 shrink-0 rounded-xl bg-slate-200 px-4 text-sm font-bold text-slate-900 active:scale-[0.98]" onClick={() => onAttend('checkout')}>{t('action.checkout')}</button>}
+    </div>
   )
 }
 
 function OrderCard(p: {
-  o: ViewOrder; stop: TourStop | null; t: T; now: number; otp: boolean; finished?: boolean; reasonLabel?: string | null
+  o: ViewOrder; stop: TourStop | null; t: T; now: number; otp: boolean; finished?: boolean; featured?: boolean; reasonLabel?: string | null
   geofenceMode?: 'block' | 'soft'; loadWarn?: number; onGoLoad?: () => void
   onAccept?: () => void; onStart?: () => void; onArrive?: () => void; onPostpone?: () => void; onDeliver?: () => void; onNoShow?: () => void; onFixOtp?: () => void
 }) {
   const { o, t, stop } = p
   const u = urgency(o, p.now)
   const act = nextAction(o.status)
-  const border = p.finished ? 'border-slate-200' : u.level === 'late' ? 'border-red-500' : u.level === 'soon' ? 'border-amber-500' : 'border-transparent'
+  const accent = p.finished ? 'border-slate-200' : u.level === 'late' ? 'border-red-500' : u.level === 'soon' ? 'border-amber-500' : p.featured ? 'border-blue-600' : 'border-slate-200'
   const slot = o.slotLabel || (o.slotStart && o.slotEnd ? `${hhmm(o.slotStart)} - ${hhmm(o.slotEnd)}` : '')
   const nav = navLinks(o.lat ?? stop?.lat, o.lng ?? stop?.lng)
   const canDeliver = p.geofenceMode === 'soft' || o.arrived // en mode « block », la livraison exige l'arrivée
+  const address = [o.address ?? stop?.address, o.district].filter(Boolean).join(' · ')
+  const chip = 'inline-flex items-center gap-1 rounded-full bg-slate-100 px-2.5 py-1 text-xs font-bold text-slate-700'
+  const nb = 'flex min-h-12 flex-col items-center justify-center gap-0.5 rounded-xl bg-slate-100 text-[11px] font-bold text-slate-700 active:scale-[0.97]'
   return (
-    <div className={`rounded-2xl border-2 bg-white p-4 shadow-sm ${border}`}>
-      <div className="flex items-start justify-between gap-2">
-        <div className="flex min-w-0 items-start gap-2">
-          {stop && !p.finished && <span className="mt-0.5 shrink-0 rounded-lg bg-blue-700 px-2 py-1 text-sm font-extrabold text-white" title={t('tour.seq', { n: stop.seq })}>{stop.seq}</span>}
-          <div className="min-w-0">
-            <div className="truncate text-lg font-extrabold">{o.customerName || o.ref}</div>
-            <div className="text-xs text-slate-500">{o.ref}</div>
-          </div>
+    <div className={`rounded-2xl border-s-4 bg-white p-4 ${accent} ${p.featured && !p.finished ? 'shadow-md ring-1 ring-blue-100' : 'shadow-sm'}`}>
+      {p.featured && !p.finished && <div className="mb-2 text-xs font-extrabold uppercase tracking-wide text-blue-600">{t('order.next')}</div>}
+      <div className="flex items-start gap-3">
+        {stop && !p.finished && <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-blue-600 text-base font-extrabold text-white" title={t('tour.seq', { n: stop.seq })}>{stop.seq}</span>}
+        <div className="min-w-0 flex-1">
+          <div className="truncate text-lg font-extrabold leading-tight">{o.customerName || o.ref}</div>
+          <div className="text-xs text-slate-500">{o.ref}</div>
         </div>
-        <span className={`shrink-0 rounded-full px-3 py-1 text-sm font-bold ${TONE[o.status] ?? 'bg-slate-100 text-slate-700'}`}>{t(`status.${o.status}`)}</span>
+        <span className={`shrink-0 rounded-full px-3 py-1 text-xs font-bold ${TONE[o.status] ?? 'bg-slate-100 text-slate-700'}`}>{t(`status.${o.status}`)}</span>
+      </div>
+
+      <div className="mt-3 flex flex-wrap gap-2">
+        {slot && <span className={chip}><Clock size={13} />{slot}</span>}
+        {o.amount ? <span className={`${chip} bg-emerald-50 text-emerald-800`}><Banknote size={13} />{Math.round(o.amount)} {t('order.currency')}</span> : null}
+        {stop?.etaAt && !p.finished && <span className={`${chip} bg-blue-50 text-blue-800`}>{t('tour.eta', { time: hhmm(stop.etaAt) })}</span>}
+        {!p.finished && u.level === 'late' && <span className={`${chip} bg-red-50 text-red-700`}>{t('order.late', { n: u.min })}</span>}
+        {!p.finished && u.level === 'soon' && <span className={`${chip} bg-amber-50 text-amber-800`}>{t('order.soon', { n: u.min })}</span>}
+      </div>
+
+      <div className="mt-3 flex items-start gap-2 text-base text-slate-800">
+        <MapPin size={18} className="mt-0.5 shrink-0 text-slate-400" />
+        <span>{address || t('order.noAddress')}</span>
       </div>
 
       {(o.localPending || o.errorItem || o.postponed || (stop?.postponedCount ?? 0) > 0) && (
@@ -199,26 +286,16 @@ function OrderCard(p: {
           {!o.postponed && (stop?.postponedCount ?? 0) > 0 && <span className="rounded-full bg-slate-200 px-3 py-1 text-xs font-bold text-slate-800">{t('order.postponedCount', { n: stop!.postponedCount })}</span>}
         </div>
       )}
+      {p.otp && !p.finished && <div className="mt-2 text-xs text-slate-500">{t('order.otp')}</div>}
+      {o.hasProof && <div className="mt-2 text-sm font-semibold text-green-700">{t('order.proof')}</div>}
+      {p.finished && p.reasonLabel && <div className="mt-2 text-sm font-semibold text-orange-800">{p.reasonLabel}</div>}
+      {!p.finished && o.arrived && o.status === 'START_DELIVERY' && <div className="mt-2 text-sm font-semibold text-green-700">{t('order.arrived')}</div>}
 
-      {!p.finished && u.level === 'late' && <div className="mt-2 text-sm font-bold text-red-600">{t('order.late', { n: u.min })}</div>}
-      {!p.finished && u.level === 'soon' && <div className="mt-2 text-sm font-bold text-amber-600">{t('order.soon', { n: u.min })}</div>}
-
-      <dl className="mt-3 space-y-1 text-base">
-        {stop?.etaAt && !p.finished && <div className="font-bold text-blue-800">{t('tour.eta', { time: hhmm(stop.etaAt) })}</div>}
-        {slot && <div><dt className="inline text-slate-500">{t('order.slot')} : </dt><dd className="inline font-bold">{slot}</dd></div>}
-        <div><dt className="inline text-slate-500">{t('order.address')} : </dt><dd className="inline">{[o.address ?? stop?.address, o.district].filter(Boolean).join(' · ') || t('order.noAddress')}</dd></div>
-        <div><dt className="inline text-slate-500">{t('order.amount')} : </dt><dd className="inline text-lg font-extrabold">{o.amount ? `${Math.round(o.amount)} ${t('order.currency')}` : t('order.noAmount')}</dd></div>
-        {p.otp && !p.finished && <div className="text-sm text-slate-500">{t('order.otp')}</div>}
-        {o.hasProof && <div className="text-sm text-green-700">{t('order.proof')}</div>}
-        {p.finished && p.reasonLabel && <div className="text-sm font-semibold text-orange-800">{p.reasonLabel}</div>}
-        {!p.finished && o.arrived && o.status === 'START_DELIVERY' && <div className="text-sm text-green-700">{t('order.arrived')}</div>}
-      </dl>
-
-      {!p.finished && (
+      {!p.finished && (nav || o.customerPhone) && (
         <div className="mt-3 grid grid-cols-3 gap-2">
-          {nav && <a href={nav.waze} target="_blank" rel="noopener noreferrer" className={`${BTN} min-h-12 bg-sky-100 text-base text-sky-900`}>{t('nav.waze')}</a>}
-          {nav && <a href={nav.google} target="_blank" rel="noopener noreferrer" className={`${BTN} min-h-12 bg-slate-100 text-base`}>{t('nav.google')}</a>}
-          {o.customerPhone && <a href={`tel:${o.customerPhone}`} className={`${BTN} min-h-12 bg-slate-100 text-base`}>{t('order.call')}</a>}
+          {nav && <a href={nav.waze} target="_blank" rel="noopener noreferrer" className={nb}><Navigation size={18} />{t('nav.waze')}</a>}
+          {nav && <a href={nav.google} target="_blank" rel="noopener noreferrer" className={nb}><MapPin size={18} />{t('nav.google')}</a>}
+          {o.customerPhone && <a href={`tel:${o.customerPhone}`} className={`${nb} bg-green-50 text-green-800`}><Phone size={18} />{t('order.call')}</a>}
         </div>
       )}
 
@@ -238,8 +315,10 @@ function OrderCard(p: {
             <>
               {!o.arrived && <button className={`${BTN} bg-blue-600 text-white`} onClick={p.onArrive}>{t('action.arrive')}</button>}
               {canDeliver && <button className={`${BTN} bg-green-600 text-white`} onClick={p.onDeliver}>{t('action.deliver')}</button>}
-              <button className={`${BTN} bg-orange-100 text-orange-900`} onClick={p.onNoShow}>{t('action.nodeliver')}</button>
-              {!o.postponed && stop?.canPostpone !== false && <button className={`${BTN} bg-slate-100 text-slate-900`} onClick={p.onPostpone}>{t('action.postpone')}</button>}
+              <div className="grid grid-cols-2 gap-2">
+                <button className="min-h-12 rounded-xl bg-orange-50 px-2 text-sm font-bold text-orange-800 active:scale-[0.98]" onClick={p.onNoShow}>{t('action.nodeliver')}</button>
+                {!o.postponed && stop?.canPostpone !== false && <button className="min-h-12 rounded-xl bg-slate-100 px-2 text-sm font-bold text-slate-800 active:scale-[0.98]" onClick={p.onPostpone}>{t('action.postpone')}</button>}
+              </div>
             </>
           )}
         </div>

@@ -2,15 +2,18 @@
   "name": "SHIPINFY Livreur",
   "short_name": "Livreur",
   "description": "Application livreur : livraisons, preuves photo et pointage, utilisable hors ligne.",
+  "id": "/livreur",
   "start_url": "/livreur",
   "scope": "/livreur",
   "display": "standalone",
   "orientation": "portrait",
   "background_color": "#f8fafc",
-  "theme_color": "#1d4ed8",
+  "theme_color": "#2563eb",
   "lang": "fr",
   "icons": [
-    { "src": "/logo.png", "sizes": "140x152", "type": "image/png", "purpose": "any" },
+    { "src": "/icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },
+    { "src": "/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any" },
+    { "src": "/icon-maskable-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" },
     { "src": "/logo.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any" }
   ]
 }

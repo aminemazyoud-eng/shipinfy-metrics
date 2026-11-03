@@ -3,7 +3,7 @@
  * - /api/** : JAMAIS intercepté ni mis en cache (les données hors ligne vivent dans IndexedDB).
  * - N'intercepte rien d'autre (ni /suivi, ni le reste de l'application).
  */
-const VERSION = 'v1'
+const VERSION = 'v2' // v2 : navigation réseau d'abord (avant, l'ancienne page en cache s'affichait après chaque déploiement)
 const CACHE = 'shipinfy-driver-' + VERSION
 const SHELL = ['/livreur', '/manifest.webmanifest', '/logo.png']
 
@@ -66,16 +66,16 @@ self.addEventListener('fetch', event => {
 })
 
 async function navigate(req) {
+  // Réseau d'abord (3,5 s max) : la version déployée s'affiche toujours si on a du réseau ; la copie en cache ne sert que hors ligne / réseau très lent.
   const cache = await caches.open(CACHE)
   const key = '/livreur'
-  const cached = await cache.match(key)
-  const net = fetch(req).then(res => {
+  try {
+    const res = await Promise.race([fetch(req), new Promise((_, rej) => setTimeout(() => rej(new Error('timeout')), 3500))])
     if (res && res.ok && res.type === 'basic') cache.put(key, res.clone())
     return res
-  })
-  if (cached) { net.catch(() => {}); return cached } // coquille immédiate, mise à jour en arrière-plan
-  try { return await net } catch (e) {
-    return new Response(OFFLINE_HTML, { status: 200, headers: { 'Content-Type': 'text/html; charset=utf-8' } })
+  } catch (e) {
+    const cached = await cache.match(key)
+    return cached || new Response(OFFLINE_HTML, { status: 200, headers: { 'Content-Type': 'text/html; charset=utf-8' } })
   }
 }
 

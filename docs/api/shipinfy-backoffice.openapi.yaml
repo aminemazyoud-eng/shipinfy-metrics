@@ -1,0 +1,590 @@
+openapi: 3.1.0
+info:
+  title: Contrat d'API Shipinfy Back-office <-> Shipinfy Metrics
+  version: 1.0.0
+  description: |
+    Contrat entre le back-office Shipinfy ORIGINAL (source de vérité : commandes, hubs, livreurs) et Shipinfy Metrics
+    (front + données opérationnelles + analytique).
+
+    Deux parties, séparées par les tags :
+    - **A. Back-office (exposée par le back-office, consommée par Metrics)** : implémentation de référence = `mock-backoffice/server.js`,
+      test exécutable = `node scripts/test-backoffice-contract.mjs --url <base> --key <clé> [--write]`.
+    - **B. Metrics (exposée par Metrics, appelée par le back-office)** : API entrante `/api/v1/orders`, récepteur IoT et webhooks sortants signés.
+
+    Niveaux des champs (extension `x-niveau`) : `obligatoire` (sinon commande rejetée en quarantaine), `recommandé` (lu par le code, fonction dégradée si absent),
+    `optionnel`, `proposition` (NON lu aujourd'hui par Metrics, à ajouter côté Metrics si le back-office le fournit).
+
+    Règles transverses (partie A) :
+    - Horodatages ISO 8601 UTC avec suffixe `Z` (ex. `2026-10-10T09:30:00.000Z`). Le créneau (slotStart/slotEnd) est l'heure PROMISE ; fuseau métier Africa/Casablanca.
+    - `updatedAt` est MONOTONE par commande : toute modification (statut, livreur, créneau, adresse...) l'augmente strictement. Le tri de la pagination en dépend.
+    - `id` stable à vie (jamais réutilisé, jamais modifié). Metrics fait un upsert sur (source, id).
+    - Un statut ne recule jamais côté back-office (ordre : READY_PICKUP, ASSIGNED, IN_TRANSPORT, START_DELIVERY, puis DELIVERED / NO_SHOW ; CANCELLED depuis tout état non terminal).
+    - Toutes les écritures (POST) sont IDEMPOTENTES : rejouer la même requête renvoie 2xx sans changer l'état ni `updatedAt`.
+    - Authentification : en-tête `x-api-key`. `/health` est public.
+  x-contact: "exemple : dev-key est la clé de test du mock ; ne jamais committer une clé réelle"
+servers:
+  - url: http://localhost:4010
+    description: Mock back-office (clé dev-key)
+  - url: https://backoffice.exemple.invalid
+    description: Back-office réel (à renseigner dans BACKOFFICE_API_URL)
+  - url: https://metrics.exemple.invalid
+    description: Metrics (partie B)
+tags:
+  - name: "A. Back-office"
+    description: API exposée par le back-office Shipinfy ORIGINAL, consommée par Metrics.
+  - name: "B. Metrics (entrant)"
+    description: API exposée par Metrics, appelée par le back-office ou des capteurs.
+  - name: "B. Metrics (webhooks sortants)"
+    description: Notifications signées envoyées par Metrics vers le SI (documentées via `webhooks`).
+security:
+  - ApiKey: []
+paths:
+  # ───────────────────────────── A. BACK-OFFICE ─────────────────────────────
+  /health:
+    get:
+      tags: ["A. Back-office"]
+      summary: Santé et horloge serveur
+      description: Public (sans clé). Metrics s'en sert pour l'horloge en mode direct de dev.
+      security: []
+      responses:
+        "200":
+          description: Service disponible
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [ok, serverTime]
+                properties:
+                  ok: { type: boolean, const: true }
+                  serverTime: { $ref: "#/components/schemas/IsoUtc" }
+  /api/v1/hubs:
+    get:
+      tags: ["A. Back-office"]
+      summary: Liste des hubs (dépôts)
+      responses:
+        "200":
+          description: Hubs actifs
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [data]
+                properties:
+                  data: { type: array, items: { $ref: "#/components/schemas/Hub" } }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+  /api/v1/couriers:
+    get:
+      tags: ["A. Back-office"]
+      summary: Liste des livreurs
+      description: "`code` est la valeur utilisée dans `BoOrder.courierRef` et dans POST /assign."
+      responses:
+        "200":
+          description: Livreurs
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [data]
+                properties:
+                  data: { type: array, items: { $ref: "#/components/schemas/Courier" } }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+  /api/v1/orders:
+    get:
+      tags: ["A. Back-office"]
+      summary: Commandes, pagination par curseur stable (flux incrémental)
+      description: |
+        Tri imposé : `(updatedAt ASC, id ASC)`. Le curseur est `"<updatedAt ISO>|<id>"` et désigne la dernière commande déjà lue :
+        la page suivante contient STRICTEMENT les commandes après ce couple. Une commande modifiée réapparaît (updatedAt plus grand) ; c'est voulu.
+        Sans `cursor` : tout l'historique exposé. Metrics rappelle toutes les 5 min avec le dernier `nextCursor`, limit=1000, jusqu'à 30 pages par passage.
+        Quand `data` est vide, `nextCursor` renvoie le curseur reçu (ou null) et `hasMore` vaut false.
+        Le curseur est opaque pour Metrics (il le rejoue tel quel) ; le test de contrat vérifie néanmoins le format `<updatedAt>|<id>`.
+      parameters:
+        - { name: cursor, in: query, schema: { type: string, examples: ["2026-10-10T09:30:00.000Z|ORD-1042"] } }
+        - { name: limit, in: query, description: "Défaut 1000, maximum 5000", schema: { type: integer, minimum: 1, maximum: 5000, default: 1000 } }
+        - { name: hub, in: query, description: Code de hub, schema: { type: string } }
+        - { name: city, in: query, description: "Insensible à la casse (ex. CASABLANCA)", schema: { type: string } }
+        - { name: status, in: query, schema: { $ref: "#/components/schemas/OrderStatus" } }
+        - { name: day, in: query, description: "Filtre sur le jour du créneau : today | tomorrow | yesterday | AAAA-MM-JJ (facultatif ; mock seulement)", schema: { type: string } }
+      responses:
+        "200":
+          description: Une page
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/OrdersPage" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "429": { $ref: "#/components/responses/TooMany" }
+  /api/v1/orders/{id}:
+    get:
+      tags: ["A. Back-office"]
+      summary: Une commande
+      parameters: [{ $ref: "#/components/parameters/OrderId" }]
+      responses:
+        "200":
+          description: La commande (objet BoOrder, sans enveloppe)
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/BoOrder" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "404": { $ref: "#/components/responses/NotFound" }
+  /api/v1/orders/{id}/assign:
+    post:
+      tags: ["A. Back-office"]
+      summary: Affecter (ou désaffecter) un livreur
+      description: |
+        Appelé par Metrics quand le dispatcher affecte un livreur (file d'attente "outbox" : 3 tentatives, délais 1/5/15 min, délai d'attente 4 s).
+        Idempotent : rejouer le même `courierRef` ne change rien. Si la commande est READY_PICKUP et courierRef non nul, elle passe ASSIGNED
+        (assignedAt posé, updatedAt augmenté). `courierRef: null` désaffecte.
+        Metrics ne considère qu'un code 2xx comme succès ; toute autre réponse relance puis abandonne.
+      parameters: [{ $ref: "#/components/parameters/OrderId" }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [courierRef]
+              properties:
+                courierRef: { type: [string, "null"], description: "Code livreur de /api/v1/couriers", examples: ["D07"] }
+      responses:
+        "200": { $ref: "#/components/responses/WriteOk" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "404": { $ref: "#/components/responses/NotFound" }
+        "409": { description: "Commande terminée ou annulée : affectation refusée", content: { application/json: { schema: { $ref: "#/components/schemas/Error" } } } }
+        "422": { description: courierRef inconnu, content: { application/json: { schema: { $ref: "#/components/schemas/Error" } } } }
+  /api/v1/orders/{id}/status:
+    post:
+      tags: ["A. Back-office"]
+      summary: Remonter un changement de statut fait par l'application livreur
+      description: |
+        Appelé par Metrics pour chaque transition faite sur le terrain (accepté, en livraison, livré, échec). Les statuts d'une même commande sont
+        poussés DANS L'ORDRE, un à la fois ; un échec bloque les suivants de cette commande jusqu'à la nouvelle tentative.
+        Idempotent : rejouer le même statut renvoie 2xx sans effet. Rétrogradation : 409. `updatedAt` augmente et l'horodatage d'étape correspondant est posé
+        (inTransportAt, startDeliveryAt, deliveredAt, noShowAt). Corps actuel émis par Metrics : `{ "status": "<statut>" }` uniquement.
+        L'extension `reasonCode`/`at` est une PROPOSITION (voir API_CONTRAT_BACKOFFICE.md, section 7).
+      parameters: [{ $ref: "#/components/parameters/OrderId" }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [status]
+              properties:
+                status: { $ref: "#/components/schemas/OrderStatus" }
+                reasonCode: { type: string, description: "PROPOSITION, non envoyé aujourd'hui : motif de NO_SHOW", x-niveau: proposition }
+                at: { $ref: "#/components/schemas/IsoUtc", description: "PROPOSITION, non envoyé aujourd'hui : heure réelle de l'action terrain" }
+      responses:
+        "200": { $ref: "#/components/responses/WriteOk" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "404": { $ref: "#/components/responses/NotFound" }
+        "409": { description: Rétrogradation ou commande déjà terminale, content: { application/json: { schema: { $ref: "#/components/schemas/Error" } } } }
+        "422": { description: Statut inconnu, content: { application/json: { schema: { $ref: "#/components/schemas/Error" } } } }
+
+  # ───────────────────────────── B. METRICS (entrant) ─────────────────────────────
+  /metrics/api/v1/orders:
+    servers: [{ url: "https://metrics.exemple.invalid", description: "Metrics (le préfixe /metrics est fictif : le chemin réel est /api/v1/orders sur l'hôte Metrics)" }]
+    post:
+      tags: ["B. Metrics (entrant)"]
+      summary: Le back-office POUSSE une commande dans Metrics (ingestion idempotente)
+      description: |
+        Clé : en-tête `x-api-key` ∈ variable `INGEST_API_KEYS` côté Metrics (clé >= 16 caractères, format « nom:clé » possible).
+        Chemin réel : `POST /api/v1/orders` sur l'hôte Metrics. Limites : 256 Ko, 200 lignes d'items, 300 requêtes/min/clé, 30 échecs d'auth / 10 min / IP.
+        Idempotent sur (source, externalId) : 201 créée ; 200 `created:false` déjà connue (aucun effet). Statut initial READY_PICKUP.
+        Source d'enregistrement : `INGEST_SOURCE`, à défaut `OPS_ACTIVE_SOURCE`.
+      security: [{ ApiKey: [] }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/IngestOrder" }
+            example:
+              externalId: CMD-20261012-001
+              reference: WEB-88412
+              slot: { label: "09-12", date: "2026-10-12" }
+              address: "12 rue des Lilas, Casablanca"
+              district: MAARIF
+              city: CASABLANCA
+              lat: 33.5731
+              lng: -7.6298
+              customerName: "Salma B."
+              customerPhone: "+212600000000"
+              amount: 349.5
+              hubCode: CAS-MM
+              shipper: Marjane
+              items:
+                - { sku: "YAO-125", label: "Yaourt nature x4", qty: 2, barcode: "6111000000011", coldChain: true }
+      responses:
+        "200": { description: "Déjà connue (idempotent)", content: { application/json: { schema: { $ref: "#/components/schemas/IngestResponse" } } } }
+        "201": { description: Créée, content: { application/json: { schema: { $ref: "#/components/schemas/IngestResponse" } } } }
+        "400": { description: JSON invalide, content: { application/json: { schema: { $ref: "#/components/schemas/Error" } } } }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "413": { description: "Corps > 256 Ko", content: { application/json: { schema: { $ref: "#/components/schemas/Error" } } } }
+        "422": { description: "Validation échouée (details[] : jusqu'à 20 messages) ou hubCode inconnu/inactif", content: { application/json: { schema: { $ref: "#/components/schemas/Error" } } } }
+        "429": { $ref: "#/components/responses/TooMany" }
+        "503": { description: INGEST_API_KEYS non configurée côté Metrics, content: { application/json: { schema: { $ref: "#/components/schemas/Error" } } } }
+  /metrics/api/v1/orders/{externalId}:
+    servers: [{ url: "https://metrics.exemple.invalid", description: "Chemin réel : /api/v1/orders/{externalId}" }]
+    parameters:
+      - { name: externalId, in: path, required: true, schema: { type: string, pattern: "^[A-Za-z0-9._:-]{1,100}$" } }
+    get:
+      tags: ["B. Metrics (entrant)"]
+      summary: Relire le statut d'une commande poussée (avec événements, preuve de livraison, COD)
+      security: [{ ApiKey: [] }]
+      responses:
+        "200": { description: La commande, content: { application/json: { schema: { type: object, properties: { order: { $ref: "#/components/schemas/IngestOrderView" } } } } } }
+        "400": { description: externalId invalide, content: { application/json: { schema: { $ref: "#/components/schemas/Error" } } } }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "404": { $ref: "#/components/responses/NotFound" }
+    put:
+      tags: ["B. Metrics (entrant)"]
+      summary: Créer ou mettre à jour (champs présents uniquement) ; `cancel:true` annule
+      description: |
+        Un champ absent n'est pas touché. Refus 409 si la commande est DELIVERED / NO_SHOW / CANCELLED, ou si des lignes `items` sont envoyées alors que le
+        chargement a commencé. Jamais de rétrogradation. Le `slot` est facultatif en mise à jour. `externalId` du corps, s'il est présent, doit égaler celui de l'URL.
+      security: [{ ApiKey: [] }]
+      requestBody:
+        required: true
+        content: { application/json: { schema: { $ref: "#/components/schemas/IngestOrder" } } }
+      responses:
+        "200": { description: Mise à jour ou annulation, content: { application/json: { schema: { $ref: "#/components/schemas/IngestResponse" } } } }
+        "201": { description: Créée (PUT sur identifiant inconnu), content: { application/json: { schema: { $ref: "#/components/schemas/IngestResponse" } } } }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "409": { description: Modification refusée (commande terminée ou chargement commencé), content: { application/json: { schema: { $ref: "#/components/schemas/Error" } } } }
+        "413": { description: Corps trop volumineux, content: { application/json: { schema: { $ref: "#/components/schemas/Error" } } } }
+        "422": { description: Validation échouée, content: { application/json: { schema: { $ref: "#/components/schemas/Error" } } } }
+        "429": { $ref: "#/components/responses/TooMany" }
+  /metrics/api/iot/temperature:
+    servers: [{ url: "https://metrics.exemple.invalid", description: "Chemin réel : /api/iot/temperature" }]
+    post:
+      tags: ["B. Metrics (entrant)"]
+      summary: Lectures de température des véhicules (chaîne du froid)
+      description: |
+        Deux authentifications au choix : `x-api-key` ∈ `IOT_API_KEYS`, ou HMAC par capteur (`x-sensor-id`, `x-timestamp` en s ou ms à ±5 min,
+        `x-signature` = HMAC-SHA256 hex de `timestamp.corps`, secret dérivé de `IOT_HMAC_SECRET`). Idempotent par (vehicleRef, sensor, at).
+        Maximum 500 lectures et 256 Ko par requête. `vehicleRef` = plaque du véhicule (mise en majuscules).
+      security: [{ ApiKey: [] }, { SensorHmac: [] }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [readings]
+              properties:
+                readings:
+                  type: array
+                  maxItems: 500
+                  items:
+                    type: object
+                    required: [vehicleRef, celsius, at]
+                    properties:
+                      vehicleRef: { type: string, maxLength: 32, examples: ["12345-A-6"] }
+                      sensor: { type: string, maxLength: 40, default: main, examples: [frigo] }
+                      celsius: { type: number, minimum: -60, maximum: 100, examples: [4.2] }
+                      at: { $ref: "#/components/schemas/IsoUtc", description: "Entre J-7 et maintenant (+5 min)" }
+                      lat: { type: number, minimum: -90, maximum: 90 }
+                      lng: { type: number, minimum: -180, maximum: 180 }
+      responses:
+        "202":
+          description: Acceptée
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  accepted: { type: integer }
+                  duplicates: { type: integer }
+                  rejected: { type: integer }
+                  details: { type: array, items: { type: string } }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "403": { description: "Une lecture porte un autre capteur que celui signé", content: { application/json: { schema: { $ref: "#/components/schemas/Error" } } } }
+        "413": { description: Corps trop volumineux, content: { application/json: { schema: { $ref: "#/components/schemas/Error" } } } }
+        "422": { description: Aucune lecture valide, content: { application/json: { schema: { $ref: "#/components/schemas/Error" } } } }
+        "429": { $ref: "#/components/responses/TooMany" }
+
+webhooks:
+  # ───────────────────────────── B. METRICS (webhooks sortants) ─────────────────────────────
+  shipinfyEvent:
+    post:
+      tags: ["B. Metrics (webhooks sortants)"]
+      summary: Metrics notifie le SI à chaque changement de statut (à implémenter côté récepteur)
+      description: |
+        Les endpoints se gèrent dans Metrics (Paramètres, Intégrations) ou via `/api/ops/webhooks` (session bureau). L'URL doit être en **https**, son hôte figurer
+        dans `OUTBOUND_ALLOWED_HOSTS`, résoudre vers une adresse publique, sans redirection. Secret `whsec_...` affiché UNE fois à la création ;
+        stocké chiffré (AES-256-GCM, clé `WEBHOOK_SECRET_KEY` >= 16 caractères).
+
+        **Vérification** : `signature = "sha256=" + HMAC_SHA256_hex(secret, timestamp + "." + corpsBrut)`. Comparer en temps constant, sur le corps BRUT (avant tout
+        re-parse JSON), rejeter si `|now - timestamp| > 300 s` (anti-rejeu), dédoublonner par `x-shipinfy-delivery`. Répondre 2xx vite (hors 2xx = relance).
+
+        **Relances** : 8 tentatives au total, délais 1 min, 5 min, 15 min, 1 h, 3 h, 12 h, 24 h, puis statut FAILED (rejeu manuel). Livraison au moins une fois :
+        un même événement peut arriver plusieurs fois (même `x-shipinfy-delivery`) et dans le désordre ; utiliser `at` pour trier. Un endpoint ne reçoit que les
+        événements postérieurs à sa création. Les événements issus du générateur de démo ne sont pas envoyés.
+
+        Correspondance statut -> événement : READY_PICKUP=order.created, ASSIGNED=order.assigned, IN_TRANSPORT=order.accepted, START_DELIVERY=order.out_for_delivery,
+        DELIVERED=order.delivered, NO_SHOW=order.failed, CANCELLED=order.cancelled ; plus `ping` (test). Filtres d'abonnement : `*`, `order.*` ou noms exacts.
+
+        Exemple de vérification Node :
+        ```js
+        import { createHmac, timingSafeEqual } from 'node:crypto'
+        export function verify(rawBody, headers, secret) {
+          const ts = headers['x-shipinfy-timestamp'], sig = headers['x-shipinfy-signature'] || ''
+          if (!ts || Math.abs(Date.now() / 1000 - Number(ts)) > 300) return false
+          const expected = 'sha256=' + createHmac('sha256', secret).update(`${ts}.${rawBody}`).digest('hex')
+          const a = Buffer.from(sig), b = Buffer.from(expected)
+          return a.length === b.length && timingSafeEqual(a, b)
+        }
+        ```
+        Python : `hmac.compare_digest(sig, "sha256=" + hmac.new(secret.encode(), f"{ts}.{raw}".encode(), hashlib.sha256).hexdigest())`.
+        PHP : `hash_equals("sha256=" . hash_hmac('sha256', $ts . '.' . $raw, $secret), $sig)` avec `$raw = file_get_contents('php://input')`.
+      security: []
+      parameters:
+        - { name: x-shipinfy-signature, in: header, required: true, schema: { type: string, examples: ["sha256=9f2c...e1"] } }
+        - { name: x-shipinfy-timestamp, in: header, required: true, description: "Secondes Unix", schema: { type: string, examples: ["1791796200"] } }
+        - { name: x-shipinfy-event, in: header, required: true, schema: { $ref: "#/components/schemas/WebhookEventName" } }
+        - { name: x-shipinfy-delivery, in: header, required: true, description: "Identifiant de la livraison (clé de dédoublonnage)", schema: { type: string } }
+        - { name: User-Agent, in: header, schema: { type: string, const: "Shipinfy-Webhooks/1" } }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              oneOf:
+                - { $ref: "#/components/schemas/WebhookOrderEvent" }
+                - { $ref: "#/components/schemas/WebhookPing" }
+            example:
+              event: order.delivered
+              orderId: "cm9x0000abc"
+              reference: "WEB-88412"
+              externalId: "CMD-20261012-001"
+              status: DELIVERED
+              at: "2026-10-12T10:42:11.000Z"
+              geo: { lat: 33.5731, lng: -7.6298, distanceM: 38, ok: true }
+              reasonCode: null
+              reasonLabel: null
+              cod: { amount: 349.5, method: cash, collectedAt: "2026-10-12T10:42:40.000Z" }
+              proofUrl: "https://metrics.exemple.invalid/api/ops/proofs/abc123"
+              tour: { id: "t1", day: "2026-10-12", rotation: 1 }
+              driver: { code: D07 }
+      responses:
+        "2XX": { description: Reçu (tout code 2xx vaut accusé de réception) }
+        "4XX": { description: "Refus : Metrics relance (sauf après 8 tentatives)" }
+
+components:
+  securitySchemes:
+    ApiKey: { type: apiKey, in: header, name: x-api-key, description: "Partie A : BACKOFFICE_API_KEY côté Metrics. Partie B : une clé de INGEST_API_KEYS / IOT_API_KEYS. Exemple de test : dev-key" }
+    SensorHmac: { type: apiKey, in: header, name: x-signature, description: "Avec x-sensor-id et x-timestamp (voir /api/iot/temperature)" }
+  parameters:
+    OrderId:
+      { name: id, in: path, required: true, description: "BoOrder.id (URL-encodé)", schema: { type: string } }
+  responses:
+    Unauthorized: { description: "Clé absente ou invalide : { error }", content: { application/json: { schema: { $ref: "#/components/schemas/Error" } } } }
+    NotFound: { description: Introuvable, content: { application/json: { schema: { $ref: "#/components/schemas/Error" } } } }
+    TooMany: { description: "Limite de débit (en-tête Retry-After conseillé)", content: { application/json: { schema: { $ref: "#/components/schemas/Error" } } } }
+    WriteOk:
+      description: "Appliqué ou déjà appliqué (rejeu). Metrics ne lit que le code 2xx ; le corps est libre ({ ok:true } minimum)."
+      content: { application/json: { schema: { type: object, properties: { ok: { type: boolean }, order: { $ref: "#/components/schemas/BoOrder" } } } } }
+  schemas:
+    Error:
+      type: object
+      properties:
+        error: { type: string }
+        details: { type: array, items: { type: string } }
+    IsoUtc:
+      type: string
+      format: date-time
+      pattern: "^\\d{4}-\\d\\d-\\d\\dT\\d\\d:\\d\\d:\\d\\d(\\.\\d+)?Z$"
+      examples: ["2026-10-10T09:30:00.000Z"]
+    OrderStatus:
+      type: string
+      enum: [READY_PICKUP, ASSIGNED, IN_TRANSPORT, START_DELIVERY, DELIVERED, NO_SHOW, CANCELLED]
+      description: "READY_PICKUP=prête, ASSIGNED=affectée, IN_TRANSPORT=acceptée/en route vers la livraison, START_DELIVERY=en livraison, DELIVERED=livrée, NO_SHOW=échec/client absent, CANCELLED=annulée. Terminaux : DELIVERED, NO_SHOW, CANCELLED."
+    Hub:
+      type: object
+      required: [code, name, city, lat, lng]
+      properties:
+        code: { type: string, examples: [CAS-MM] }
+        name: { type: string }
+        city: { type: string, description: "Majuscules recommandées (CASABLANCA)" }
+        lat: { type: number, minimum: -90, maximum: 90 }
+        lng: { type: number, minimum: -180, maximum: 180 }
+    Courier:
+      type: object
+      required: [code, firstName, lastName, hubCode]
+      properties:
+        code: { type: string, examples: [D07] }
+        firstName: { type: string }
+        lastName: { type: string }
+        phone: { type: string, description: "recommandé (WhatsApp, contact)" }
+        hubCode: { type: string }
+        city: { type: string }
+        vehicle:
+          type: object
+          description: "recommandé : coût (gasoil), capacité, chaîne du froid"
+          properties:
+            plate: { type: string }
+            type: { type: string, examples: [moto, utilitaire, van] }
+            fuelType: { type: string, examples: [essence, diesel] }
+            capacityKg: { type: number }
+            consumptionL100: { type: number }
+    OrdersPage:
+      type: object
+      required: [data, hasMore, nextCursor, serverTime]
+      properties:
+        data: { type: array, items: { $ref: "#/components/schemas/BoOrder" } }
+        count: { type: integer, description: "optionnel, ignoré par Metrics" }
+        hasMore: { type: boolean, description: "true si d'autres commandes suivent le curseur ; si true, nextCursor est non nul et la page est pleine (data.length == limit)" }
+        nextCursor: { type: [string, "null"], description: "\"<updatedAt>|<id>\" du DERNIER élément de data ; null seulement si aucune commande" }
+        serverTime: { $ref: "#/components/schemas/IsoUtc" }
+    BoOrder:
+      type: object
+      description: |
+        Commande vue par Metrics. Les champs inconnus sont ignorés (le mock ajoute externalReference, hubName, late, synthetic).
+        Une commande invalide (id vide, statut inconnu, créneau illisible ou inversé, updatedAt invalide, date d'étape invalide) est mise en quarantaine sans bloquer la page.
+      required: [id, status, slotStart, slotEnd, updatedAt]
+      properties:
+        id: { type: string, x-niveau: obligatoire, description: "Stable à vie, unique. Clé d'upsert (source, id)." }
+        status: { $ref: "#/components/schemas/OrderStatus", x-niveau: obligatoire }
+        slotStart: { $ref: "#/components/schemas/IsoUtc", x-niveau: obligatoire, description: "Début du créneau PROMIS (strictement avant slotEnd)" }
+        slotEnd: { $ref: "#/components/schemas/IsoUtc", x-niveau: obligatoire }
+        updatedAt: { $ref: "#/components/schemas/IsoUtc", x-niveau: obligatoire, description: "Monotone par commande ; clé de tri du flux" }
+        reference: { type: [string, "null"], x-niveau: optionnel, description: "Référence affichée au client (défaut : id)" }
+        shipper: { type: [string, "null"], x-niveau: optionnel, description: "Enseigne / expéditeur" }
+        hubCode: { type: [string, "null"], x-niveau: recommandé, description: "Code de /hubs : capacité, filtres, tournées par hub" }
+        city: { type: [string, "null"], x-niveau: recommandé, description: "Majuscules (CASABLANCA)" }
+        district: { type: [string, "null"], x-niveau: recommandé, description: "Quartier : secteur de repli quand le GPS manque" }
+        courierRef: { type: [string, "null"], x-niveau: recommandé, description: "Code livreur ; attendu dès ASSIGNED. Sans lui, la commande est vue non affectée." }
+        slotLabel: { type: [string, "null"], x-niveau: optionnel, description: "Ignoré : Metrics recalcule le créneau officiel depuis slotStart (canonicalSlot)" }
+        amount: { type: [number, "null"], minimum: 0, x-niveau: recommandé, description: "Montant COD à encaisser en MAD (0 ou null = prépayé). Base de l'encaissement et du rapprochement." }
+        customerName: { type: [string, "null"], x-niveau: recommandé }
+        customerPhone: { type: [string, "null"], x-niveau: recommandé, description: "E.164 conseillé, 32 caractères max. Requis pour lien de suivi, OTP, WhatsApp. Alias lu : customerPhoneNumber. Absent = valeur locale conservée (jamais effacée)." }
+        customerPhoneNumber: { type: [string, "null"], x-niveau: optionnel, description: "Alias de customerPhone" }
+        address: { type: [string, "null"], x-niveau: recommandé }
+        lat: { type: [number, "null"], minimum: -90, maximum: 90, x-niveau: recommandé, description: "Avec lng : secteurs, carte, géofence de preuve de livraison, ETA" }
+        lng: { type: [number, "null"], minimum: -180, maximum: 180, x-niveau: recommandé }
+        cluster: { type: [string, "null"], x-niveau: optionnel }
+        attemptCount: { type: [integer, "null"], minimum: 1, x-niveau: optionnel, description: "Défaut 1" }
+        createdAt: { oneOf: [{ $ref: "#/components/schemas/IsoUtc" }, { type: "null" }], x-niveau: recommandé, description: "Arrivée de la commande ; historique et délais" }
+        assignedAt: { oneOf: [{ $ref: "#/components/schemas/IsoUtc" }, { type: "null" }], x-niveau: recommandé, description: "Étapes absentes : reconstituées et marquées « estimées » par Metrics" }
+        inTransportAt: { oneOf: [{ $ref: "#/components/schemas/IsoUtc" }, { type: "null" }], x-niveau: recommandé }
+        startDeliveryAt: { oneOf: [{ $ref: "#/components/schemas/IsoUtc" }, { type: "null" }], x-niveau: recommandé }
+        deliveredAt: { oneOf: [{ $ref: "#/components/schemas/IsoUtc" }, { type: "null" }], x-niveau: recommandé, description: "Attendu si status=DELIVERED (le test de contrat l'exige)" }
+        noShowAt: { oneOf: [{ $ref: "#/components/schemas/IsoUtc" }, { type: "null" }], x-niveau: recommandé, description: "Attendu si status=NO_SHOW" }
+        cancelReason: { type: [string, "null"], x-niveau: recommandé, description: "Lu seulement si status=CANCELLED (texte libre)" }
+        reasonCode:
+          type: [string, "null"]
+          x-niveau: proposition
+          description: "NON LU par la synchro aujourd'hui (seul cancelReason l'est). Motif codé d'échec/retard ; Metrics a ses propres motifs (OpsReason). À câbler si le back-office a un référentiel de motifs."
+        items:
+          type: array
+          x-niveau: proposition
+          description: "NON LU par la synchro (BoOrder n'a pas d'items). Aujourd'hui les lignes/bacs/froid ne viennent que de l'API entrante (partie B). À câbler pour le chargement et la chaîne du froid en mode pull."
+          items: { $ref: "#/components/schemas/Item" }
+    Item:
+      type: object
+      properties:
+        sku: { type: [string, "null"], maxLength: 64 }
+        label: { type: [string, "null"], maxLength: 200 }
+        qty: { type: integer, minimum: 1, maximum: 10000, default: 1 }
+        barcode: { type: [string, "null"], maxLength: 64, description: "Scanné au chargement" }
+        coldChain: { type: boolean, default: false, description: "true = produit frais/surgelé : contrôle de température du véhicule" }
+    IngestOrder:
+      type: object
+      description: "Corps strict : tout champ inconnu est refusé (422). Valeurs vides = null."
+      required: [slot]
+      properties:
+        externalId: { type: string, pattern: "^[A-Za-z0-9._:-]{1,100}$", description: "Obligatoire en POST ; en PUT, pris dans l'URL" }
+        reference: { type: [string, "null"], maxLength: 80 }
+        slot:
+          description: "Obligatoire à la création. Soit {start,end} ISO 8601 (fenêtre <= 24 h, début à +-120 jours), soit {label:\"09-12\", date:\"AAAA-MM-JJ\"} (heures locales Africa/Casablanca)."
+          oneOf:
+            - { type: object, required: [start, end], properties: { start: { $ref: "#/components/schemas/IsoUtc" }, end: { $ref: "#/components/schemas/IsoUtc" } } }
+            - { type: object, required: [label, date], properties: { label: { type: string, examples: ["09-12"] }, date: { type: string, format: date } } }
+        address: { type: [string, "null"], maxLength: 300 }
+        district: { type: [string, "null"], maxLength: 80 }
+        city: { type: [string, "null"], maxLength: 40 }
+        lat: { type: [number, "null"], description: "lat et lng vont ensemble" }
+        lng: { type: [number, "null"] }
+        customerName: { type: [string, "null"], maxLength: 120 }
+        customerPhone: { type: [string, "null"], maxLength: 32, description: "Chiffres, +, espaces, ( ) . - ; 6 caractères minimum" }
+        amount: { type: [number, "null"], minimum: 0, maximum: 1000000, description: "Montant COD (MAD)" }
+        hubCode: { type: [string, "null"], maxLength: 40, description: "Doit exister et être actif dans Metrics, sinon 422" }
+        shipper: { type: [string, "null"], maxLength: 80, description: "Défaut : nom de la clé API" }
+        items: { type: [array, "null"], maxItems: 200, items: { $ref: "#/components/schemas/Item" }, description: "Remplace toutes les lignes (PUT) tant que le chargement n'a pas commencé" }
+        cancel: { type: boolean, description: "PUT : annule une commande non terminée" }
+        cancelReason: { type: [string, "null"], maxLength: 200 }
+    IngestResponse:
+      type: object
+      properties:
+        created: { type: boolean }
+        order: { $ref: "#/components/schemas/IngestOrderView" }
+    IngestOrderView:
+      type: object
+      properties:
+        externalId: { type: string }
+        reference: { type: [string, "null"] }
+        status: { $ref: "#/components/schemas/OrderStatus" }
+        slot: { type: object, properties: { start: { $ref: "#/components/schemas/IsoUtc" }, end: { $ref: "#/components/schemas/IsoUtc" }, label: { type: [string, "null"] } } }
+        hubCode: { type: [string, "null"] }
+        city: { type: [string, "null"] }
+        district: { type: [string, "null"] }
+        address: { type: [string, "null"] }
+        amount: { type: [number, "null"] }
+        driver: { type: [string, "null"], description: "Code livreur" }
+        timestamps:
+          type: object
+          properties:
+            assignedAt: { type: [string, "null"], format: date-time }
+            inTransportAt: { type: [string, "null"], format: date-time }
+            startDeliveryAt: { type: [string, "null"], format: date-time }
+            deliveredAt: { type: [string, "null"], format: date-time }
+            noShowAt: { type: [string, "null"], format: date-time }
+        reasonCode: { type: [string, "null"] }
+        cancelReason: { type: [string, "null"] }
+        delivery:
+          type: [object, "null"]
+          description: "Position de la livraison et contrôle de géofence"
+          properties: { lat: { type: [number, "null"] }, lng: { type: [number, "null"] }, distanceM: { type: [number, "null"] }, geoOk: { type: [boolean, "null"] } }
+        cod:
+          type: [object, "null"]
+          description: "Encaissement COD enregistré par le livreur"
+          properties: { amount: { type: [number, "null"] }, method: { type: [string, "null"] }, collectedAt: { type: [string, "null"], format: date-time } }
+        events: { type: array, items: { type: object, properties: { status: { $ref: "#/components/schemas/OrderStatus" }, at: { type: string, format: date-time } } } }
+        items:
+          type: array
+          items:
+            allOf:
+              - { $ref: "#/components/schemas/Item" }
+              - { type: object, properties: { loadedQty: { type: integer, description: "Quantité scannée au chargement" } } }
+    WebhookEventName:
+      type: string
+      enum: [order.created, order.assigned, order.accepted, order.out_for_delivery, order.delivered, order.failed, order.cancelled, ping]
+    WebhookOrderEvent:
+      type: object
+      required: [event, orderId, externalId, status, at]
+      properties:
+        event: { $ref: "#/components/schemas/WebhookEventName" }
+        orderId: { type: string, description: "Identifiant interne Metrics" }
+        reference: { type: [string, "null"] }
+        externalId: { type: string, description: "Identifiant du back-office (BoOrder.id / IngestOrder.externalId) : clé de rapprochement" }
+        status: { $ref: "#/components/schemas/OrderStatus" }
+        at: { $ref: "#/components/schemas/IsoUtc", description: "Heure de la transition" }
+        geo:
+          type: [object, "null"]
+          description: "Seulement pour order.delivered, si une position a été relevée"
+          properties: { lat: { type: number }, lng: { type: number }, distanceM: { type: [number, "null"] }, ok: { type: [boolean, "null"], description: "Livré dans le rayon de géofence" } }
+        reasonCode: { type: [string, "null"], description: "Motif (échec, retard) au moment de l'envoi" }
+        reasonLabel: { type: [string, "null"] }
+        cod:
+          type: [object, "null"]
+          description: "Présent dès qu'un encaissement est enregistré"
+          properties: { amount: { type: [number, "null"] }, method: { type: [string, "null"] }, collectedAt: { $ref: "#/components/schemas/IsoUtc" } }
+        proofUrl: { type: [string, "null"], description: "order.delivered seulement. Protégée par session Metrics : ce n'est PAS un lien public." }
+        tour: { type: [object, "null"], properties: { id: { type: string }, day: { type: string }, rotation: { type: [integer, "null"] } } }
+        driver: { type: [object, "null"], properties: { code: { type: string } } }
+    WebhookPing:
+      type: object
+      required: [event, at]
+      properties:
+        event: { type: string, const: ping }
+        at: { $ref: "#/components/schemas/IsoUtc" }
+        message: { type: string }

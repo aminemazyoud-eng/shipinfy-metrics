@@ -3,6 +3,7 @@
   "version": "0.1.0",
   "private": true,
   "scripts": {
+    "test:contract": "node scripts/test-backoffice-contract.mjs --self-test",
     "test:auth": "node scripts/test-auth-matrix.mjs",
     "test:s21": "node scripts/test-s21.mjs",
     "dev": "next dev --port 3001",

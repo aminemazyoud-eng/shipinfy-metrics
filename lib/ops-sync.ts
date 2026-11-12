@@ -84,7 +84,7 @@ let liveFullDone = false
 export const opsSyncConfig = () => ({
   url: (process.env.BACKOFFICE_API_URL || 'http://localhost:4010').replace(/\/$/, ''),
   key: process.env.BACKOFFICE_API_KEY || 'dev-key',
-  source: process.env.OPS_SOURCE || 'mock',
+  source: process.env.OPS_SOURCE || process.env.OPS_ACTIVE_SOURCE || 'mock',
 })
 
 /** Étapes franchies par une commande, avec l'horodatage source — sert à reconstruire l'historique. */

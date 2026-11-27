@@ -3,6 +3,7 @@ import type { ComponentType } from 'react'
 import type { LucideProps } from 'lucide-react'
 import { Activity, LayoutDashboard, Users, Truck, LifeBuoy, Settings, Shield } from 'lucide-react'
 import { canAccess } from '@/lib/permissions'
+import { BI_TABS } from '@/lib/bi-tabs'
 
 export interface ModuleTab {
   href: string
@@ -24,16 +25,13 @@ export interface NavModule {
 export const NAV_MODULES: NavModule[] = [
   {
     key: 'dashboard', label: 'Dashboard', icon: LayoutDashboard, href: '/',
+    // Sous-modules = les 8 vues du Control Tower + Rapports planifiés. Les anciennes pages (KPIs, Hubs, Retours, Prévisions,
+    // Metrics, ancienne vue) ne sont plus dans le menu mais restent accessibles par leur adresse (aliases du module).
     tabs: [
-      { href: '/', label: 'Control Tower' },
-      { href: '/kpis', label: 'KPIs' },
-      { href: '/hubs', label: 'Hubs' },
-      { href: '/retours', label: 'Retours' },
-      { href: '/previsions', label: 'Prévisions' },
-      { href: '/performance/analyse', label: 'Metrics' },
+      ...BI_TABS.map(t => ({ href: t.href, label: t.label })),
       { href: '/rapports', label: 'Rapports planifiés' },
-      { href: '/dashboard-legacy', label: 'Ancienne vue' },
     ],
+    aliases: ['/kpis', '/hubs', '/retours', '/previsions', '/performance/analyse', '/dashboard-legacy'],
   },
   {
     key: 'cockpit', label: 'Cockpit live', icon: Activity, href: '/operations',
@@ -105,6 +103,11 @@ export function getActiveNav(pathname: string): ActiveNav | null {
         const len = prefixMatch(pathname, p)
         if (len > bestLen) { best = { module, tab }; bestLen = len }
       }
+    }
+    // Page rattachée au module sans onglet (ancienne page masquée du menu) : module actif, aucun onglet en surbrillance
+    for (const p of module.aliases ?? []) {
+      const len = prefixMatch(pathname, p)
+      if (len > bestLen) { best = { module, tab: { href: '', label: 'Ancienne page' } }; bestLen = len }
     }
   }
   return best

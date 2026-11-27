@@ -25,13 +25,11 @@ export interface NavModule {
 export const NAV_MODULES: NavModule[] = [
   {
     key: 'dashboard', label: 'Dashboard', icon: LayoutDashboard, href: '/',
-    // Sous-modules = les 8 vues du Control Tower + Rapports planifiés. Les anciennes pages (KPIs, Hubs, Retours, Prévisions,
-    // Metrics, ancienne vue) ne sont plus dans le menu mais restent accessibles par leur adresse (aliases du module).
+    // Sous-modules = les 8 vues du Control Tower + Rapports planifiés.
     tabs: [
       ...BI_TABS.map(t => ({ href: t.href, label: t.label })),
       { href: '/rapports', label: 'Rapports planifiés' },
     ],
-    aliases: ['/kpis', '/hubs', '/retours', '/previsions', '/performance/analyse', '/dashboard-legacy'],
   },
   {
     key: 'cockpit', label: 'Cockpit live', icon: Activity, href: '/operations',

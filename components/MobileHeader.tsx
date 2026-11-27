@@ -20,8 +20,6 @@ const ROUTE_LABELS: Record<string, string> = {
   '/parametres/demo': 'Données de démo',
   '/livreurs':     'Livreurs',
   '/remuneration': 'Rémunération',
-  '/hubs':         'Hubs',
-  '/retours':      'Retours & NO_SHOW',
   '/alertes':      'Alertes & Tickets',
   '/rapports':     'Rapports',
   '/notifications':'Notifications',

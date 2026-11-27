@@ -22,16 +22,6 @@ const SHOTS = [
   { file: 'dash-perf-hub.jpg',        url: '/', delay: 3000, clip: { x: 780, y: 350, width: 720, height: 320 } },
 
   // ── KPIs — avec data réelle ────────────────────────────────────────────────
-  { file: 'kpis-upload-zone.jpg',     url: '/kpis', delay: 2000, clip: { x: 60, y: 80, width: 1400, height: 200 } },
-  { file: 'kpis-kpi-cards.jpg',       url: '/kpis', delay: 3000, scroll: 200, clip: { x: 60, y: 100, width: 1400, height: 260 } },
-  { file: 'kpis-pipeline.jpg',        url: '/kpis', delay: 3000, scroll: 400, clip: { x: 60, y: 100, width: 1400, height: 280 } },
-  { file: 'kpis-chart-day.jpg',       url: '/kpis', delay: 3000, scroll: 700, clip: { x: 60, y: 100, width: 700, height: 340 } },
-  { file: 'kpis-chart-creneau.jpg',   url: '/kpis', delay: 3000, scroll: 700, clip: { x: 760, y: 100, width: 700, height: 340 } },
-  { file: 'kpis-chart-status.jpg',    url: '/kpis', delay: 3000, scroll: 1100, clip: { x: 60, y: 100, width: 700, height: 340 } },
-  { file: 'kpis-chart-ontime.jpg',    url: '/kpis', delay: 3000, scroll: 1100, clip: { x: 760, y: 100, width: 700, height: 340 } },
-  { file: 'kpis-heatmap.jpg',         url: '/kpis', delay: 4000, scroll: 1500, clip: { x: 60, y: 100, width: 1400, height: 400 } },
-  { file: 'kpis-filterbar.jpg',       url: '/kpis', delay: 3000, clip: { x: 60, y: 200, width: 1400, height: 130 } },
-  { file: 'kpis-livreur-table.jpg',   url: '/kpis', delay: 3000, scroll: 2000, clip: { x: 60, y: 100, width: 1400, height: 380 } },
 
   // ── ALERTES ────────────────────────────────────────────────────────────────
   { file: 'alertes-tabs.jpg',         url: '/alertes', delay: 2000, clip: { x: 60, y: 60, width: 1400, height: 120 } },

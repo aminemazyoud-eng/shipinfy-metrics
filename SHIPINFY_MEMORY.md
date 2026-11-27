@@ -1202,3 +1202,18 @@ Réponse au cahier des charges (14 exigences) : 1 disponible, 10 partielles, 3 r
   `POST /api/dashboard/schedule-report` (accepte kind/sections/period/hub/name) · `POST /api/dashboard/schedule-report/send-now?id=` (envoi immédiat, MANAGER+, audité) · `app/rapports/page.tsx` (cases à cocher, période, magasin, « Envoyer maintenant »).
 - **Tests** : `npm run test:report` (périodes dont changement d'année, 8 sections, filtre magasin, période vide, validation 9 refus/2 acceptés, PDF 8 pages relu visuellement) ; `npm run test:bi` (parité dashboard) toujours 31/31.
 - **Limites** : PDF = cartes KPI + tableaux (pas de graphiques). Envoi réel (notify/SMTP), cron et ALTER TABLE **non testés contre la vraie base** : le DATABASE_URL de `.env.local` est INVALIDE (« credentials not valid », puis ECIRCUITBREAKER du pooler Supabase) → ne pas lancer de serveur local avec ce fichier tant qu'il n'est pas corrigé (le cron `loadAndScheduleAll` tape la base chaque minute).
+
+---
+
+## 32. SUPPRESSION DES ANCIENS SOUS-MODULES DU DASHBOARD (2026-11-27)
+
+> Décision explicite de l'utilisateur : plus rien de l'ancien déploiement ne doit rester dans le code source. Cette section REMPLACE les lignes `/kpis`, `/hubs`, `/retours`, `/previsions`, `/performance/analyse` des tableaux des sections 2 et 5 ci-dessus.
+
+- **Pages supprimées** : `/kpis` (KPIs & Métriques) et tous ses composants (`app/kpis/components/*`), `/hubs`, `/retours`, `/previsions`, `/performance/analyse` (Metrics), `/dashboard-legacy` (ancienne vue).
+  Ces adresses répondent désormais 404. Récupérables dans l'historique git (commit précédent cette section) si besoin.
+- **Dashboard actuel** = les 8 vues du Control Tower (`/`, `/dashboard/*`, section 30) + « Rapports planifiés » (`/rapports`, section 31).
+- **Navigation / droits nettoyés** : `lib/module-nav.ts` (plus d'alias d'anciennes pages), `lib/permissions.ts` (module `hubs` supprimé, `/kpis`, `/previsions`, `/performance/analyse`, `/dashboard-legacy` retirés),
+  `components/BottomNav.tsx` (menu mobile : Créneaux + 5 vues dans « Plus », filtre via `canAccess`), `components/MobileHeader.tsx`, guide Academy « KPIs & Métriques » + ses 10 captures `public/guides/kpis-*.jpg`, `scripts/take-screenshots.mjs`.
+- **Volontairement CONSERVÉ** (utilisé par d'autres modules) : routes `GET /api/dashboard/kpis` (page /livreurs), `GET /api/dashboard/reports` (page /admin), `POST /api/dashboard/send-report` (page /parametres), tables `DeliveryReport` / `DeliveryOrder`
+  et chemin « legacy » de `lib/cron.ts` (anciennes planifications Excel encore actives). Si ces consommateurs sont migrés vers `Ops*`, ces routes/tables pourront être supprimées à leur tour.
+- **Contenu restant à réécrire** : les guides Academy « Dashboard Temps Réel » et « Rapports » décrivent encore les anciens écrans (texte uniquement).

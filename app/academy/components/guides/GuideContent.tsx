@@ -51,33 +51,6 @@ const GUIDES: GuideData[] = [
     ],
   },
   {
-    key: 'kpis',
-    title: 'KPIs & Métriques',
-    description: 'Importer des fichiers Excel et analyser les performances détaillées',
-    readTime: '6 min',
-    link: '/kpis',
-    steps: [
-      { title: 'Télécharger le template CSV', screenshot: 'Zone d\'upload avec bouton Télécharger le template', imageUrl: '/guides/kpis-upload-zone.jpg', description: 'Cliquez "Télécharger le template" pour obtenir un fichier CSV vide avec les 30 colonnes attendues. Remplissez-le et réimportez.' },
-      { title: 'Importer un fichier Excel', screenshot: 'Zone d\'upload avec glisser-déposer', imageUrl: '/guides/kpis-upload-zone.jpg', description: 'Glissez votre fichier .xlsx sur la zone d\'upload ou cliquez "Sélectionner un fichier". Le transfert et l\'import se font en 2 étapes avec barre de progression.' },
-      { title: 'Comprendre les KPIs globaux', screenshot: 'KPIs affichés après import', imageUrl: '/guides/kpis-kpi-cards.jpg', description: 'Une fois importé, les KPIs s\'affichent automatiquement : taux de livraison, no-show, COD total, et temps moyen par étape.' },
-      { title: 'Utiliser les filtres date/hub/livreur', screenshot: 'FilterBar avec sélecteurs', imageUrl: '/guides/kpis-filterbar.jpg', description: 'Affinez l\'analyse avec les filtres : période personnalisée, hub spécifique, ou livreur individuel. Les graphiques se mettent à jour instantanément.' },
-      { title: 'Lire le classement livreurs', screenshot: 'Tableau classement livreurs', imageUrl: '/guides/kpis-livreur-table.jpg', description: 'Le tableau "Classement Livreurs" trie par taux de livraison. Identifiez les meilleurs et les livreurs à accompagner.' },
-      { title: 'Générer et envoyer le rapport PDF', screenshot: 'Bouton Envoyer le rapport', imageUrl: '/guides/rapports-overview.jpg', description: 'Cliquez "Envoyer le rapport" en haut à droite. Entrez l\'email destinataire et envoyez un PDF complet avec tous les KPIs.' },
-    ],
-    tips: [
-      'Format accepté : .xlsx et .xls uniquement',
-      'Taille maximale : 100 Mo — les fichiers plus grands doivent être découpés',
-      'Les fichiers Shopify avec des millions de lignes vides sont supportés automatiquement',
-      'Filtrez par hub pour comparer les performances entre zones',
-      'Le rapport PDF ne s\'envoie pas si aucune commande n\'est importée',
-    ],
-    faq: [
-      { q: 'Mon fichier ne s\'importe pas, pourquoi ?', a: 'Vérifiez que le format est .xlsx ou .xls, et que le fichier contient les colonnes attendues (téléchargez le template pour référence).' },
-      { q: 'Comment comparer deux périodes ?', a: 'Importez d\'abord la période A, notez les KPIs, puis supprimez et importez la période B. La comparaison manuelle reste la solution actuelle.' },
-      { q: 'Le PDF peut-il être personnalisé ?', a: 'Le PDF inclut automatiquement tous les KPIs du rapport actif. La personnalisation avancée est prévue dans un sprint futur.' },
-    ],
-  },
-  {
     key: 'alertes',
     title: 'Alertes & Tickets',
     description: 'Gérer les alertes opérationnelles et le suivi des incidents',

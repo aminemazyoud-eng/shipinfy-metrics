@@ -3,31 +3,34 @@ import { useState } from 'react'
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 import { useCurrentUser } from '@/hooks/useCurrentUser'
-import { getAllowedRoutes } from '@/lib/permissions'
+import { canAccess } from '@/lib/permissions'
 import {
   Activity, BarChart3, Bell, Users, MoreHorizontal,
-  MapPin, XCircle, GraduationCap, Brain,
-  FileText, UserCheck, Settings, TrendingUp, X, DollarSign,
+  MapPin, GraduationCap, Brain,
+  FileText, UserCheck, Settings, X, DollarSign,
   Truck, Clock, HeadphonesIcon, Shield, Calendar, Package, Send,
 } from 'lucide-react'
 
 const MAIN_ITEMS = [
   { href: '/',        label: 'Dashboard', icon: Activity  },
-  { href: '/kpis',    label: 'KPIs',      icon: BarChart3 },
+  { href: '/dashboard/creneaux', label: 'Créneaux', icon: BarChart3 },
   { href: '/alertes', label: 'Alertes',   icon: Bell      },
   { href: '/livreurs',label: 'Livreurs',  icon: Users     },
 ]
 
 const MORE_ITEMS = [
-  { href: '/previsions',   label: 'Prévisions',       icon: TrendingUp    },
+  { href: '/dashboard/lead-times', label: 'Lead Times',          icon: Clock      },
+  { href: '/dashboard/livreurs',   label: 'Livreurs (analyse)',  icon: Users      },
+  { href: '/dashboard/geographie', label: 'Géographie',          icon: MapPin     },
+  { href: '/dashboard/clients',    label: 'Clients & récurrence',icon: UserCheck  },
+  { href: '/dashboard/valeur',     label: 'Valeur déclarée',     icon: DollarSign },
+  { href: '/dashboard/qualite',    label: 'Qualité des données', icon: Shield     },
   { href: '/dispatch',     label: 'Dispatch',          icon: Truck         },
   { href: '/picking',      label: 'Picking Express',   icon: Package       },
   { href: '/shifts',       label: 'Shifts & Planning', icon: Calendar      },
   { href: '/pointage',     label: 'Pointage',          icon: Clock         },
   { href: '/support',      label: 'Support',           icon: HeadphonesIcon},
   { href: '/remuneration', label: 'Rémunération',     icon: DollarSign    },
-  { href: '/hubs',         label: 'Hubs',              icon: MapPin        },
-  { href: '/retours',      label: 'Retours & NO_SHOW', icon: XCircle       },
   { href: '/score-ia',     label: 'Score IA',          icon: Brain         },
   { href: '/rapports',     label: 'Rapports',           icon: FileText      },
   { href: '/notifications',label: 'Notifications',      icon: Send          },
@@ -41,9 +44,9 @@ export default function BottomNav() {
   const pathname  = usePathname()
   const [open, setOpen] = useState(false)
   const { user } = useCurrentUser()
-  const allowedRoutes = getAllowedRoutes(user?.role ?? 'VIEWER')
-  const visibleMain = MAIN_ITEMS.filter(i => allowedRoutes.includes(i.href))
-  const visibleMore = MORE_ITEMS.filter(i => allowedRoutes.includes(i.href))
+  const role = user?.role ?? 'VIEWER'
+  const visibleMain = MAIN_ITEMS.filter(i => canAccess(role, i.href))
+  const visibleMore = MORE_ITEMS.filter(i => canAccess(role, i.href))
 
   return (
     <>

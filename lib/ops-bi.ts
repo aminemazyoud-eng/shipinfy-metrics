@@ -428,3 +428,27 @@ export function qualityData(a: BiRow[], source: { name: string; lastSync: string
   const table: Tbl = { head: ['Contrôle', 'Occurrences', '% des commandes'], rows: data.map(([k, v]) => [k, n(v), pct(v, a.length)]) }
   return { metrics, table }
 }
+
+// ─────────────────────────── Classement des livreurs (page Livreurs) ───────────────────────────
+export interface DriverRank {
+  name: string; rank: number; total: number; delivered: number; noShow: number
+  deliveryRate: number; onTimeRate: number; avgDuration: number; totalCOD: number
+}
+/** Classement par taux de livraison. À l'heure = livrée au plus tard à la fin du créneau promis ; durée = création → livraison (minutes) ;
+ *  COD = montant des commandes livrées. Les commandes sans livreur sont exclues du classement et comptées à part. */
+export function driverRanking(rows: BiRow[]): { byLivreur: DriverRank[]; unassigned: { count: number; totalCOD: number } } {
+  const has = (r: BiRow) => !!r.driverId || r.driver !== 'Non renseigné'
+  const named = rows.filter(has), loose = rows.filter(r => !has(r))
+  const list = [...group(named, r => r.driverId || 'name:' + r.driver)].map(([, z]) => {
+    const del = z.filter(r => r.status === 'DELIVERED')
+    const onTime = del.filter(r => r.punctual && r.punctual !== 'late').length
+    const durs = del.map(r => (parseDate(r.raw.deliveredAt) - r.time) / 60000).filter(d => Number.isFinite(d) && d >= 0)
+    return {
+      name: z[0].driver, rank: 0, total: z.length, delivered: del.length, noShow: z.filter(r => r.status === 'NO_SHOW').length,
+      deliveryRate: z.length ? (del.length / z.length) * 100 : 0, onTimeRate: del.length ? (onTime / del.length) * 100 : 0,
+      avgDuration: Math.round(avg(durs) ?? 0), totalCOD: del.reduce((q, r) => q + r.amount, 0),
+    }
+  }).sort((a, b) => b.deliveryRate - a.deliveryRate || b.total - a.total)
+  list.forEach((d, i) => { d.rank = i + 1 })
+  return { byLivreur: list, unassigned: { count: loose.length, totalCOD: loose.reduce((q, r) => q + r.amount, 0) } }
+}

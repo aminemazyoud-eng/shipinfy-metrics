@@ -77,3 +77,21 @@ assert.ok(!rep.validateSchedulePayload({ kind: 'legacy', emails: ['a@b.co'], fre
 const leg = rep.validateSchedulePayload({ kind: 'legacy', reportId: 'r1', emails: ['a@b.co'], frequency: 'daily', time: '01:40' })
 assert.ok(leg.ok && leg.value.kind === 'legacy' && leg.value.sections === null)
 console.log('OK — validation des planifications (9 cas refusés, 2 acceptés)')
+
+// ── Classement des livreurs (page Livreurs, ex-/api/dashboard/kpis) ──
+const bi = await lib('ops-bi.ts')
+const lpx = bi.makeLocal('1')
+const withLoose = [...rows, { ...rows[0], id: 'LOOSE1', driverId: '', driver: null, amount: 200 }, { ...rows[1], id: 'LOOSE2', driverId: '', driver: null, amount: 50 }]
+const rk = bi.driverRanking(withLoose.map(r => bi.prepBi(r, lpx)))
+assert.equal(rk.byLivreur.length, 4)
+assert.equal(rk.byLivreur.reduce((q, d) => q + d.total, 0) + rk.unassigned.count, withLoose.length)
+assert.deepEqual(rk.unassigned, { count: 2, totalCOD: 250 })
+assert.deepEqual(rk.byLivreur.map(d => d.rank), [1, 2, 3, 4])
+assert.ok(rk.byLivreur.every((d, i, a) => i === 0 || a[i - 1].deliveryRate >= d.deliveryRate), 'trié par taux de livraison décroissant')
+const d0 = rk.byLivreur[0], mine = rows.filter(r => r.driver === d0.name)
+assert.equal(d0.total, mine.length)
+assert.equal(d0.delivered, mine.filter(r => r.status === 'DELIVERED').length)
+assert.equal(d0.noShow, mine.filter(r => r.status === 'NO_SHOW').length)
+assert.equal(d0.totalCOD, mine.filter(r => r.status === 'DELIVERED').reduce((q, r) => q + r.amount, 0))
+assert.ok(d0.onTimeRate >= 0 && d0.onTimeRate <= 100 && d0.avgDuration > 0)
+console.log('OK — classement des livreurs (4 livreurs, 2 commandes sans livreur exclues)')

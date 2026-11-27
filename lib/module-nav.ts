@@ -25,13 +25,14 @@ export const NAV_MODULES: NavModule[] = [
   {
     key: 'dashboard', label: 'Dashboard', icon: LayoutDashboard, href: '/',
     tabs: [
-      { href: '/', label: 'Vue d’ensemble' },
+      { href: '/', label: 'Control Tower' },
       { href: '/kpis', label: 'KPIs' },
       { href: '/hubs', label: 'Hubs' },
       { href: '/retours', label: 'Retours' },
       { href: '/previsions', label: 'Prévisions' },
       { href: '/performance/analyse', label: 'Metrics' },
       { href: '/rapports', label: 'Rapports planifiés' },
+      { href: '/dashboard-legacy', label: 'Ancienne vue' },
     ],
   },
   {

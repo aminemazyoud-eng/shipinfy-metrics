@@ -1167,3 +1167,25 @@ Réponse au cahier des charges (14 exigences) : 1 disponible, 10 partielles, 3 r
 - Secret requis en prod : `PLANNING_LINK_SECRET` (sinon login/liens → 503). Non testé sur téléphone réel ; testé en local avec API simulée (base locale inaccessible).
 - **Refonte UI v2 (2026-11-03)** : onglet « Aujourd'hui » = carte des stops (Leaflet, `StopMap.tsx`) + tiroir (`TodayView` dans page.tsx) avec UN stop à la fois et bouton à glisser (`SwipeButton.tsx`, Entrée/Espace = confirmation clavier) ; tirer le tiroir vers le haut = liste de toutes les livraisons. Livrer ouvre toujours la feuille de preuve (photo/OTP). Sans réseau les tuiles manquent mais marqueurs et actions restent. Testé en local (API simulée) : glisser → action `accept` envoyée, tiroir/liste OK ; pas testé sur téléphone réel.
 - **App livreur v3 (2026-11-03)** : 5 onglets — Aujourd'hui (carte+tiroir), Chargement (scan des bacs par commande « n/m bacs », bouton **Prise en charge** = accepte toutes les commandes assignées → statut IN_TRANSPORT, ouverture de la commande depuis le scan), Terminées, **À envoyer** (ex « File d'attente » = actions faites hors réseau pas encore reçues par le bureau, PAS une liste de commandes), **Moi** (pointage, véhicule km/gasoil, langue, installer, déconnexion). Prise en charge → WhatsApp client « en route » (`notifyCustomerOnTheWay`, kind `on_the_way`, une fois par commande) : actif seulement si `CUSTOMER_NOTIFY_ENABLED=true` + fournisseur WhatsApp configuré. Service worker v2 : réseau d'abord (avant, l'ancienne UI en cache s'affichait après un déploiement).
+
+---
+
+## 30. DASHBOARD « CONTROL TOWER » SUR / — alimenté par l'API back-office, plus de CSV (2026-11-27)
+
+- **Demande** : la page `/` (Dashboard) reprend à l'identique le HTML de référence « AS OPERATIONS · Last Mile Control Tower » (8 onglets :
+  Vue générale, Créneaux & ponctualité, Lead Times, Livreurs, Géographie, Clients & récurrence, Valeur déclarée, Qualité des données),
+  mêmes cas d'usage / cartes KPI / règles de calcul, **mais données par API** au lieu de l'import CSV. Le sous-module **Rapports planifiés** (`/rapports`) est conservé.
+- **Référence** : `docs/dashboard-reference/control-tower-reference.html` (copie du HTML Netlify). Ne pas modifier : sert de vérité pour la parité.
+- **Calcul** : `lib/ops-bi.ts` (pur, port fidèle du JS du HTML : créneaux 09-12/12-15/15-18/18-21 tolérance 15 min + durée 2h30-3h30, ponctualité sur DELIVERED,
+  4 lead times, haversine, récurrence par n° de mobile). Les calculs tournent côté navigateur sur des lignes `BiRaw` (équivalent des 22 colonnes du CSV).
+- **Données** : `GET /api/ops/bi/orders?from&to[&cancelled=1]` → `lib/ops-bi-data.ts` (tables `OpsOrder` source `ACTIVE_SOURCE`, hub = `OpsHub`, livreur = `OpsDriver`;
+  mode dev `OPS_DIRECT=1` = lecture directe de l'API back-office). Période = jour LOCAL de création de la commande ; max 366 jours / 60 000 lignes ; CANCELLED exclues par défaut.
+- **UI** : `app/page.tsx` (filtres, onglets, impression) + `components/bi/` (`BiUi.tsx` cartes/tableaux/barres recharts, `BiTabs.tsx` 8 onglets, `GeoMap.tsx` Leaflet, fond OSM **uniquement sur demande**).
+- **Ancienne page** conservée sur `/dashboard-legacy` (onglet « Ancienne vue », module dashboard) ; `/kpis` (import Excel) et tous les autres onglets du module sont INCHANGÉS.
+- **Fuseau** : UTC+1 par défaut (comme le HTML). L'option « Casablanca (automatique) » dépend de la base IANA du NAVIGATEUR, qui peut différer de celle de Node
+  (constaté : 15/11/2026 08:00Z → 08:00 dans Chrome, 09:00 dans Node 24) — ne pas en faire le défaut sans l'avoir vérifié.
+- **Test de parité** : `npm run test:bi` (`scripts/test-ops-bi-parity.mjs`) exécute le JS du HTML dans un faux DOM sur 3 000 commandes synthétiques et compare cartes KPI + 22 tableaux
+  + 3 000 lignes préparées avec `lib/ops-bi.ts` → **31/31 OK**. Seuls écarts voulus : « Source de données = API » remplace « Imports CSV », noms de colonnes API dans « Date invalide ».
+- **Vérifié** (dev, faux back-office synthétique sur :4010, cookies factices) : 8 onglets rendus, filtres, carte, validation des dates de l'API, routes /rapports /kpis /dashboard-legacy 200.
+  **Non vérifié** : base de prod / vrai back-office (la synchro n'y tourne pas depuis des jours → le dashboard y sera VIDE tant que `BACKOFFICE_API_URL`/clé/`OPS_SYNC_ENABLED` ne sont pas posés),
+  `customerPhone` jamais renvoyé par le mock → onglet Clients vide avec lui, build `next build` complet, impression PDF, mobile.

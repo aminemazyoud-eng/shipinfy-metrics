@@ -3,6 +3,8 @@ import React, { useState, useEffect, useCallback } from 'react'
 import ScoreIAPage from '../score-ia/page'
 import Link from 'next/link'
 import { Users, Trophy, TrendingDown, TrendingUp, Search, Filter, BarChart3, AlertTriangle } from 'lucide-react'
+import { addDays, localToday } from '@/lib/tz'
+import { driverRanking, makeLocal, prepBi, type BiRaw } from '@/lib/ops-bi'
 
 interface Livreur {
   name: string; rank: number; total: number; delivered: number
@@ -61,9 +63,14 @@ function LivreursPerformance() {
   const load = useCallback(async () => {
     setLoading(true)
     try {
-      const url = `/api/dashboard/kpis?preset=${preset}`
-      const res = await fetch(url)
-      if (res.ok) setData(await res.json())
+      // Données de l'API back-office (/api/ops/bi/orders), mêmes calculs que le Dashboard
+      const today = localToday()
+      const from = preset === 'today' ? today : preset === 'week' ? addDays(today, -6) : preset === 'month' ? today.slice(0, 8) + '01' : addDays(today, -365)
+      const res = await fetch(`/api/ops/bi/orders?from=${from}&to=${today}`, { cache: 'no-store' })
+      if (res.ok) {
+        const lp = makeLocal('1')
+        setData(driverRanking(((await res.json()).rows as BiRaw[]).map(r => prepBi(r, lp))))
+      }
     } finally {
       setLoading(false)
     }

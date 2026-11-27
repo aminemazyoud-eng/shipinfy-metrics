@@ -450,7 +450,7 @@ function StatsTab() {
     Promise.all([
       fetch('/api/admin/tenants').then(r => r.json()),
       fetch('/api/admin/users').then(r => r.json()),
-      fetch('/api/dashboard/reports').then(r => r.json()),
+      fetch('/api/dashboard/schedule-report').then(r => r.json()),
     ]).then(([tenants, users, reports]) => {
       if (!Array.isArray(tenants)) return
       const planBreakdown: Record<string, number> = {}
@@ -472,7 +472,7 @@ function StatsTab() {
     { label: 'Tenants total',    value: stats.tenants,       color: 'text-gray-800',   bg: 'bg-gray-50',   icon: <Globe size={16} className="text-gray-400" /> },
     { label: 'Tenants actifs',   value: stats.activeTenants, color: 'text-green-700',  bg: 'bg-green-50',  icon: <Check size={16} className="text-green-500" /> },
     { label: 'Utilisateurs',     value: stats.users,         color: 'text-blue-700',   bg: 'bg-blue-50',   icon: <Users size={16} className="text-blue-500" /> },
-    { label: 'Rapports importés',value: stats.reports,       color: 'text-purple-700', bg: 'bg-purple-50', icon: <BarChart3 size={16} className="text-purple-500" /> },
+    { label: 'Rapports planifiés',value: stats.reports,       color: 'text-purple-700', bg: 'bg-purple-50', icon: <BarChart3 size={16} className="text-purple-500" /> },
   ]
 
   return (

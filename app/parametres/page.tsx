@@ -325,20 +325,10 @@ export default function ParametresPage() {
     if (!notifEmail) return
     setTestStatus('loading')
     try {
-      const res = await fetch('/api/dashboard/send-report', {
+      const res = await fetch('/api/settings/test-email', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          reportId: 'test',
-          emails: [notifEmail],
-          mode: 'test',
-          filters: {},
-          kpisData: {
-            totalOrders: 0, delivered: 0, noShow: 0,
-            deliveryRate: 0, onTimeRate: 0, totalCOD: 0, avgOrdersPerDay: 0,
-            byLivreur: [], byHub: [], byDay: [],
-          },
-        }),
+        body: JSON.stringify({ email: notifEmail }),
       })
       setTestStatus(res.ok ? 'ok' : 'error')
     } catch {

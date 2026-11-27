@@ -1217,3 +1217,15 @@ Réponse au cahier des charges (14 exigences) : 1 disponible, 10 partielles, 3 r
 - **Volontairement CONSERVÉ** (utilisé par d'autres modules) : routes `GET /api/dashboard/kpis` (page /livreurs), `GET /api/dashboard/reports` (page /admin), `POST /api/dashboard/send-report` (page /parametres), tables `DeliveryReport` / `DeliveryOrder`
   et chemin « legacy » de `lib/cron.ts` (anciennes planifications Excel encore actives). Si ces consommateurs sont migrés vers `Ops*`, ces routes/tables pourront être supprimées à leur tour.
 - **Contenu restant à réécrire** : les guides Academy « Dashboard Temps Réel » et « Rapports » décrivent encore les anciens écrans (texte uniquement).
+
+---
+
+## 33. ANCIENNES ROUTES /api/dashboard/* SUPPRIMÉES — pages migrées vers la nouvelle API (2026-11-27)
+
+- **Supprimées** : `GET /api/dashboard/kpis`, `GET /api/dashboard/reports`, `POST /api/dashboard/send-report`. Il ne reste que `/api/dashboard/schedule-report` (+ `send-now`) : rapports planifiés.
+- **Pages migrées** : `/livreurs` (classement) lit `/api/ops/bi/orders` et calcule avec `driverRanking()` (lib/ops-bi.ts : même règles que le Dashboard ; à l'heure = livrée avant la fin du créneau ; durée = création → livraison ; COD = commandes livrées ;
+  commandes sans livreur comptées à part) · `/admin` (stats) : « Rapports planifiés » remplace « Rapports importés » (`/api/dashboard/schedule-report`) · `/parametres` (test d'envoi email) utilise la nouvelle route `POST /api/settings/test-email`
+  (l'ancien test envoyait un rapport à 0 commande et était TOUJOURS refusé en 422 par le garde-fou : il ne fonctionnait pas).
+- **Reste de l'ancien système (étape 2, NON fait)** : tables `DeliveryReport`/`DeliveryOrder` encore lues par `lib/score-ia-engine.ts`, `lib/alert-check.ts`, `lib/alert-engine.ts`, `lib/driver-utils.ts`, `app/api/drivers/[id]/history`, `lib/ops-live-report.ts` et le chemin « legacy » de `lib/cron.ts`
+  (+ `lib/email-template.ts`, `lib/pdf-report.ts`). À rebrancher sur `Ops*` AVANT toute suppression de table (étape 3, irréversible : sauvegarde d'abord).
+- **Tests** : `npm run test:report` couvre `driverRanking`.

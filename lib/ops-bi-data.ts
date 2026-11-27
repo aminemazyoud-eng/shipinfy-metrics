@@ -90,3 +90,25 @@ export async function loadBiOrders(from: string, to: string, includeCancelled = 
   })
   return { rows, truncated, source: ACTIVE_SOURCE, lastSync: iso(sync?.finishedAt ?? sync?.startedAt ?? null), from, to }
 }
+
+/**
+ * Empreinte légère des données d'une période (nombre de commandes + dernière modification de chaque horodatage de statut).
+ * Sert au rafraîchissement automatique de l'écran : le navigateur l'interroge toutes les ~10 s et ne recharge les commandes que si elle change
+ * (donc dès qu'une commande arrive par push, est synchronisée par pull, ou change de statut côté terrain).
+ */
+export async function biVersion(from: string, to: string): Promise<string> {
+  const t0 = dayStartUtc(from), t1 = dayStartUtc(addDays(to, 1))
+  if (directMode()) {
+    const p = await loadBiOrders(from, to, true)
+    let h = 0
+    for (const r of p.rows) for (const c of `${r.id}|${r.status}|${r.driverId}|${r.deliveredAt}|${r.updatedAt}`) h = (h * 31 + c.charCodeAt(0)) | 0
+    return `d:${p.rows.length}:${h}`
+  }
+  const a = await prisma.opsOrder.aggregate({
+    where: { source: ACTIVE_SOURCE, OR: [{ createdAtSrc: { gte: new Date(t0), lt: new Date(t1) } }, { createdAtSrc: null, slotStart: { gte: new Date(t0), lt: new Date(t1) } }] },
+    _count: { _all: true },
+    _max: { sourceUpdatedAt: true, syncedAt: true, assignedAt: true, inTransportAt: true, startDeliveryAt: true, deliveredAt: true, noShowAt: true },
+  })
+  const m = a._max
+  return [a._count._all, m.sourceUpdatedAt, m.syncedAt, m.assignedAt, m.inTransportAt, m.startDeliveryAt, m.deliveredAt, m.noShowAt].map(v => (v instanceof Date ? v.getTime() : v ?? 0)).join(':')
+}

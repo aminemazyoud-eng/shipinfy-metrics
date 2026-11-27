@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { opsAuth, fail } from '@/lib/ops-auth'
-import { loadBiOrders, BI_MAX_DAYS } from '@/lib/ops-bi-data'
+import { loadBiOrders, biVersion, BI_MAX_DAYS } from '@/lib/ops-bi-data'
 import { addDays, localToday } from '@/lib/tz'
 
 // GET /api/ops/bi/orders?from=YYYY-MM-DD&to=YYYY-MM-DD[&cancelled=1]
@@ -19,8 +19,9 @@ export async function GET(req: NextRequest) {
     if (from > to) [from, to] = [to, from]
     const span = Math.round((Date.parse(to) - Date.parse(from)) / 86_400_000) + 1
     if (span > BI_MAX_DAYS) return NextResponse.json({ error: `Période trop longue (max ${BI_MAX_DAYS} jours)` }, { status: 400 })
+    const version = await biVersion(from, to) // avant le chargement : un changement survenu pendant la lecture sera détecté au prochain contrôle
     const payload = await loadBiOrders(from, to, sp.get('cancelled') === '1')
-    return NextResponse.json(payload, { headers: { 'Cache-Control': 'no-store' } })
+    return NextResponse.json({ ...payload, version }, { headers: { 'Cache-Control': 'no-store' } })
   } catch (e) {
     return fail(e)
   }

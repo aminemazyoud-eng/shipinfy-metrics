@@ -1229,3 +1229,16 @@ Réponse au cahier des charges (14 exigences) : 1 disponible, 10 partielles, 3 r
 - **Reste de l'ancien système (étape 2, NON fait)** : tables `DeliveryReport`/`DeliveryOrder` encore lues par `lib/score-ia-engine.ts`, `lib/alert-check.ts`, `lib/alert-engine.ts`, `lib/driver-utils.ts`, `app/api/drivers/[id]/history`, `lib/ops-live-report.ts` et le chemin « legacy » de `lib/cron.ts`
   (+ `lib/email-template.ts`, `lib/pdf-report.ts`). À rebrancher sur `Ops*` AVANT toute suppression de table (étape 3, irréversible : sauvegarde d'abord).
 - **Tests** : `npm run test:report` couvre `driverRanking`.
+
+---
+
+## 34. DASHBOARD EN TEMPS RÉEL (rafraîchissement automatique) (2026-11-27)
+
+- **Principe** : le Dashboard n'a plus besoin du bouton « Actualiser ». Toutes les **10 s** (et dès que l'onglet redevient visible) le navigateur appelle `GET /api/ops/bi/version?from&to`
+  (UNE requête agrégée : nombre de commandes + dernières modifications des horodatages de statut) ; si l'empreinte a changé, il recharge les commandes **sans clignoter**. Filet de sécurité : rechargement complet toutes les 5 min.
+  Pastille « En direct » (vert) / « Reconnexion… » (orange) + heure de mise à jour à la seconde.
+- **Code** : `biVersion()` dans lib/ops-bi-data.ts ; `app/api/ops/bi/version/route.ts` ; `GET /api/ops/bi/orders` renvoie aussi `version` (calculée AVANT le chargement : un changement survenu pendant la lecture est détecté au contrôle suivant) ; `components/bi/BiDashboard.tsx`.
+- **Test** : back-office factice, ajout d'une commande → l'écran passe de 2 238 à 2 239 en 13 s sans aucun clic.
+- **Limite** : la fraîcheur réelle = latence d'arrivée des données dans Metrics + ≤ 10 s. En PULL (toutes les 5 min, `lib/cron.ts`) l'écran ne peut pas être plus frais que la synchro ; pour du vrai temps réel, le back-office doit PUSHER
+  (`POST/PUT /api/v1/orders`, voir API_CONTRAT_BACKOFFICE.md) — en attente de la documentation d'Imad. Seul le Dashboard (8 vues) est concerné ; la page Livreurs et le Cockpit ont leur propre rafraîchissement.
+- **Poste local** : le `DATABASE_URL` de `.env.local` est invalide ; pour tester sans toucher à Supabase, précharger un `DATABASE_URL` factice (`node --require <fichier> next dev`).

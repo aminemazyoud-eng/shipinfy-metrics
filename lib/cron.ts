@@ -71,15 +71,30 @@ async function getKpisForReport(reportId: string) {
 }
 
 // ─── Send one scheduled report ───────────────────────────────────────────────
-async function sendScheduledReport(scheduleId: string) {
+export async function sendScheduledReport(scheduleId: string): Promise<{ success: boolean; error?: string }> {
   const schedule = await db.scheduledReport.findUnique({ where: { id: scheduleId } })
-  if (!schedule || !schedule.isActive) return
+  if (!schedule || !schedule.isActive) return { success: false, error: 'Planification introuvable ou désactivée' }
 
   const emails: string[] = JSON.parse(schedule.emails)
-  if (emails.length === 0) return
+  if (emails.length === 0) return { success: false, error: 'Aucun destinataire' }
 
   let success = false
   let errorMsg: string | undefined
+
+  // Rapports Control Tower (sections / période / magasin) : chemin dédié, alimenté par l'API back-office
+  if (schedule.kind === 'bi') {
+    try {
+      const { sendBiScheduledReport } = await import('./bi-report-send')
+      const r = await sendBiScheduledReport({ id: scheduleId, emails, frequency: schedule.frequency, name: schedule.name, sections: schedule.sections, period: schedule.period, hub: schedule.hub })
+      success = r.success; errorMsg = r.error
+      console.log(`[cron] Rapport Control Tower ${success ? 'envoyé' : 'NON envoyé'} → ${emails.join(', ')} (schedule: ${scheduleId})${errorMsg ? ` : ${errorMsg}` : ''}`)
+    } catch (e) {
+      errorMsg = String(e)
+      console.error(`[cron] Erreur envoi rapport Control Tower ${scheduleId}:`, e)
+    }
+    await db.emailSendLog.create({ data: { scheduleId, success, recipients: emails.join(', '), error: errorMsg ?? null } })
+    return { success, error: errorMsg }
+  }
 
   try {
     const kpisData = await getKpisForReport(schedule.reportId)
@@ -139,6 +154,7 @@ async function sendScheduledReport(scheduleId: string) {
       error: errorMsg ?? null,
     },
   })
+  return { success, error: errorMsg }
 }
 
 // ─── Cron expression builder ─────────────────────────────────────────────────

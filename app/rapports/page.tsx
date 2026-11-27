@@ -3,7 +3,8 @@
 //  • Rapport Control Tower (API back-office) : on COCHE les sous-modules à inclure (Lead Times, Créneaux, Livreurs…), une période relative
 //    (hier / 7 jours / mois précédent) et un magasin optionnel → UN email avec UN PDF (une section par sous-module coché).
 //    Pour des publics différents, on crée plusieurs planifications.
-//  • Rapport importé (Excel) : ancien mode, conservé.
+//  • Les anciennes planifications « rapport importé (Excel) » déjà créées restent listées et continuent de s'envoyer, mais on n'en crée plus :
+//    le dashboard est alimenté par l'API du back-office.
 import { useState, useEffect, useCallback } from 'react'
 import {
   Mail, Clock, CalendarCheck, CheckCircle2, XCircle,
@@ -30,13 +31,6 @@ interface Schedule {
   sendLogs: { id: string; sentAt: string; success: boolean; recipients: string; error: string | null }[]
 }
 
-interface Report {
-  id: string
-  filename: string
-  uploadedAt: string
-  _count: { orders: number }
-}
-
 const FREQ_LABELS: Record<string, string> = {
   daily: 'Quotidien', weekly: 'Hebdomadaire', monthly: 'Mensuel',
 }
@@ -46,7 +40,6 @@ const field = 'w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:
 
 export default function RapportsPage() {
   const [schedules, setSchedules]   = useState<Schedule[]>([])
-  const [reports, setReports]       = useState<Report[]>([])
   const [hubs, setHubs]             = useState<string[]>([])
   const [loading, setLoading]       = useState(true)
   const [showForm, setShowForm]     = useState(false)
@@ -57,22 +50,19 @@ export default function RapportsPage() {
   const [formError, setFormError]   = useState<string | null>(null)
 
   const [form, setForm] = useState({
-    kind: 'bi' as 'bi' | 'legacy',
     name: '', sections: ['overview'] as string[], period: 'yesterday', hub: '',
-    reportId: '', emails: '', frequency: 'daily', time: '07:30',
+    emails: '', frequency: 'daily', time: '07:30',
     dayOfWeek: 1, dayOfMonth: 1,
   })
 
   const load = useCallback(async () => {
     setLoading(true)
     try {
-      const [sRes, rRes, hRes] = await Promise.all([
+      const [sRes, hRes] = await Promise.all([
         fetch('/api/dashboard/schedule-report'),
-        fetch('/api/dashboard/reports'),
         fetch('/api/ops/hubs'),
       ])
       if (sRes.ok) setSchedules(await sRes.json())
-      if (rRes.ok) setReports(await rRes.json())
       if (hRes.ok) setHubs(((await hRes.json()).hubs as { name: string }[]).map(h => h.name).sort())
     } finally {
       setLoading(false)
@@ -88,19 +78,17 @@ export default function RapportsPage() {
     setFormError(null)
     const emails = form.emails.split(/[,;\s]+/).map(s => s.trim()).filter(Boolean)
     if (emails.length === 0) return setFormError('Indiquez au moins un destinataire.')
-    if (form.kind === 'bi' && form.sections.length === 0) return setFormError('Cochez au moins un sous-module.')
-    if (form.kind === 'legacy' && !form.reportId) return setFormError('Sélectionnez un rapport.')
+    if (form.sections.length === 0) return setFormError('Cochez au moins un sous-module.')
 
     const res = await fetch('/api/dashboard/schedule-report', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
-        kind: form.kind,
-        reportId: form.kind === 'legacy' ? form.reportId : undefined,
-        name: form.kind === 'bi' ? form.name : undefined,
-        sections: form.kind === 'bi' ? BI_TABS.map(t => t.key).filter(k => form.sections.includes(k)) : undefined,
-        period: form.kind === 'bi' ? form.period : undefined,
-        hub: form.kind === 'bi' ? form.hub || null : undefined,
+        kind: 'bi',
+        name: form.name,
+        sections: BI_TABS.map(t => t.key).filter(k => form.sections.includes(k)),
+        period: form.period,
+        hub: form.hub || null,
         emails, frequency: form.frequency, time: form.time,
         dayOfWeek:  form.frequency === 'weekly'  ? form.dayOfWeek  : null,
         dayOfMonth: form.frequency === 'monthly' ? form.dayOfMonth : null,
@@ -195,15 +183,8 @@ export default function RapportsPage() {
             <Clock size={16} className="text-blue-600" /> Nouvelle planification d&apos;envoi
           </h2>
 
-          <div className="flex rounded-lg border border-gray-200 overflow-hidden mb-4 w-fit">
-            {([['bi', 'Rapport Control Tower (données API)'], ['legacy', 'Rapport importé (Excel)']] as const).map(([k, l]) => (
-              <button key={k} type="button" onClick={() => setForm(f => ({ ...f, kind: k }))}
-                className={`px-3 py-2 text-xs font-medium transition ${form.kind === k ? 'bg-blue-600 text-white' : 'text-gray-600 hover:bg-gray-50'}`}>{l}</button>
-            ))}
-          </div>
-
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-            {form.kind === 'bi' ? (
+            {(
               <>
                 <div className="sm:col-span-2">
                   <div className="flex items-center justify-between mb-1">
@@ -242,14 +223,6 @@ export default function RapportsPage() {
                     value={form.name} onChange={e => setForm(f => ({ ...f, name: e.target.value }))} />
                 </div>
               </>
-            ) : (
-              <div className="sm:col-span-2">
-                <label className="block text-xs font-medium text-gray-500 mb-1">Rapport importé</label>
-                <select className={field} value={form.reportId} onChange={e => setForm(f => ({ ...f, reportId: e.target.value }))}>
-                  <option value="">Sélectionner un rapport…</option>
-                  {reports.map(r => <option key={r.id} value={r.id}>{r.filename} ({r._count.orders} cmds)</option>)}
-                </select>
-              </div>
             )}
             <div className="sm:col-span-2">
               <label className="block text-xs font-medium text-gray-500 mb-1">Destinataires (séparés par virgule)</label>

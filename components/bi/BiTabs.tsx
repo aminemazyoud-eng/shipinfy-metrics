@@ -8,7 +8,7 @@ import {
 } from '@/lib/ops-bi'
 import { BarsChart, DataTable, HubSelect, MetricCards, Panel, Select } from './BiUi'
 
-const GeoMap = dynamic(() => import('./GeoMap'), { ssr: false, loading: () => <div className="h-[460px] animate-pulse rounded-lg bg-slate-100" /> })
+const GeoMap = dynamic(() => import('./GeoMap'), { ssr: false, loading: () => <div className="h-[460px] animate-pulse rounded-lg bg-gray-100" /> })
 
 interface TabProps { rows: BiRow[]; base: BiRow[]; sel: Sel; set: (p: Partial<Sel>) => void; lp: LocalFn }
 const GRAINS: [Grain, string][] = [['day', 'Jour'], ['week', 'Semaine'], ['month', 'Mois']]
@@ -47,7 +47,7 @@ export function OverviewTab({ rows, sel, set, lp }: TabProps) {
           <div className="mt-3"><DataTable t={d.prepHour.table} maxH="max-h-72" /></div>
         </Panel>
       </div>
-      <Panel title="Tableau croisé · Magasin × Période" controls={<><Select value={sel.grain} onChange={v => set({ grain: v })} options={GRAINS} /><button onClick={() => download('ops_tcd_commandes.csv', d.pivotCsv)} className="rounded-lg border border-slate-200 px-2.5 py-1.5 text-xs font-medium text-slate-600 hover:bg-slate-50">Exporter ce tableau</button></>} wide>
+      <Panel title="Tableau croisé · Magasin × Période" controls={<><Select value={sel.grain} onChange={v => set({ grain: v })} options={GRAINS} /><button onClick={() => download('ops_tcd_commandes.csv', d.pivotCsv)} className="rounded-lg border border-gray-200 px-2.5 py-1.5 text-xs font-medium text-gray-600 hover:bg-gray-50">Exporter ce tableau</button></>} wide>
         <DataTable t={d.pivot} />
       </Panel>
     </div>
@@ -90,10 +90,10 @@ export function LeadTab({ rows, sel, set }: TabProps) {
         <Panel title="Distribution des délais" controls={pick('leadHub')}>
           <DataTable t={d.leadDist} maxH="max-h-80" />
           <div className="mt-2 flex flex-wrap gap-2">
-            {d.maxDetail.map((m, i) => m && <button key={i} onClick={() => setOpen(open === i ? null : i)} className="rounded border border-slate-200 px-2 py-1 text-[11px] text-slate-600 hover:bg-slate-50">Max {i + 1} : {dur(m.max)} ▸ commande</button>)}
+            {d.maxDetail.map((m, i) => m && <button key={i} onClick={() => setOpen(open === i ? null : i)} className="rounded border border-gray-200 px-2 py-1 text-[11px] text-gray-600 hover:bg-gray-50">Max {i + 1} : {dur(m.max)} ▸ commande</button>)}
           </div>
           {md && (
-            <div className="mt-2 rounded-lg border border-blue-100 bg-blue-50 p-3 text-xs text-slate-700">
+            <div className="mt-2 rounded-lg border border-blue-100 bg-blue-50 p-3 text-xs text-gray-700">
               <b>{md.step} — commande {md.id}</b>
               <p>Magasin : {md.hub} · Délai : {dur(md.max)}</p>
               <p>{md.a} : {stamp(md.aTs)} · {md.b} : {stamp(md.bTs)}</p>
@@ -117,20 +117,20 @@ export function DriversTab({ base, sel, set }: TabProps) {
     <div className="space-y-4">
       <MetricCards cards={d.metrics} />
       <Panel title="Productivité des livreurs" controls={<Select value={sel.driverView} onChange={v => set({ driverView: v })} options={[['driver', 'Livreur › Magasin'], ['hub', 'Magasin › Livreur']]} />} wide>
-        <div className="max-h-[560px] overflow-auto rounded-lg border border-slate-100">
+        <div className="max-h-[560px] overflow-auto rounded-lg border border-gray-100">
           <table className="w-full min-w-max text-[12px]">
-            <thead className="sticky top-0 z-10 bg-slate-50"><tr>{d.head.map((h, i) => <th key={i} className={`whitespace-nowrap border-b border-slate-200 px-2.5 py-2 text-[11px] font-semibold text-slate-600 ${i === 0 ? 'text-left' : 'text-right'}`}>{h}</th>)}</tr></thead>
+            <thead className="sticky top-0 z-10 bg-gray-50"><tr>{d.head.map((h, i) => <th key={i} className={`whitespace-nowrap border-b border-gray-200 px-2.5 py-2 text-[11px] font-semibold text-gray-600 ${i === 0 ? 'text-left' : 'text-right'}`}>{h}</th>)}</tr></thead>
             <tbody>
               {d.groups.map(g => (
                 <Fragment key={g.key}>
                   <tr className="hover:bg-blue-50/40">
-                    <td className="whitespace-nowrap border-b border-slate-100 px-2.5 py-1.5 text-left font-medium"><button onClick={() => toggle(g.key)} className="text-blue-700">{openKeys.has(g.key) ? '▾' : '▸'} {g.label}</button></td>
-                    {g.cells.map((c, i) => <td key={i} className="whitespace-nowrap border-b border-slate-100 px-2.5 py-1.5 text-right tabular-nums">{c}</td>)}
+                    <td className="whitespace-nowrap border-b border-gray-100 px-2.5 py-1.5 text-left font-medium"><button onClick={() => toggle(g.key)} className="text-blue-700">{openKeys.has(g.key) ? '▾' : '▸'} {g.label}</button></td>
+                    {g.cells.map((c, i) => <td key={i} className="whitespace-nowrap border-b border-gray-100 px-2.5 py-1.5 text-right tabular-nums">{c}</td>)}
                   </tr>
                   {openKeys.has(g.key) && g.children.map((ch, ci) => (
-                    <tr key={g.key + ci} className="bg-slate-50/70">
-                      <td className="whitespace-nowrap border-b border-slate-100 py-1.5 pl-7 pr-2.5 text-left text-slate-600">↳ {ch.label}</td>
-                      {ch.cells.map((c, i) => <td key={i} className="whitespace-nowrap border-b border-slate-100 px-2.5 py-1.5 text-right tabular-nums text-slate-600">{c}</td>)}
+                    <tr key={g.key + ci} className="bg-gray-50/70">
+                      <td className="whitespace-nowrap border-b border-gray-100 py-1.5 pl-7 pr-2.5 text-left text-gray-600">↳ {ch.label}</td>
+                      {ch.cells.map((c, i) => <td key={i} className="whitespace-nowrap border-b border-gray-100 px-2.5 py-1.5 text-right tabular-nums text-gray-600">{c}</td>)}
                     </tr>
                   ))}
                 </Fragment>
@@ -140,7 +140,7 @@ export function DriversTab({ base, sel, set }: TabProps) {
         </div>
       </Panel>
       <Panel title="Performance détaillée par livreur" wide controls={<>
-        <select value={sel.driverSelect} onChange={e => set({ driverSelect: e.target.value })} className="max-w-[240px] rounded-lg border border-slate-200 bg-white px-2 py-1.5 text-xs">
+        <select value={sel.driverSelect} onChange={e => set({ driverSelect: e.target.value })} className="max-w-[240px] rounded-lg border border-gray-200 bg-white px-2 py-1.5 text-xs">
           <option value="">Tous les livreurs</option>{d.options.map(([id, name]) => <option key={id} value={id}>{name}</option>)}
         </select>
         <Select value={sel.driverDetailMode} onChange={v => set({ driverDetailMode: v })} options={[['hub', 'Par magasin'], ['day', 'Par jour'], ['slot', 'Par créneau']]} />
@@ -159,7 +159,7 @@ export function GeoTab({ rows, sel, set }: TabProps) {
       <MetricCards cards={d.metrics} />
       <Panel title="Carte des livraisons et retards" controls={<>
         <Select value={mode} onChange={setMode} options={[['dots', 'Livraisons (points)'], ['density', 'Densité'], ['late', 'Taux de retard']]} />
-        <button onClick={() => setTiles(t => !t)} className={`rounded-lg border px-2.5 py-1.5 text-xs font-medium ${tiles ? 'border-blue-200 bg-blue-50 text-blue-700' : 'border-slate-200 text-slate-600 hover:bg-slate-50'}`}>{tiles ? 'Fond cartographique activé' : 'Activer le fond cartographique'}</button>
+        <button onClick={() => setTiles(t => !t)} className={`rounded-lg border px-2.5 py-1.5 text-xs font-medium ${tiles ? 'border-blue-200 bg-blue-50 text-blue-700' : 'border-gray-200 text-gray-600 hover:bg-gray-50'}`}>{tiles ? 'Fond cartographique activé' : 'Activer le fond cartographique'}</button>
       </>} hint="Le fond cartographique (OpenStreetMap) n'est chargé que sur demande ; sans lui, seuls les points et les magasins s'affichent.">
         <GeoMap points={d.points} stores={d.stores} mode={mode} tiles={tiles} />
       </Panel>
@@ -218,7 +218,7 @@ export function QualityTab({ rows, source }: TabProps & { source: { name: string
       <MetricCards cards={d.metrics} />
       <Panel title="Contrôles de cohérence" wide><DataTable t={d.table} /></Panel>
       <Panel title="Règles de calcul" wide>
-        <ul className="list-disc space-y-1 pl-5 text-xs text-slate-600">
+        <ul className="list-disc space-y-1 pl-5 text-xs text-gray-600">
           <li>Créneaux standard : 09h–12h, 12h–15h, 15h–18h, 18h–21h (tolérance 15 min sur le début, durée 2 h 30 à 3 h 30) ; tout le reste est « atypique ».</li>
           <li>Ponctualité : calculée sur les commandes DELIVERED, livraison comparée au début et à la fin réels du créneau promis (avance / à l’heure / retard).</li>
           <li>Lead times : LT1 création → assignation, LT2 assignation → transport, LT3 transport → début de livraison, LT4 début → livraison (LT4 uniquement si livrée).</li>

@@ -2,28 +2,41 @@ import { requireSession } from '@/lib/api-guard'
 import { NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { audit } from '@/lib/ops-auth'
+import { validateSchedulePayload } from '@/lib/bi-report'
 
 export async function POST(request: Request) {
   const _guard = await requireSession(request, 'MANAGER'); if ('error' in _guard) return _guard.error
   try {
     const body = await request.json() as {
-      reportId: string
+      kind?: 'legacy' | 'bi'
+      reportId?: string
       emails: string[]
       frequency: string
       time: string
       dayOfWeek?: number | null
       dayOfMonth?: number | null
+      // Rapports Control Tower
+      name?: string
+      sections?: string[]
+      period?: string
+      hub?: string | null
     }
+
+    const check = validateSchedulePayload(body)
+    if (!check.ok) return NextResponse.json({ error: check.error }, { status: 400 })
+    const { kind, reportId, emails, name, sections, period, hub } = check.value
+    const extra = { kind, name, sections, period, hub }
 
     const schedule = await prisma.scheduledReport.create({
       data: {
-        reportId:   body.reportId,
-        emails:     JSON.stringify(body.emails),
+        reportId,
+        emails:     JSON.stringify(emails),
         frequency:  body.frequency,
         time:       body.time,
         dayOfWeek:  body.dayOfWeek  ?? null,
         dayOfMonth: body.dayOfMonth ?? null,
         isActive:   true,
+        ...extra,
       },
     })
 
@@ -35,7 +48,7 @@ export async function POST(request: Request) {
       // Cron not available in Edge — will be picked up on next minute tick
     }
 
-    await audit(_guard.session, 'report.schedule_create', 'scheduledReport', schedule.id, { reportId: body.reportId, frequency: body.frequency, time: body.time, recipients: body.emails?.length ?? 0 })
+    await audit(_guard.session, 'report.schedule_create', 'scheduledReport', schedule.id, { kind: extra.kind, reportId: schedule.reportId, sections: extra.sections, period: extra.period, hub: extra.hub, frequency: body.frequency, time: body.time, recipients: emails.length })
     return NextResponse.json({ success: true, scheduleId: schedule.id })
   } catch (e) {
     console.error(e)
@@ -54,6 +67,7 @@ export async function GET(req: Request) {
     return NextResponse.json(schedules.map(s => ({
       ...s,
       emails: JSON.parse(s.emails) as string[],
+      sections: s.sections ? (JSON.parse(s.sections) as string[]) : null,
     })))
   } catch {
     return NextResponse.json({ error: 'Server error' }, { status: 500 })

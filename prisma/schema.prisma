@@ -29,6 +29,12 @@ model ScheduledReport {
   isActive     Boolean       @default(true)
   createdAt    DateTime      @default(now())
   updatedAt    DateTime      @updatedAt
+  // Rapports Control Tower (API) : sections (JSON de clés), période relative, magasin. kind = 'legacy' (rapport Excel importé) | 'bi'
+  kind         String        @default("legacy")
+  name         String?
+  sections     String?
+  period       String?
+  hub          String?
   sendLogs     EmailSendLog[]
 }
 

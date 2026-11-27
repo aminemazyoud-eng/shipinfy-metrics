@@ -1189,3 +1189,16 @@ Réponse au cahier des charges (14 exigences) : 1 disponible, 10 partielles, 3 r
 - **Vérifié** (dev, faux back-office synthétique sur :4010, cookies factices) : 8 onglets rendus, filtres, carte, validation des dates de l'API, routes /rapports /kpis /dashboard-legacy 200.
   **Non vérifié** : base de prod / vrai back-office (la synchro n'y tourne pas depuis des jours → le dashboard y sera VIDE tant que `BACKOFFICE_API_URL`/clé/`OPS_SYNC_ENABLED` ne sont pas posés),
   `customerPhone` jamais renvoyé par le mock → onglet Clients vide avec lui, build `next build` complet, impression PDF, mobile.
+
+---
+
+## 31. RAPPORTS PLANIFIÉS PAR SOUS-MODULE (Control Tower) (2026-11-27)
+
+- **Principe** : une planification = **sections cochées** (les 8 sous-modules du Dashboard : lib/bi-tabs.ts) + **période relative** (hier / 7 derniers jours jusqu'à hier / mois précédent) + **magasin optionnel**
+  + destinataires + fréquence/heure → **UN email, UN PDF** (une section par sous-module coché). Autres publics = autres planifications. Ancien mode « rapport importé (Excel) » CONSERVÉ (`kind='legacy'`).
+- **Données** : `ScheduledReport` + colonnes `kind` (legacy|bi), `name`, `sections` (JSON), `period`, `hub` (prisma/schema.prisma + `ALTER TABLE … ADD COLUMN IF NOT EXISTS` en fin de prisma/init-tables.sql, appliqué au démarrage par run-init-sql.js — additif, sans effet sur l'existant). `reportId='BI'` pour les rapports Control Tower.
+- **Code** : `lib/bi-report.ts` (périodes, `buildBiReport`, validation `validateSchedulePayload`, texte d'email — pur, mêmes calculs que le dashboard) · `lib/pdf-bi-report.ts` (PDF A4 paysage pdfkit, `clean()` retire ≥ → ↳ espaces fines…) ·
+  `lib/bi-report-send.ts` (charge les commandes via `loadBiOrders`, **refuse d'envoyer si 0 commande**, envoie via `notify()`) · `lib/cron.ts` (`sendScheduledReport` exporté, renvoie `{success,error}`, branche `kind==='bi'`) ·
+  `POST /api/dashboard/schedule-report` (accepte kind/sections/period/hub/name) · `POST /api/dashboard/schedule-report/send-now?id=` (envoi immédiat, MANAGER+, audité) · `app/rapports/page.tsx` (cases à cocher, période, magasin, « Envoyer maintenant »).
+- **Tests** : `npm run test:report` (périodes dont changement d'année, 8 sections, filtre magasin, période vide, validation 9 refus/2 acceptés, PDF 8 pages relu visuellement) ; `npm run test:bi` (parité dashboard) toujours 31/31.
+- **Limites** : PDF = cartes KPI + tableaux (pas de graphiques). Envoi réel (notify/SMTP), cron et ALTER TABLE **non testés contre la vraie base** : le DATABASE_URL de `.env.local` est INVALIDE (« credentials not valid », puis ECIRCUITBREAKER du pooler Supabase) → ne pas lancer de serveur local avec ce fichier tant qu'il n'est pas corrigé (le cron `loadAndScheduleAll` tape la base chaque minute).

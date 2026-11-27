@@ -1270,3 +1270,10 @@ ALTER TABLE "OpsCostParam" ENABLE ROW LEVEL SECURITY;
 -- Compte application livreur (identifiant = code livreur ou téléphone ; mot de passe haché, jamais en clair)
 ALTER TABLE "OpsDriver" ADD COLUMN IF NOT EXISTS "appPasswordHash" TEXT;
 ALTER TABLE "OpsDriver" ADD COLUMN IF NOT EXISTS "appLoginAt" TIMESTAMP(3);
+
+-- ─── Rapports planifiés Control Tower (sections / période / magasin) — colonnes additives, sans effet sur les anciens rapports ───
+ALTER TABLE "ScheduledReport" ADD COLUMN IF NOT EXISTS "kind" TEXT NOT NULL DEFAULT 'legacy';
+ALTER TABLE "ScheduledReport" ADD COLUMN IF NOT EXISTS "name" TEXT;
+ALTER TABLE "ScheduledReport" ADD COLUMN IF NOT EXISTS "sections" TEXT;
+ALTER TABLE "ScheduledReport" ADD COLUMN IF NOT EXISTS "period" TEXT;
+ALTER TABLE "ScheduledReport" ADD COLUMN IF NOT EXISTS "hub" TEXT;

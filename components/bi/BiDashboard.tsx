@@ -3,17 +3,18 @@
 // Clients & récurrence, Valeur déclarée, Qualité des données). Mêmes cas d'usage, mêmes cartes KPI et mêmes règles de calcul que
 // le HTML de référence (docs/dashboard-reference), alimenté par l'API du back-office (GET /api/ops/bi/orders) au lieu d'un CSV.
 // La navigation entre vues est assurée par la barre de sous-modules (lib/module-nav.ts) ; les filtres sont conservés d'une vue à l'autre.
-import { useCallback, useEffect, useMemo, useState } from 'react'
-import { BarChart3, FileDown, RefreshCw, Wifi, WifiOff } from 'lucide-react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { BarChart3, FileDown, RefreshCw, WifiOff } from 'lucide-react'
 import { addDays, localToday } from '@/lib/tz'
 import { biTab, type BiTabKey } from '@/lib/bi-tabs'
 import { DEFAULT_SEL, hubsOf, makeLocal, n, prepBi, type BiRaw, type Sel, type TzMode } from '@/lib/ops-bi'
 import { ClientsTab, DriversTab, GeoTab, LeadTab, OverviewTab, QualityTab, SlotsTab, ValueTab } from './BiTabs'
 
-interface Payload { rows: BiRaw[]; truncated: boolean; source: string; lastSync: string | null; from: string; to: string }
+interface Payload { rows: BiRaw[]; truncated: boolean; source: string; lastSync: string | null; from: string; to: string; version?: string }
 interface Saved { from: string; to: string; tz: TzMode; grain: Sel['grain']; hub: string; slot: string; status: string }
 
-const REFRESH_MS = 5 * 60_000 // la synchro back-office tourne toutes les 5 minutes
+const CHECK_MS = 10_000 // contrôle léger toutes les 10 s : on ne recharge les commandes que si les données ont changé
+const FALLBACK_MS = 5 * 60_000 // filet de sécurité : rechargement complet toutes les 5 minutes même si le contrôle échoue
 const STORE = 'bi-filters'
 
 export default function BiDashboard({ tab }: { tab: BiTabKey }) {
@@ -54,20 +55,43 @@ export default function BiDashboard({ tab }: { tab: BiTabKey }) {
   }, [ready, from, to, tz, sel.grain, hub, slot, status])
   useEffect(() => { set({ start: from, end: to }) }, [from, to, set])
 
-  const load = useCallback(async () => {
-    setLoading(true)
+  const verRef = useRef<string | null>(null)
+  const [live, setLive] = useState(true)
+
+  const load = useCallback(async (silent = false) => {
+    if (!silent) setLoading(true)
     try {
       const r = await fetch(`/api/ops/bi/orders?from=${from}&to=${to}`, { cache: 'no-store' })
       const j = await r.json()
       if (!r.ok) throw new Error(j.error || `HTTP ${r.status}`)
-      setData(j as Payload); setError(null); setUpdated(new Date())
+      setData(j as Payload); verRef.current = (j as Payload).version ?? null; setError(null); setUpdated(new Date()); setLive(true)
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Erreur de chargement')
-    } finally { setLoading(false) }
+    } finally { if (!silent) setLoading(false) }
   }, [from, to])
 
-  useEffect(() => { if (!ready) return; const t = setTimeout(load, 250); return () => clearTimeout(t) }, [load, ready])
-  useEffect(() => { const t = setInterval(load, REFRESH_MS); return () => clearInterval(t) }, [load])
+  useEffect(() => { if (!ready) return; verRef.current = null; const t = setTimeout(() => load(), 250); return () => clearTimeout(t) }, [load, ready])
+  useEffect(() => { const t = setInterval(() => load(true), FALLBACK_MS); return () => clearInterval(t) }, [load])
+
+  // Temps réel : on demande l'empreinte des données toutes les 10 s (et dès que l'onglet redevient visible) ; si elle a changé, on recharge sans clignoter.
+  useEffect(() => {
+    if (!ready) return
+    let stop = false
+    const check = async () => {
+      if (stop || document.hidden || verRef.current === null) return
+      try {
+        const r = await fetch(`/api/ops/bi/version?from=${from}&to=${to}`, { cache: 'no-store' })
+        if (!r.ok) throw new Error(String(r.status))
+        const { version } = (await r.json()) as { version: string }
+        setLive(true)
+        if (!stop && version !== verRef.current) await load(true)
+      } catch { setLive(false) }
+    }
+    const t = setInterval(check, CHECK_MS)
+    const onVisible = () => { if (!document.hidden) void check() }
+    document.addEventListener('visibilitychange', onVisible)
+    return () => { stop = true; clearInterval(t); document.removeEventListener('visibilitychange', onVisible) }
+  }, [ready, from, to, load])
 
   const lp = useMemo(() => makeLocal(tz), [tz])
   const all = useMemo(() => (data?.rows ?? []).map(r => prepBi(r, lp)), [data, lp])
@@ -101,10 +125,10 @@ export default function BiDashboard({ tab }: { tab: BiTabKey }) {
           </div>
           <div className="flex flex-wrap items-center gap-2">
             <div className={`flex items-center gap-1.5 rounded-full px-3 py-1.5 text-xs font-medium ${ok ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'}`}>
-              {ok ? <><Wifi className="h-3.5 w-3.5" /> Connecté</> : <><WifiOff className="h-3.5 w-3.5" /> Indisponible</>}
+              {ok ? <><span className="relative flex h-2 w-2"><span className={`absolute inline-flex h-full w-full rounded-full ${live ? 'animate-ping bg-green-500 opacity-60' : 'bg-orange-400'}`} /><span className={`relative inline-flex h-2 w-2 rounded-full ${live ? 'bg-green-600' : 'bg-orange-500'}`} /></span> {live ? 'En direct' : 'Reconnexion…'}</> : <><WifiOff className="h-3.5 w-3.5" /> Indisponible</>}
             </div>
-            {updated && <span className="text-xs text-gray-400">Mis à jour à {updated.toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' })}</span>}
-            <button onClick={load} className="flex items-center gap-1.5 rounded-lg border border-gray-200 bg-white px-3 py-1.5 text-xs font-medium text-gray-600 hover:bg-gray-50">
+            {updated && <span className="text-xs text-gray-400">Mis à jour à {updated.toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit', second: '2-digit' })}</span>}
+            <button onClick={() => load()} className="flex items-center gap-1.5 rounded-lg border border-gray-200 bg-white px-3 py-1.5 text-xs font-medium text-gray-600 hover:bg-gray-50">
               <RefreshCw className={`h-3.5 w-3.5 ${loading ? 'animate-spin' : ''}`} /> Actualiser
             </button>
             <button onClick={() => window.print()} className="flex items-center gap-1.5 rounded-lg bg-purple-600 px-3 py-1.5 text-xs font-semibold text-white hover:bg-purple-700">
@@ -143,7 +167,7 @@ export default function BiDashboard({ tab }: { tab: BiTabKey }) {
         </div>
 
         {data?.truncated && <div className="rounded-lg border border-amber-200 bg-amber-50 p-3 text-xs text-amber-800">Période très volumineuse : seules les premières commandes sont chargées. Réduisez la période pour des chiffres complets.</div>}
-        {error && <div className="rounded-xl border border-red-100 bg-red-50 p-4 text-sm text-red-700">Impossible de charger les données : {error} <button onClick={load} className="ml-2 underline">Réessayer</button></div>}
+        {error && <div className="rounded-xl border border-red-100 bg-red-50 p-4 text-sm text-red-700">Impossible de charger les données : {error} <button onClick={() => load()} className="ml-2 underline">Réessayer</button></div>}
         {!error && loading && !data && <div className="flex items-center justify-center gap-3 py-12 text-sm text-gray-500"><div className="h-5 w-5 animate-spin rounded-full border-2 border-blue-600 border-t-transparent" />Chargement des commandes…</div>}
         {data && !rows.length && !loading && (
           <div className="rounded-xl border border-gray-200 bg-white p-8 text-center text-sm text-gray-500">

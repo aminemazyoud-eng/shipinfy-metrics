@@ -4,14 +4,18 @@
 // le HTML de référence (docs/dashboard-reference), alimenté par l'API du back-office (GET /api/ops/bi/orders) au lieu d'un CSV.
 // La navigation entre vues est assurée par la barre de sous-modules (lib/module-nav.ts) ; les filtres sont conservés d'une vue à l'autre.
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { BarChart3, FileDown, RefreshCw, WifiOff } from 'lucide-react'
+import { BarChart3, FileDown, FileSpreadsheet, RefreshCw, WifiOff } from 'lucide-react'
 import { addDays, localToday } from '@/lib/tz'
 import { biTab, type BiTabKey } from '@/lib/bi-tabs'
 import { DEFAULT_SEL, hubsOf, makeLocal, n, prepBi, type BiRaw, type Sel, type TzMode } from '@/lib/ops-bi'
+import { useCurrentUser } from '@/hooks/useCurrentUser'
+import ImportPanel from './ImportPanel'
 import { ClientsTab, DriversTab, GeoTab, LeadTab, OverviewTab, QualityTab, SlotsTab, ValueTab } from './BiTabs'
 
 interface Payload { rows: BiRaw[]; truncated: boolean; source: string; lastSync: string | null; from: string; to: string; version?: string }
-interface Saved { from: string; to: string; tz: TzMode; grain: Sel['grain']; hub: string; slot: string; status: string }
+interface Saved { from: string; to: string; tz: TzMode; grain: Sel['grain']; hub: string; slot: string; status: string; source?: SourceKey }
+type SourceKey = 'active' | 'import'
+interface SourceInfo { key: SourceKey; label: string; source: string; count: number | null; from: string | null; to: string | null; lastSync: string | null }
 
 const CHECK_MS = 10_000 // contrôle léger toutes les 10 s : on ne recharge les commandes que si les données ont changé
 const FALLBACK_MS = 5 * 60_000 // filet de sécurité : rechargement complet toutes les 5 minutes même si le contrôle échoue
@@ -28,6 +32,12 @@ export default function BiDashboard({ tab }: { tab: BiTabKey }) {
   const [sel, setSelState] = useState<Sel>({ ...DEFAULT_SEL, start: addDays(today, -29), end: today })
   const [hub, setHub] = useState(''), [slot, setSlot] = useState(''), [status, setStatus] = useState('')
   const [ready, setReady] = useState(false)
+  const [source, setSource] = useState<SourceKey>('active')
+  const [sources, setSources] = useState<SourceInfo[]>([])
+  const [showImport, setShowImport] = useState(false)
+  const chosen = useRef(false) // vrai dès que l'utilisateur a choisi une source (sinon on applique la source par défaut du serveur)
+  const { user } = useCurrentUser()
+  const canImport = ['MANAGER', 'ADMIN', 'SUPER_ADMIN'].includes(user?.role ?? '')
   const [data, setData] = useState<Payload | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
@@ -44,15 +54,15 @@ export default function BiDashboard({ tab }: { tab: BiTabKey }) {
         if (s.from && s.to) { setFrom(s.from); setTo(s.to) }
         if (s.tz) setTz(s.tz)
         if (s.grain) setSelState(x => ({ ...x, grain: s.grain! }))
-        setHub(s.hub ?? ''); setSlot(s.slot ?? ''); setStatus(s.status ?? '')
+        setHub(s.hub ?? ''); setSlot(s.slot ?? ''); setStatus(s.status ?? ''); if (s.source) { chosen.current = true; setSource(s.source) }
       }
     } catch { /* stockage indisponible : filtres par défaut */ }
     setReady(true)
   }, [])
   useEffect(() => {
     if (!ready) return
-    try { sessionStorage.setItem(STORE, JSON.stringify({ from, to, tz, grain: sel.grain, hub, slot, status } satisfies Saved)) } catch { /* ignore */ }
-  }, [ready, from, to, tz, sel.grain, hub, slot, status])
+    try { sessionStorage.setItem(STORE, JSON.stringify({ from, to, tz, grain: sel.grain, hub, slot, status, source } satisfies Saved)) } catch { /* ignore */ }
+  }, [ready, from, to, tz, sel.grain, hub, slot, status, source])
   useEffect(() => { set({ start: from, end: to }) }, [from, to, set])
 
   const verRef = useRef<string | null>(null)
@@ -61,14 +71,26 @@ export default function BiDashboard({ tab }: { tab: BiTabKey }) {
   const load = useCallback(async (silent = false) => {
     if (!silent) setLoading(true)
     try {
-      const r = await fetch(`/api/ops/bi/orders?from=${from}&to=${to}`, { cache: 'no-store' })
+      const r = await fetch(`/api/ops/bi/orders?from=${from}&to=${to}&source=${source}`, { cache: 'no-store' })
       const j = await r.json()
       if (!r.ok) throw new Error(j.error || `HTTP ${r.status}`)
       setData(j as Payload); verRef.current = (j as Payload).version ?? null; setError(null); setUpdated(new Date()); setLive(true)
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Erreur de chargement')
     } finally { if (!silent) setLoading(false) }
-  }, [from, to])
+  }, [from, to, source])
+
+  const loadSources = useCallback(async () => {
+    try {
+      const r = await fetch('/api/ops/bi/sources', { cache: 'no-store' })
+      if (r.ok) {
+        const j = (await r.json()) as { sources: SourceInfo[]; defaultKey?: SourceKey }
+        setSources(j.sources)
+        if (!chosen.current && j.defaultKey) { chosen.current = true; setSource(j.defaultKey) }
+      }
+    } catch { /* sélecteur masqué si indisponible */ }
+  }, [])
+  useEffect(() => { if (ready) void loadSources() }, [ready, loadSources])
 
   useEffect(() => { if (!ready) return; verRef.current = null; const t = setTimeout(() => load(), 250); return () => clearTimeout(t) }, [load, ready])
   useEffect(() => { const t = setInterval(() => load(true), FALLBACK_MS); return () => clearInterval(t) }, [load])
@@ -80,7 +102,7 @@ export default function BiDashboard({ tab }: { tab: BiTabKey }) {
     const check = async () => {
       if (stop || document.hidden || verRef.current === null) return
       try {
-        const r = await fetch(`/api/ops/bi/version?from=${from}&to=${to}`, { cache: 'no-store' })
+        const r = await fetch(`/api/ops/bi/version?from=${from}&to=${to}&source=${source}`, { cache: 'no-store' })
         if (!r.ok) throw new Error(String(r.status))
         const { version } = (await r.json()) as { version: string }
         setLive(true)
@@ -91,7 +113,7 @@ export default function BiDashboard({ tab }: { tab: BiTabKey }) {
     const onVisible = () => { if (!document.hidden) void check() }
     document.addEventListener('visibilitychange', onVisible)
     return () => { stop = true; clearInterval(t); document.removeEventListener('visibilitychange', onVisible) }
-  }, [ready, from, to, load])
+  }, [ready, from, to, source, load])
 
   const lp = useMemo(() => makeLocal(tz), [tz])
   const all = useMemo(() => (data?.rows ?? []).map(r => prepBi(r, lp)), [data, lp])
@@ -103,7 +125,7 @@ export default function BiDashboard({ tab }: { tab: BiTabKey }) {
 
   const preset = (days: number) => { setFrom(addDays(today, -(days - 1))); setTo(today) }
   const props = { rows, base, sel, set, lp }
-  const source = { name: data?.source ?? '—', lastSync: data?.lastSync ?? null }
+  const qualitySource = { name: data?.source === 'import' ? 'Import fichier' : (data?.source ?? '—'), lastSync: data?.lastSync ?? null }
   const ok = !error && !!data
   const inp = 'rounded-lg border border-gray-200 bg-white px-2 py-1.5 text-xs text-gray-800'
   const lbl = 'text-[11px] font-semibold text-gray-500'
@@ -137,14 +159,43 @@ export default function BiDashboard({ tab }: { tab: BiTabKey }) {
           </div>
         </div>
 
-        {/* Source de données */}
+        {/* Source de données : API du back-office OU fichier d'export (deux scénarios, au choix) */}
         <div className="rounded-xl border border-gray-200 bg-white p-3.5 shadow-sm print:hidden">
-          <strong className="text-sm text-gray-900">Source de données</strong>
-          <p className="text-xs text-gray-500">Les commandes viennent de l’API du back-office Shipinfy (synchronisation automatique) — aucun fichier à importer.</p>
-          <p className="mt-1 text-xs font-medium text-gray-600">
-            {data ? <>Source : {data.source} · {n(data.rows.length)} commandes chargées{data.lastSync && <> · dernière synchro {new Date(data.lastSync).toLocaleString('fr-FR', { dateStyle: 'short', timeStyle: 'short' })}</>}</> : 'Chargement…'}
+          <div className="flex flex-wrap items-start justify-between gap-3">
+            <div>
+              <strong className="text-sm text-gray-900">Source de données</strong>
+              <p className="text-xs text-gray-500">Choisissez d’où viennent les commandes : l’API du back-office (synchronisation automatique) ou un fichier d’export importé.</p>
+            </div>
+            {canImport && (
+              <button onClick={() => setShowImport(v => !v)} className="flex items-center gap-1.5 rounded-lg border border-gray-200 bg-white px-3 py-1.5 text-xs font-medium text-gray-700 hover:bg-gray-50">
+                <FileSpreadsheet className="h-3.5 w-3.5 text-blue-600" /> Importer un fichier d’export
+              </button>
+            )}
+          </div>
+          <div className="mt-2.5 flex flex-wrap gap-2">
+            {(sources.length ? sources : [{ key: 'active', label: 'API back-office', count: null, from: null, to: null, lastSync: null, source: '' } as SourceInfo]).map(s => {
+              const on = source === s.key
+              const empty = s.count === 0
+              return (
+                <button key={s.key} onClick={() => { chosen.current = true; setSource(s.key); verRef.current = null }} aria-pressed={on}
+                  className={`rounded-lg border px-3 py-2 text-left text-xs transition ${on ? 'border-blue-300 bg-blue-50 text-blue-900' : 'border-gray-200 text-gray-600 hover:bg-gray-50'} ${empty && !on ? 'opacity-60' : ''}`}>
+                  <span className="flex items-center gap-1.5 font-semibold"><span className={`h-2 w-2 rounded-full ${on ? 'bg-blue-600' : 'bg-gray-300'}`} />{s.label}</span>
+                  <span className="mt-0.5 block text-[11px] text-gray-500">
+                    {s.count === null ? '—' : s.count === 0 ? 'aucune commande' : `${n(s.count)} commandes${s.from && s.to ? ` · ${s.from.split('-').reverse().join('/')} → ${s.to.split('-').reverse().join('/')}` : ''}`}
+                    {s.lastSync ? ` · maj ${new Date(s.lastSync).toLocaleString('fr-FR', { dateStyle: 'short', timeStyle: 'short' })}` : ''}
+                  </span>
+                </button>
+              )
+            })}
+          </div>
+          <p className="mt-2 text-xs font-medium text-gray-600">
+            {data ? <>Affichage : {source === 'import' ? 'Import fichier' : `API back-office (${data.source})`} · {n(data.rows.length)} commandes sur la période{data.lastSync && <> · dernière mise à jour {new Date(data.lastSync).toLocaleString('fr-FR', { dateStyle: 'short', timeStyle: 'short' })}</>}</> : 'Chargement…'}
           </p>
         </div>
+        {showImport && canImport && (
+          <ImportPanel canPurge={user?.role === 'ADMIN' || user?.role === 'SUPER_ADMIN'} hasImport={(sources.find(x => x.key === 'import')?.count ?? 0) > 0}
+            onClose={() => setShowImport(false)} onImported={() => { void loadSources(); chosen.current = true; setSource('import'); verRef.current = null }} />
+        )}
 
         {/* Filtres */}
         <div className="flex flex-wrap items-end gap-3 rounded-xl border border-gray-200 bg-white p-3.5 shadow-sm print:hidden">
@@ -171,7 +222,7 @@ export default function BiDashboard({ tab }: { tab: BiTabKey }) {
         {!error && loading && !data && <div className="flex items-center justify-center gap-3 py-12 text-sm text-gray-500"><div className="h-5 w-5 animate-spin rounded-full border-2 border-blue-600 border-t-transparent" />Chargement des commandes…</div>}
         {data && !rows.length && !loading && (
           <div className="rounded-xl border border-gray-200 bg-white p-8 text-center text-sm text-gray-500">
-            Aucune commande sur cette période et ces filtres.<br /><small className="text-xs">Vérifiez la synchronisation du back-office (Paramètres › Intégrations) ou élargissez la période.</small>
+            Aucune commande sur cette période et ces filtres.<br /><small className="text-xs">{source === 'import' ? 'Importez un fichier d’export ou élargissez la période.' : 'Vérifiez la synchronisation du back-office (Paramètres › Intégrations), importez un fichier d’export, ou élargissez la période.'}</small>
           </div>
         )}
 
@@ -186,7 +237,7 @@ export default function BiDashboard({ tab }: { tab: BiTabKey }) {
             {tab === 'geo' && <GeoTab {...props} />}
             {tab === 'clients' && <ClientsTab {...props} />}
             {tab === 'value' && <ValueTab {...props} />}
-            {tab === 'quality' && <QualityTab {...props} source={source} />}
+            {tab === 'quality' && <QualityTab {...props} source={qualitySource} />}
           </div>
         )}
       </div>

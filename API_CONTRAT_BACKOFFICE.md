@@ -133,3 +133,27 @@ Constats dans le code actuel : l'outbox ne pousse que `{status}` et `{courierRef
 - Spécification : `docs/api/shipinfy-backoffice.openapi.yaml` (ouvrable dans Swagger Editor ou Redoc).
 - Implémentation de référence de la partie A : `mock-backoffice/server.js` (+ `scripts/test-backoffice-contract.mjs --self-test` pour une version minimale conforme).
 - Code consommateur : `lib/ops-sync.ts` (pull, outbox), `lib/ops-data.ts` (mode direct), `lib/ops-ingest.ts` (API entrante), `lib/ops-webhooks.ts` (webhooks).
+
+## 10. Scénario B — alimentation par fichier d'export (en parallèle de l'API)
+
+Les deux modes coexistent : **A** = API du back-office (pull/push, sections ci-dessus), **B** = fichier d'export envoyé à Metrics. Le Dashboard propose un sélecteur « Source de données » ; les commandes importées sont stockées à part (source `import`) et ne touchent jamais celles de l'API. Par défaut le Dashboard ouvre la source A ; `BI_DEFAULT_SOURCE=import` (variable d'environnement) l'ouvre sur le fichier.
+
+### Envoi automatique (système d'Imad, toutes les 5 minutes)
+
+`POST /api/v1/import` — en-tête `x-api-key: <clé>` (clés déclarées dans la variable `INGEST_API_KEYS`, format `nom:clé`, clé ≥ 16 caractères ; seule la partie « clé » est envoyée).
+
+```bash
+# fichier brut
+curl -X POST "https://metrics.mediflows.shop/api/v1/import"   -H "x-api-key: <clé>" -H "X-Filename: export.csv" --data-binary @export.csv
+# ou multipart (champ "file")
+curl -X POST "https://metrics.mediflows.shop/api/v1/import" -H "x-api-key: <clé>" -F file=@export.xlsx
+```
+
+- Formats : `.csv` ou `.xlsx`, 10 Mo / 200 000 lignes maximum. `?dryRun=1` : analyse sans rien enregistrer.
+- Colonnes attendues (22, nom exact de l'export) : shipperReference, dateTimeWhenOrderSent, dateTimeWhenAssigned, dateTimeWhenInTransport, dateTimeWhenStartDelivery, dateTimeWhenDelivrered, deliveryTimeStart, deliveryTimeEnd, deliveryAttemptCount, shippingWorkflowStatus, paymentOnDeliveryAmount, originHub.name, originHub.address.longitude, originHub.address.lattitude, destinationShippingAddress.longitude, destinationShippingAddress.lattitude, destinationContactDetails.mobileNumber, destinationContactDetails.firstname, sprint.businessUser.firstName, sprint.businessUser.lastName, sprint.businessUser.id, dateTimeLastUpdate. **Obligatoires** : shipperReference, dateTimeWhenOrderSent, deliveryTimeStart, deliveryTimeEnd, shippingWorkflowStatus, originHub.name.
+- **Idempotent** : on peut renvoyer l'export COMPLET à chaque fois ; seules les commandes nouvelles ou modifiées sont écrites. Doublons dans le fichier : la ligne la plus récente (`dateTimeLastUpdate`) gagne ; une version plus ancienne n'écrase jamais une plus récente.
+- Réponses : `200` (`inserted` / `replaced` / `unchanged`), `400`, `401` clé, `409` import déjà en cours (réessayer), `413` > 10 Mo, `422` colonnes/fichier invalides, `429` limite (30 envois/min par clé), `503` clés non configurées. Chaque envoi est tracé dans le journal d'audit (`ops.import_auto`).
+
+### Import manuel
+
+Dashboard → bouton « Importer un fichier » (rôles MANAGER et plus) : « Vérifier le fichier » (aperçu) puis « Importer ». Modèle CSV téléchargeable. Suppression des données importées : ADMIN et plus.

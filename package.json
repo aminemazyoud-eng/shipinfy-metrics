@@ -14,7 +14,8 @@
     "seed:ops": "node scripts/seed-ops.js",
     "reset:password": "node --env-file=.env.local scripts/reset-password.mjs",
     "test:bi": "node scripts/test-ops-bi-parity.mjs",
-    "test:report": "node scripts/test-bi-report.mjs"
+    "test:report": "node scripts/test-bi-report.mjs",
+    "test:import": "node scripts/test-ops-import.mjs"
   },
   "dependencies": {
     "@base-ui/react": "^1.3.0",

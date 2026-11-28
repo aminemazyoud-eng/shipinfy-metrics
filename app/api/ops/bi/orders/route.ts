@@ -1,9 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { opsAuth, fail } from '@/lib/ops-auth'
-import { loadBiOrders, biVersion, BI_MAX_DAYS } from '@/lib/ops-bi-data'
+import { loadBiOrders, biVersion, parseSourceKey, BI_MAX_DAYS } from '@/lib/ops-bi-data'
 import { addDays, localToday } from '@/lib/tz'
 
-// GET /api/ops/bi/orders?from=YYYY-MM-DD&to=YYYY-MM-DD[&cancelled=1]
+// GET /api/ops/bi/orders?from=YYYY-MM-DD&to=YYYY-MM-DD[&cancelled=1][&source=import]  (source : « active » = API du back-office par défaut, « import » = fichier d'export)
 // Commandes (jour de transmission local dans [from, to]) au format des 22 colonnes de l'ancien export CSV,
 // alimentées par l'API du back-office. Les KPI du dashboard sont calculés côté navigateur (lib/ops-bi.ts).
 const DAY_RE = /^\d{4}-\d{2}-\d{2}$/
@@ -19,8 +19,9 @@ export async function GET(req: NextRequest) {
     if (from > to) [from, to] = [to, from]
     const span = Math.round((Date.parse(to) - Date.parse(from)) / 86_400_000) + 1
     if (span > BI_MAX_DAYS) return NextResponse.json({ error: `Période trop longue (max ${BI_MAX_DAYS} jours)` }, { status: 400 })
-    const version = await biVersion(from, to) // avant le chargement : un changement survenu pendant la lecture sera détecté au prochain contrôle
-    const payload = await loadBiOrders(from, to, sp.get('cancelled') === '1')
+    const sourceKey = parseSourceKey(sp.get('source'))
+    const version = await biVersion(from, to, sourceKey) // avant le chargement : un changement survenu pendant la lecture sera détecté au prochain contrôle
+    const payload = await loadBiOrders(from, to, sp.get('cancelled') === '1', sourceKey)
     return NextResponse.json({ ...payload, version }, { headers: { 'Cache-Control': 'no-store' } })
   } catch (e) {
     return fail(e)

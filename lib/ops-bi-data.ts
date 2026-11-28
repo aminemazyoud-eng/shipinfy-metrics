@@ -8,10 +8,18 @@ import { prisma } from '@/lib/prisma'
 import { ACTIVE_SOURCE, directMode, loadHubs, loadDrivers } from '@/lib/ops-data'
 import { opsSyncConfig, type BoOrder } from '@/lib/ops-sync'
 import { dayStartUtc, addDays } from '@/lib/tz'
+import { IMPORT_SOURCE } from '@/lib/ops-import'
 import type { BiRaw } from '@/lib/ops-bi'
 
 export const BI_MAX_DAYS = 366
 export const BI_MAX_ROWS = 60_000
+
+/** Source lue : « active » = API du back-office (OPS_ACTIVE_SOURCE) ; « import » = fichier d'export importé. */
+export type BiSourceKey = 'active' | 'import'
+export const parseSourceKey = (v: string | null | undefined): BiSourceKey => (v === 'import' ? 'import' : 'active')
+/** Source affichée par défaut (avant tout choix de l'utilisateur) : BI_DEFAULT_SOURCE=import quand le Dashboard est alimenté par l'export envoyé automatiquement. */
+export const biDefaultSource = (): BiSourceKey => (process.env.BI_DEFAULT_SOURCE === 'import' ? 'import' : 'active')
+const resolveSource = (k: BiSourceKey) => (k === 'import' ? IMPORT_SOURCE : ACTIVE_SOURCE)
 
 export interface BiPayload { rows: BiRaw[]; truncated: boolean; source: string; lastSync: string | null; from: string; to: string }
 
@@ -24,11 +32,11 @@ async function boFetch<T>(path: string): Promise<T> {
   return r.json() as Promise<T>
 }
 
-export async function loadBiOrders(from: string, to: string, includeCancelled = false): Promise<BiPayload> {
-  const t0 = dayStartUtc(from), t1 = dayStartUtc(addDays(to, 1))
+export async function loadBiOrders(from: string, to: string, includeCancelled = false, sourceKey: BiSourceKey = 'active'): Promise<BiPayload> {
+  const t0 = dayStartUtc(from), t1 = dayStartUtc(addDays(to, 1)), src = resolveSource(sourceKey)
 
-  // ── Dev : lecture directe du back-office ──
-  if (directMode()) {
+  // ── Dev : lecture directe du back-office (uniquement pour la source « active ») ──
+  if (directMode() && sourceKey === 'active') {
     const [hubs, drivers] = await Promise.all([loadHubs(), loadDrivers()])
     const hubBy = new Map(hubs.map(h => [h.code, h])), drvBy = new Map(drivers.map(d => [d.code, d]))
     const out: BiRaw[] = []
@@ -60,7 +68,7 @@ export async function loadBiOrders(from: string, to: string, includeCancelled = 
   const [orders, hubs, sync] = await Promise.all([
     prisma.opsOrder.findMany({
       where: {
-        source: ACTIVE_SOURCE,
+        source: src,
         ...(includeCancelled ? {} : { status: { not: 'CANCELLED' } }),
         OR: [{ createdAtSrc: { gte: new Date(t0), lt: new Date(t1) } }, { createdAtSrc: null, slotStart: { gte: new Date(t0), lt: new Date(t1) } }],
       },
@@ -73,7 +81,7 @@ export async function loadBiOrders(from: string, to: string, includeCancelled = 
       },
     }),
     prisma.opsHub.findMany({ select: { code: true, name: true, lat: true, lng: true } }),
-    prisma.opsSyncRun.findFirst({ where: { source: ACTIVE_SOURCE, ok: true }, orderBy: { startedAt: 'desc' }, select: { finishedAt: true, startedAt: true } }),
+    prisma.opsSyncRun.findFirst({ where: { source: src, ok: true }, orderBy: { startedAt: 'desc' }, select: { finishedAt: true, startedAt: true } }),
   ])
   const hubBy = new Map(hubs.map(h => [h.code, h]))
   const truncated = orders.length > BI_MAX_ROWS
@@ -88,7 +96,7 @@ export async function loadBiOrders(from: string, to: string, includeCancelled = 
       driverId: code, driver: o.driver ? `${o.driver.firstName} ${o.driver.lastName}`.trim() : (o.courierRef ?? null), updatedAt: iso(o.sourceUpdatedAt),
     }
   })
-  return { rows, truncated, source: ACTIVE_SOURCE, lastSync: iso(sync?.finishedAt ?? sync?.startedAt ?? null), from, to }
+  return { rows, truncated, source: src, lastSync: iso(sync?.finishedAt ?? sync?.startedAt ?? null), from, to }
 }
 
 /**
@@ -96,19 +104,42 @@ export async function loadBiOrders(from: string, to: string, includeCancelled = 
  * Sert au rafraîchissement automatique de l'écran : le navigateur l'interroge toutes les ~10 s et ne recharge les commandes que si elle change
  * (donc dès qu'une commande arrive par push, est synchronisée par pull, ou change de statut côté terrain).
  */
-export async function biVersion(from: string, to: string): Promise<string> {
-  const t0 = dayStartUtc(from), t1 = dayStartUtc(addDays(to, 1))
-  if (directMode()) {
+export async function biVersion(from: string, to: string, sourceKey: BiSourceKey = 'active'): Promise<string> {
+  const t0 = dayStartUtc(from), t1 = dayStartUtc(addDays(to, 1)), src = resolveSource(sourceKey)
+  if (directMode() && sourceKey === 'active') {
     const p = await loadBiOrders(from, to, true)
     let h = 0
     for (const r of p.rows) for (const c of `${r.id}|${r.status}|${r.driverId}|${r.deliveredAt}|${r.updatedAt}`) h = (h * 31 + c.charCodeAt(0)) | 0
     return `d:${p.rows.length}:${h}`
   }
   const a = await prisma.opsOrder.aggregate({
-    where: { source: ACTIVE_SOURCE, OR: [{ createdAtSrc: { gte: new Date(t0), lt: new Date(t1) } }, { createdAtSrc: null, slotStart: { gte: new Date(t0), lt: new Date(t1) } }] },
+    where: { source: src, OR: [{ createdAtSrc: { gte: new Date(t0), lt: new Date(t1) } }, { createdAtSrc: null, slotStart: { gte: new Date(t0), lt: new Date(t1) } }] },
     _count: { _all: true },
     _max: { sourceUpdatedAt: true, syncedAt: true, assignedAt: true, inTransportAt: true, startDeliveryAt: true, deliveredAt: true, noShowAt: true },
   })
   const m = a._max
   return [a._count._all, m.sourceUpdatedAt, m.syncedAt, m.assignedAt, m.inTransportAt, m.startDeliveryAt, m.deliveredAt, m.noShowAt].map(v => (v instanceof Date ? v.getTime() : v ?? 0)).join(':')
+}
+
+export interface BiSourceInfo { key: BiSourceKey; label: string; source: string; count: number | null; from: string | null; to: string | null; lastSync: string | null }
+
+/** Sources disponibles pour le Dashboard, avec leur volume, la période couverte et leur dernière mise à jour. */
+export async function biSources(): Promise<BiSourceInfo[]> {
+  const keys: { key: BiSourceKey; label: string }[] = [{ key: 'active', label: 'API back-office' }, { key: 'import', label: 'Import fichier' }]
+  const out: BiSourceInfo[] = []
+  for (const { key, label } of keys) {
+    const source = resolveSource(key)
+    if (key === 'active' && directMode()) { out.push({ key, label, source: 'mock (direct)', count: null, from: null, to: null, lastSync: new Date().toISOString() }); continue }
+    try {
+      const [agg, run] = await Promise.all([
+        prisma.opsOrder.aggregate({ where: { source }, _count: { _all: true }, _min: { createdAtSrc: true, slotStart: true }, _max: { createdAtSrc: true, slotStart: true } }),
+        prisma.opsSyncRun.findFirst({ where: { source, ok: true }, orderBy: { startedAt: 'desc' }, select: { finishedAt: true, startedAt: true } }),
+      ])
+      const lo = agg._min.createdAtSrc ?? agg._min.slotStart, hi = agg._max.createdAtSrc ?? agg._max.slotStart
+      out.push({ key, label, source, count: agg._count._all, from: lo ? lo.toISOString().slice(0, 10) : null, to: hi ? hi.toISOString().slice(0, 10) : null, lastSync: iso(run?.finishedAt ?? run?.startedAt ?? null) })
+    } catch {
+      out.push({ key, label, source, count: null, from: null, to: null, lastSync: null })
+    }
+  }
+  return out
 }

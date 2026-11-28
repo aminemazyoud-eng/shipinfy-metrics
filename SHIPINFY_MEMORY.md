@@ -1242,3 +1242,10 @@ Réponse au cahier des charges (14 exigences) : 1 disponible, 10 partielles, 3 r
 - **Limite** : la fraîcheur réelle = latence d'arrivée des données dans Metrics + ≤ 10 s. En PULL (toutes les 5 min, `lib/cron.ts`) l'écran ne peut pas être plus frais que la synchro ; pour du vrai temps réel, le back-office doit PUSHER
   (`POST/PUT /api/v1/orders`, voir API_CONTRAT_BACKOFFICE.md) — en attente de la documentation d'Imad. Seul le Dashboard (8 vues) est concerné ; la page Livreurs et le Cockpit ont leur propre rafraîchissement.
 - **Poste local** : le `DATABASE_URL` de `.env.local` est invalide ; pour tester sans toucher à Supabase, précharger un `DATABASE_URL` factice (`node --require <fichier> next dev`).
+
+## 35. SCÉNARIO B — ALIMENTATION PAR FICHIER D'EXPORT (2026-11-28)
+- **Besoin** : en plus de l'API back-office (A), accepter l'export Shipinfy (CSV/XLSX, 22 colonnes) — Imad l'enverra automatiquement toutes les 5 min. Les deux modes coexistent.
+- **Code** : `lib/ops-import.ts` (cartographie pure + `diffImport`), `lib/ops-import-db.ts` (enregistrement incrémental, verrou 3 min, purge), `lib/ops-import-run.ts` (traitement commun), `app/api/v1/import/route.ts` (clé `INGEST_API_KEYS`, automatique), `app/api/ops/import/route.ts` (manuel MANAGER+, DELETE ADMIN+), `app/api/ops/bi/sources/route.ts`, `source` dans `lib/ops-bi-data.ts` + routes `bi/orders|version`, `components/bi/ImportPanel.tsx`, sélecteur de source dans `BiDashboard.tsx`.
+- **Données** : source `import`, hubs `IMP:<slug>` ; jamais mélangées avec l'API. `BI_DEFAULT_SOURCE=import` ouvre le Dashboard sur le fichier.
+- **Test** : `npm run test:import` (1 800 lignes → 1 500 commandes, 0 écart avec le calcul API, incrémental) ; endpoint testé en dryRun (brut, multipart, 401, 422). Le chemin d'écriture en base n'a PAS pu être testé en local (DATABASE_URL invalide) → à vérifier en production avec `?dryRun=1` puis un vrai envoi.
+- **À faire en prod** : définir `INGEST_API_KEYS` (nom:clé) dans Dokploy et donner à Imad l'URL + la clé (voir API_CONTRAT_BACKOFFICE.md §10).
